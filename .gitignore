@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+cdk.out/
+.env
+.env.local
+*.log
+coverage/
+packages/db/drizzle/

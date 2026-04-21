@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-import 'source-map-support/register';
+// Note: source-map-support is not imported here to keep the ESM resolver happy
+// under Node 22+. Lambda runtime source maps are enabled via
+// `NODE_OPTIONS=--enable-source-maps` (set by KosLambda); this file is only
+// used at synth time on the developer workstation.
 import { App, Tags, type Environment } from 'aws-cdk-lib';
-import { RESOLVED_ENV } from '../lib/config/env';
-import { NetworkStack } from '../lib/stacks/network-stack';
+import { RESOLVED_ENV } from '../lib/config/env.js';
+import { NetworkStack } from '../lib/stacks/network-stack.js';
 
 const app = new App();
 const env: Environment = RESOLVED_ENV;

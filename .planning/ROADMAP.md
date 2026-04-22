@@ -45,13 +45,13 @@
 
 - [x] 01-00-PLAN.md — Wave 0: monorepo scaffold + CDK bootstrap + Transcribe region preflight (A9)
 - [x] 01-01-PLAN.md — NetworkStack: VPC (2 AZs, no NAT) + S3 Gateway Endpoint + KosLambda construct
-- [ ] 01-02-PLAN.md — DataStack: RDS 16.5 + pgvector 0.8.0 + blobs bucket + Secrets Manager + BLOCKING schema push
+- [x] 01-02-PLAN.md — DataStack: RDS 16.5 + pgvector 0.8.0 + blobs bucket + Secrets Manager + BLOCKING schema push
 - [x] 01-03-PLAN.md — EventsStack: 5 kos.* EventBridge buses + DLQs + kos-schedules Scheduler group
-- [ ] 01-04-PLAN.md — IntegrationsStack (Notion portion): Entities/Projects/Kevin Context/Legacy Inbox + notion-indexer + backfill + RDS Proxy
-- [ ] 01-05-PLAN.md — IntegrationsStack (Azure portion): Azure AI Search index with binary quantization at creation
-- [ ] 01-06-PLAN.md — IntegrationsStack (Transcribe portion): sv-SE custom vocabulary (phrase-only) deployed
-- [ ] 01-07-PLAN.md — SafetyStack: DynamoDB cap + push-telegram (quiet hours 20-08 Stockholm) + AWS Budgets + VPS freeze
-- [ ] 01-08-PLAN.md — ECS Fargate cluster (kos-cluster) + owner-id sweep + master Gate 1 verifier
+- [x] 01-04-PLAN.md — IntegrationsStack (Notion portion): Entities/Projects/Kevin Context/Legacy Inbox + notion-indexer + backfill + RDS Proxy
+- [x] 01-05-PLAN.md — IntegrationsStack (Azure portion): Azure AI Search index with binary quantization at creation
+- [x] 01-06-PLAN.md — IntegrationsStack (Transcribe portion): sv-SE custom vocabulary (phrase-only) deployed
+- [x] 01-07-PLAN.md — SafetyStack: DynamoDB cap + push-telegram (quiet hours 20-08 Stockholm) + AWS Budgets + VPS freeze
+- [x] 01-08-PLAN.md — ECS Fargate cluster (kos-cluster) + owner-id sweep + master Gate 1 verifier
 
 **UI hint**: no
 

@@ -124,7 +124,7 @@ export function wireTriageAndVoiceCapture(
 
   // --- Per-pipeline DLQs (live in this stack to avoid E↔C cycle) ----------
   const triageDlq = new Queue(scope, 'TriageDlq', {
-    queueName: 'kos-triage-dlq',
+    queueName: 'kos-triage-agent-dlq',
     retentionPeriod: Duration.days(14),
     visibilityTimeout: Duration.minutes(5),
   });

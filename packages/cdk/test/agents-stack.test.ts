@@ -186,7 +186,7 @@ describe('AgentsStack', () => {
     const names = Object.values(queues).map(
       (q) => (q as { Properties?: { QueueName?: string } }).Properties?.QueueName,
     );
-    expect(names).toContain('kos-triage-dlq');
+    expect(names).toContain('kos-triage-agent-dlq');
     expect(names).toContain('kos-voice-capture-dlq');
     expect(names).toContain('kos-entity-resolver-dlq');
   });

@@ -17,6 +17,7 @@
     "verify:gate-1": "node scripts/verify-gate-1.mjs"
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudformation": "^3.1034.0",
     "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/client-lambda": "^3.1034.0",
     "@aws-sdk/client-secrets-manager": "3.691.0",

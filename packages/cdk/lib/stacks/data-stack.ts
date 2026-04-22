@@ -57,6 +57,13 @@ export class DataStack extends Stack {
   public readonly azureSearchAdminSecret: Secret;
   public readonly telegramBotTokenSecret: Secret;
   public readonly dashboardBearerSecret: Secret;
+  // Phase 2 additions (D-25 observability, D-26 errors, CAP-01 webhook secret, D-23 ENT-06 sources).
+  public readonly langfusePublicSecret: Secret;
+  public readonly langfuseSecretSecret: Secret;
+  public readonly sentryDsnSecret: Secret;
+  public readonly telegramWebhookSecret: Secret;
+  public readonly granolaApiKeySecret: Secret;
+  public readonly gmailOauthSecret: Secret;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -169,6 +176,51 @@ export class DataStack extends Stack {
       'DashboardBearer',
       'kos/dashboard-bearer',
       'Static Bearer token for Next.js dashboard (Phase 3 consumer)',
+    );
+
+    // --- Phase 2 secret shells -----------------------------------------------
+    // Six additional placeholders land here so Wave 1+ Plan 02 agents + capture
+    // handlers pull real values from Secrets Manager on cold start. Values are
+    // seeded out-of-band via `scripts/seed-secrets.sh`; T-02-SECRETS-01
+    // mitigation follows the same pattern as the 4 Phase-1 placeholders above.
+
+    // D-25 Langfuse observability (OTel span export)
+    this.langfusePublicSecret = mkSecret(
+      'LangfusePublicKey',
+      'kos/langfuse-public-key',
+      'Langfuse cloud public key (D-25). Seeded via scripts/seed-secrets.sh.',
+    );
+    this.langfuseSecretSecret = mkSecret(
+      'LangfuseSecretKey',
+      'kos/langfuse-secret-key',
+      'Langfuse cloud secret key (D-25).',
+    );
+
+    // D-26 Sentry error tracking
+    this.sentryDsnSecret = mkSecret(
+      'SentryDsn',
+      'kos/sentry-dsn',
+      'Sentry DSN for Lambda error tracking (D-26).',
+    );
+
+    // CAP-01 Telegram webhook secret_token (separate from bot token;
+    // sent in X-Telegram-Bot-Api-Secret-Token header so we can reject forged posts).
+    this.telegramWebhookSecret = mkSecret(
+      'TelegramWebhookSecret',
+      'kos/telegram-webhook-secret',
+      'Telegram secret_token header value (T-02-WEBHOOK-01 mitigation).',
+    );
+
+    // D-23 ENT-06 Granola + Gmail bulk-import credentials
+    this.granolaApiKeySecret = mkSecret(
+      'GranolaApiKey',
+      'kos/granola-api-key',
+      'Granola REST API key for ENT-06 bulk import (D-23). Subject to Assumption A2.',
+    );
+    this.gmailOauthSecret = mkSecret(
+      'GmailOauth',
+      'kos/gmail-oauth-tokens',
+      'Gmail OAuth client_id + client_secret + refresh_token JSON for ENT-06 (D-23).',
     );
 
     // --- ECS Fargate cluster (INF-06) ---------------------------------------

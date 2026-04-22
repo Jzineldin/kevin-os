@@ -12,7 +12,7 @@ import { DataStack } from '../lib/stacks/data-stack';
  *    (D-03, D-07 + RESEARCH Pitfall 4)
  *  - Blobs bucket public-access block + SSL enforcement (T-01-S3-01)
  *  - RDS DeletionPolicy: Retain (D-03)
- *  - 4+ Secrets Manager placeholders (RDS generated secret + 4 app secrets)
+ *  - 10+ Secrets Manager placeholders (RDS generated secret + 4 Phase-1 + 6 Phase-2 app secrets)
  */
 describe('DataStack', () => {
   const app = new App();
@@ -86,15 +86,15 @@ describe('DataStack', () => {
     expect(vpceDeny).toBe(true);
   });
 
-  it('creates at least 4 Secrets Manager entries (RDS-generated + 4 placeholders)', () => {
+  it('creates at least 11 Secrets Manager entries (RDS-generated + 4 Phase-1 + 6 Phase-2)', () => {
     const secrets = tpl.findResources('AWS::SecretsManager::Secret');
-    // RDS-generated credentials secret + 4 placeholder app secrets = >= 5.
-    // Acceptance criterion in PLAN = >= 4; we assert the stricter count
-    // locally so accidental drop of one placeholder fails the test.
-    expect(Object.keys(secrets).length).toBeGreaterThanOrEqual(5);
+    // RDS-generated credentials secret + 4 Phase-1 placeholders + 6 Phase-2
+    // placeholders = >= 11. Asserting the stricter local count so accidental
+    // drop of one placeholder fails the test.
+    expect(Object.keys(secrets).length).toBeGreaterThanOrEqual(11);
   });
 
-  it('exposes the 4 named application secrets by SecretName', () => {
+  it('exposes the 4 Phase-1 named application secrets by SecretName', () => {
     const secrets = tpl.findResources('AWS::SecretsManager::Secret');
     const names = Object.values(secrets).map(
       (s) => (s as { Properties?: { Name?: string } }).Properties?.Name,
@@ -104,6 +104,23 @@ describe('DataStack', () => {
       'kos/azure-search-admin',
       'kos/telegram-bot-token',
       'kos/dashboard-bearer',
+    ]) {
+      expect(names, `missing secret ${expected}`).toContain(expected);
+    }
+  });
+
+  it('exposes the 6 Phase-2 named application secrets by SecretName', () => {
+    const secrets = tpl.findResources('AWS::SecretsManager::Secret');
+    const names = Object.values(secrets).map(
+      (s) => (s as { Properties?: { Name?: string } }).Properties?.Name,
+    );
+    for (const expected of [
+      'kos/langfuse-public-key',
+      'kos/langfuse-secret-key',
+      'kos/sentry-dsn',
+      'kos/telegram-webhook-secret',
+      'kos/granola-api-key',
+      'kos/gmail-oauth-tokens',
     ]) {
       expect(names, `missing secret ${expected}`).toContain(expected);
     }

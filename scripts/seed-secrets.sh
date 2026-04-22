@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Seeds the four KOS Secrets Manager placeholders after KosData has been
-# deployed. CDK creates the secrets (empty shells with RETAIN removal policy);
-# this script writes real values interactively.
+# Seeds the KOS Secrets Manager placeholders after KosData has been deployed.
+# CDK creates the secrets (empty shells with RETAIN removal policy); this
+# script writes real values interactively.
 #
 # Usage: bash scripts/seed-secrets.sh
 #
 # Reads values from the TTY. Typing "PLACEHOLDER" (case-insensitive) or
-# leaving the input empty skips that secret — useful for Phase 1 when
-# TELEGRAM_BOT_TOKEN / KOS_DASHBOARD_BEARER aren't ready yet.
+# leaving the input empty skips that secret — useful in early phases when
+# downstream secrets (Langfuse, Sentry, Granola, Gmail OAuth, etc.) aren't
+# provisioned yet. Operator seeds value AFTER CDK deploy; placeholder OK
+# until Phase 2 agents run.
 #
 # Values only flow into AWS Secrets Manager; no file artifacts are written.
-# Threat T-01-SECRET-01 mitigation.
+# Threat T-01-SECRET-01 / T-02-SECRETS-01 mitigation.
 
 set -euo pipefail
 
@@ -51,6 +53,18 @@ seed_one "kos/notion-token" "NOTION_TOKEN_KOS"
 seed_one "kos/azure-search-admin" "AZURE_SEARCH_ADMIN_KEY"
 seed_one "kos/telegram-bot-token" "TELEGRAM_BOT_TOKEN"
 seed_one "kos/dashboard-bearer" "KOS_DASHBOARD_BEARER"
+
+# Phase 2 additions -----------------------------------------------------------
+# D-25 Langfuse observability
+seed_one "kos/langfuse-public-key" "LANGFUSE_PUBLIC_KEY"
+seed_one "kos/langfuse-secret-key" "LANGFUSE_SECRET_KEY"
+# D-26 Sentry error tracking
+seed_one "kos/sentry-dsn" "SENTRY_DSN"
+# CAP-01 Telegram setWebhook secret_token header value
+seed_one "kos/telegram-webhook-secret" "TELEGRAM_WEBHOOK_SECRET"
+# D-23 ENT-06 bulk-import sources
+seed_one "kos/granola-api-key" "GRANOLA_API_KEY"
+seed_one "kos/gmail-oauth-tokens" "GMAIL_OAUTH_TOKENS_JSON"
 
 echo ""
 echo "=== Summary ==="

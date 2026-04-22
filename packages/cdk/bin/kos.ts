@@ -7,6 +7,7 @@ import { App, Tags, type Environment } from 'aws-cdk-lib';
 import { RESOLVED_ENV } from '../lib/config/env.js';
 import { NetworkStack } from '../lib/stacks/network-stack.js';
 import { EventsStack } from '../lib/stacks/events-stack.js';
+import { DataStack } from '../lib/stacks/data-stack.js';
 
 const app = new App();
 const env: Environment = RESOLVED_ENV;
@@ -19,9 +20,15 @@ const env: Environment = RESOLVED_ENV;
 //   SafetyStack       — Plan 07
 const network = new NetworkStack(app, 'KosNetwork', { env });
 const events = new EventsStack(app, 'KosEvents', { env });
-// `network` referenced by DataStack (Plan 02) via props { vpc: network.vpc, s3Endpoint: network.s3GatewayEndpoint }.
-void network;
+const data = new DataStack(app, 'KosData', {
+  env,
+  vpc: network.vpc,
+  s3Endpoint: network.s3GatewayEndpoint,
+});
+// `data` is referenced by IntegrationsStack (Plan 04) via props
+// { rds: data.rds, rdsSecurityGroup: data.rdsSecurityGroup, blobsBucket: data.blobsBucket, ... }.
 void events;
+void data;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

@@ -1,0 +1,215 @@
+/**
+ * Notion indexer + backfill + reconcile wiring helper for IntegrationsStack.
+ *
+ * Lives in its own file so Plans 05 (Azure Search bootstrap) and 06 (Transcribe
+ * vocab) can add their own helpers to IntegrationsStack without merge conflict.
+ *
+ * Exports:
+ *  - wireNotionIntegrations(scope, props) — installs:
+ *      * notion-indexer Lambda (outside VPC; IAM auth to RDS Proxy)
+ *      * notion-indexer-backfill Lambda
+ *      * notion-reconcile Lambda
+ *      * EventBridge Scheduler entries (4 indexer schedules + weekly reconcile)
+ *      * IAM `rds-db:connect` grants on the Proxy DbiResourceId
+ */
+
+import { Stack, Duration } from 'aws-cdk-lib';
+import type { Construct } from 'constructs';
+import type { IVpc } from 'aws-cdk-lib/aws-ec2';
+import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import type { EventBus } from 'aws-cdk-lib/aws-events';
+import { CfnSchedule } from 'aws-cdk-lib/aws-scheduler';
+import { Role, ServicePrincipal, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { KosLambda } from '../constructs/kos-lambda.js';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// Resolve __dirname in ESM for node:path usage.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+type NotionIds = {
+  entities: string;
+  projects: string;
+  kevinContext: string;
+  legacyInbox: string;
+  commandCenter: string;
+};
+
+function loadNotionIds(): NotionIds {
+  const idFile = path.resolve(__dirname, '../../../../scripts/.notion-db-ids.json');
+  const raw = fs.readFileSync(idFile, 'utf8');
+  const parsed = JSON.parse(raw) as Partial<NotionIds>;
+  const required: (keyof NotionIds)[] = [
+    'entities',
+    'projects',
+    'kevinContext',
+    'legacyInbox',
+    'commandCenter',
+  ];
+  for (const k of required) {
+    if (!parsed[k]) {
+      throw new Error(
+        `scripts/.notion-db-ids.json missing required key "${k}". ` +
+          `Run scripts/bootstrap-notion-dbs.mjs first.`,
+      );
+    }
+  }
+  return parsed as NotionIds;
+}
+
+export interface WireNotionProps {
+  vpc: IVpc;
+  rdsSecret: ISecret;
+  rdsProxyEndpoint: string;
+  /** `prx-xxxxxxxx` identifier from DataStack.rdsProxyDbiResourceId. */
+  rdsProxyDbiResourceId: string;
+  notionTokenSecret: ISecret;
+  captureBus: EventBus;
+  systemBus: EventBus;
+  scheduleGroupName: string;
+}
+
+export interface NotionWiring {
+  notionIndexer: KosLambda;
+  notionIndexerBackfill: KosLambda;
+  notionReconcile: KosLambda;
+  schedulerRole: Role;
+}
+
+const REPO_ROOT = path.resolve(__dirname, '../../../../');
+
+function svcEntry(svcDir: string): string {
+  return path.join(REPO_ROOT, 'services', svcDir, 'src', 'handler.ts');
+}
+
+export function wireNotionIntegrations(scope: Construct, props: WireNotionProps): NotionWiring {
+  const NOTION_IDS = loadNotionIds();
+  const stack = Stack.of(scope);
+  const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${props.rdsProxyDbiResourceId}/kos_admin`;
+
+  // --- notion-indexer Lambda (5-min poller) ---------------------------------
+  const notionIndexer = new KosLambda(scope, 'NotionIndexer', {
+    entry: svcEntry('notion-indexer'),
+    timeout: Duration.minutes(2),
+    memory: 512,
+    environment: {
+      NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
+      RDS_ENDPOINT: props.rdsProxyEndpoint,
+      RDS_USER: 'kos_admin',
+      RDS_DATABASE: 'kos',
+      CAPTURE_BUS_NAME: props.captureBus.eventBusName,
+    },
+  });
+  props.notionTokenSecret.grantRead(notionIndexer);
+  props.captureBus.grantPutEventsTo(notionIndexer);
+  notionIndexer.addToRolePolicy(
+    new PolicyStatement({
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectResource],
+    }),
+  );
+
+  // --- notion-indexer-backfill Lambda (one-shot full scan) ------------------
+  const notionIndexerBackfill = new KosLambda(scope, 'NotionIndexerBackfill', {
+    entry: svcEntry('notion-indexer-backfill'),
+    timeout: Duration.minutes(15),
+    memory: 1024,
+    environment: {
+      NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
+      RDS_SECRET_ARN: props.rdsSecret.secretArn,
+      RDS_ENDPOINT: props.rdsProxyEndpoint,
+      RDS_USER: 'kos_admin',
+      RDS_DATABASE: 'kos',
+    },
+  });
+  props.notionTokenSecret.grantRead(notionIndexerBackfill);
+  props.rdsSecret.grantRead(notionIndexerBackfill);
+  notionIndexerBackfill.addToRolePolicy(
+    new PolicyStatement({
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectResource],
+    }),
+  );
+
+  // --- notion-reconcile Lambda (weekly full-scan hard-delete detector) ------
+  const notionReconcile = new KosLambda(scope, 'NotionReconcile', {
+    entry: svcEntry('notion-reconcile'),
+    timeout: Duration.minutes(15),
+    memory: 1024,
+    environment: {
+      NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
+      RDS_ENDPOINT: props.rdsProxyEndpoint,
+      RDS_USER: 'kos_admin',
+      RDS_DATABASE: 'kos',
+      SYSTEM_BUS_NAME: props.systemBus.eventBusName,
+      NOTION_ENTITIES_DB_ID: NOTION_IDS.entities,
+      NOTION_PROJECTS_DB_ID: NOTION_IDS.projects,
+      NOTION_KEVIN_CONTEXT_PAGE_ID: NOTION_IDS.kevinContext,
+      NOTION_COMMAND_CENTER_DB_ID: NOTION_IDS.commandCenter,
+    },
+  });
+  props.notionTokenSecret.grantRead(notionReconcile);
+  props.systemBus.grantPutEventsTo(notionReconcile);
+  notionReconcile.addToRolePolicy(
+    new PolicyStatement({
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectResource],
+    }),
+  );
+
+  // --- Scheduler role --------------------------------------------------------
+  const schedulerRole = new Role(scope, 'SchedulerRole', {
+    assumedBy: new ServicePrincipal('scheduler.amazonaws.com', {
+      conditions: {
+        ArnLike: {
+          'aws:SourceArn': `arn:aws:scheduler:${stack.region}:${stack.account}:schedule/${props.scheduleGroupName}/*`,
+        },
+      },
+    }),
+  });
+  notionIndexer.grantInvoke(schedulerRole);
+  notionReconcile.grantInvoke(schedulerRole);
+
+  // --- Indexer schedules (4 per D-11) ---------------------------------------
+  const watched = [
+    { key: 'Entities', dbId: NOTION_IDS.entities, dbKind: 'entities' },
+    { key: 'Projects', dbId: NOTION_IDS.projects, dbKind: 'projects' },
+    { key: 'KevinContext', dbId: NOTION_IDS.kevinContext, dbKind: 'kevin_context' },
+    { key: 'CommandCenter', dbId: NOTION_IDS.commandCenter, dbKind: 'command_center' },
+  ] as const;
+
+  for (const w of watched) {
+    new CfnSchedule(scope, 'IndexerSchedule-' + w.key, {
+      name: 'notion-indexer-' + w.key.toLowerCase(),
+      groupName: props.scheduleGroupName,
+      scheduleExpression: 'rate(5 minutes)',
+      scheduleExpressionTimezone: 'Europe/Stockholm',
+      flexibleTimeWindow: { mode: 'OFF' },
+      target: {
+        arn: notionIndexer.functionArn,
+        roleArn: schedulerRole.roleArn,
+        input: JSON.stringify({ dbId: w.dbId, dbKind: w.dbKind }),
+      },
+      state: 'ENABLED',
+    });
+  }
+
+  // --- Weekly reconcile schedule (Sun 04:00 Europe/Stockholm) ---------------
+  new CfnSchedule(scope, 'ReconcileSchedule', {
+    name: 'notion-reconcile-weekly',
+    groupName: props.scheduleGroupName,
+    scheduleExpression: 'cron(0 4 ? * SUN *)',
+    scheduleExpressionTimezone: 'Europe/Stockholm',
+    flexibleTimeWindow: { mode: 'OFF' },
+    target: {
+      arn: notionReconcile.functionArn,
+      roleArn: schedulerRole.roleArn,
+      input: '{}',
+    },
+    state: 'ENABLED',
+  });
+
+  return { notionIndexer, notionIndexerBackfill, notionReconcile, schedulerRole };
+}

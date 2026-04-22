@@ -1,0 +1,54 @@
+# AWS Transcribe custom vocabulary — sv-SE seed (kos-sv-se-v1)
+#
+# Format: phrase-only (one token per line).
+# Hyphens bind multi-word entities into a single phrase per AWS Transcribe
+# "Creating a custom vocabulary using a table" guidance.
+#
+# IPA / SoundsLike columns are DEPRECATED for Swedish (RESEARCH Pitfall 7 —
+# AWS re:Post QU_Aa3ot97TP-jYE-pQDCCzg). Do NOT add pronunciation columns;
+# Transcribe silently ignores them for sv-SE.
+#
+# Kevin can edit this file and re-run `cdk deploy KosIntegrations` — the CDK
+# Asset fingerprint changes and the deploy Lambda calls UpdateVocabulary.
+# No other redeploy required.
+#
+# Lines starting with `#` are treated as comments and dropped before upload
+# to S3 (the Lambda pre-processes the file).
+
+# --- People (Kevin's network) -----------------------------------------------
+Kevin
+Damien
+Christina
+Marcus
+Monika
+
+# --- Companies & orgs -------------------------------------------------------
+Tale-Forge
+Tale-Forge-AB
+Outbehaving
+Almi
+
+# --- Finance / legal (Swedish) ---------------------------------------------
+Bolag
+konvertibellån
+kapitalrunda
+aktieägaravtal
+ESOP
+GDPR
+
+# --- AI / Anthropic ---------------------------------------------------------
+Claude
+Sonnet
+Haiku
+Bedrock
+
+# --- Data / infra -----------------------------------------------------------
+Postgres
+pgvector
+
+# --- Capture surfaces -------------------------------------------------------
+Granola
+Notion
+Telegram
+WhatsApp
+LinkedIn

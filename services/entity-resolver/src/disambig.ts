@@ -19,9 +19,16 @@
  * D-12 retry-once: `runDisambigWithRetry` retries once on thrown error; any
  * second failure returns matched_id='unknown' (Inbox fallback).
  */
-import { query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+// 2026-04-22: replaced @anthropic-ai/claude-agent-sdk's query() (which spawns
+// `claude` CLI subprocess; not bundled into Lambdas) with direct Bedrock
+// invocation via @anthropic-ai/sdk's AnthropicBedrock client.
+import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
 import { z } from 'zod';
 import type { Candidate } from '@kos/resolver';
+
+const client = new AnthropicBedrock({
+  awsRegion: process.env.AWS_REGION ?? 'eu-north-1',
+});
 
 export const DisambigOutputSchema = z.object({
   matched_id: z.union([z.string().uuid(), z.literal('unknown')]),
@@ -57,35 +64,22 @@ export async function runDisambig(args: RunDisambigInput): Promise<DisambigOutpu
   const timeoutPromise = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 5000));
 
   const sdkPromise = (async (): Promise<'ok'> => {
-    for await (const msg of query({
-      prompt,
-      options: {
-        model: 'eu.anthropic.claude-sonnet-4-6',
-        systemPrompt: [
-          {
-            type: 'text' as const,
-            text: DISAMBIG_PROMPT,
-            cache_control: { type: 'ephemeral' as const },
-          },
-        ],
-        allowedTools: [],
-        maxTokens: 100,
-        maxTurns: 1,
-      } as unknown as never,
-    })) {
-      const m = msg as SDKMessage & {
-        type?: string;
-        result?: string;
-        content?: Array<{ type: string; text?: string }>;
-      };
-      if (m.type === 'result' && typeof m.result === 'string') {
-        raw = m.result;
-      } else if (Array.isArray(m.content)) {
-        for (const c of m.content) {
-          if (c.type === 'text' && typeof c.text === 'string') raw = c.text;
-        }
-      }
-    }
+    const resp = await client.messages.create({
+      model: 'eu.anthropic.claude-sonnet-4-6',
+      system: [
+        {
+          type: 'text' as const,
+          text: DISAMBIG_PROMPT,
+          cache_control: { type: 'ephemeral' as const },
+        },
+      ],
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 100,
+    });
+    raw = resp.content
+      .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+      .map((b) => b.text)
+      .join('');
     return 'ok';
   })();
 

@@ -58,6 +58,12 @@ export class KosLambda extends NodejsFunction {
         target: 'node22',
         externalModules: ['@aws-sdk/*'],
         format: OutputFormat.ESM,
+        // Shim CommonJS `require` inside ESM output. Without this, libraries
+        // that internally call `require('http')`/`require('https')` (e.g.
+        // grammY) crash at Lambda INIT with
+        // "Error: Dynamic require of \"http\" is not supported".
+        banner:
+          "import{createRequire}from'module';const require=createRequire(import.meta.url);",
       },
       logRetention: RetentionDays.ONE_MONTH,
       vpc: props.vpc,

@@ -33,10 +33,24 @@ export class NetworkStack extends Stack {
     const vpc = new Vpc(this, 'KosVpc', {
       ipAddresses: IpAddresses.cidr('10.40.0.0/16'),
       maxAzs: 2, // eu-north-1a + eu-north-1b; Multi-AZ RDS revisit post-Gate 4 (D-07)
-      natGateways: 0, // D-05
+      // D-05 revision (2026-04-22, Wave 5 live discovery): the original
+      // `natGateways: 0` decision broke any Lambda that needed BOTH RDS
+      // (requires VPC placement) AND external APIs (Bedrock / Notion /
+      // Telegram / Sentry / Langfuse — require internet egress). Phase 1's
+      // notion-indexer was silently failing every 5-min schedule for the
+      // same reason. Single NAT gateway (~$32/mo + data) restores egress
+      // for everything in the private subnet. Multi-AZ NAT can be added
+      // later if availability becomes a concern.
+      natGateways: 1,
       subnetConfiguration: [
         { name: 'public', subnetType: SubnetType.PUBLIC, cidrMask: 24 },
+        // 'private' kept as PRIVATE_ISOLATED for RDS + bastion (no egress
+        // needed; existing SG self-referencing trust model unchanged).
         { name: 'private', subnetType: SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
+        // 'lambda' = PRIVATE_WITH_EGRESS — pairs with the NAT above so
+        // Lambdas can reach Bedrock / Notion / Telegram / Sentry / Langfuse
+        // while staying inside the VPC for RDS Proxy access.
+        { name: 'lambda', subnetType: SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 24 },
       ],
     });
     this.vpc = vpc;

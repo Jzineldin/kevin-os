@@ -22,6 +22,7 @@ import { Queue } from 'aws-cdk-lib/aws-sqs';
 import type { Construct } from 'constructs';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import { SubnetType, type IVpc, type ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import { KosLambda } from '../constructs/kos-lambda.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -93,6 +94,14 @@ export interface AgentsWiringProps {
   rdsProxyDbiResourceId: string;
   kevinOwnerId: string;
   /**
+   * VPC + RDS security group. Required so every agent Lambda is placed in
+   * the private isolated subnets and can open a TCP socket to the RDS
+   * Proxy. Without this all `pg.Pool` connections hang and the Lambda
+   * times out (live-discovered 2026-04-22).
+   */
+  vpc: IVpc;
+  rdsSecurityGroup: ISecurityGroup;
+  /**
    * Plan 02-09 (ENT-06): Gmail OAuth tokens secret (`kos/gmail-oauth-tokens`).
    * Optional — if absent, the BulkImportGranolaGmail Lambda is wired without
    * the grant and Gmail leg gracefully skips. Operator can update later via
@@ -122,6 +131,16 @@ export function wireTriageAndVoiceCapture(
   const transkriptenId = loadTranskriptenIdOrEmpty();
   const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${p.rdsProxyDbiResourceId}/${p.rdsIamUser}`;
 
+  // Spread into every KosLambda so every agent lands in the private
+  // isolated subnets and can reach RDS Proxy via the rdsSecurityGroup
+  // (live-discovered fix 2026-04-22 — without VpcConfig the Lambdas land
+  // in the public Lambda VPC and `pg.Pool` connections hang to ETIMEDOUT).
+  const vpcConfig = {
+    vpc: p.vpc,
+    vpcSubnets: { subnetType: SubnetType.PRIVATE_WITH_EGRESS },
+    securityGroups: [p.rdsSecurityGroup],
+  };
+
   // --- Per-pipeline DLQs (live in this stack to avoid E↔C cycle) ----------
   const triageDlq = new Queue(scope, 'TriageDlq', {
     queueName: 'kos-triage-agent-dlq',
@@ -150,6 +169,7 @@ export function wireTriageAndVoiceCapture(
     entry: svcEntry('triage'),
     timeout: Duration.seconds(30),
     memory: 512,
+    ...vpcConfig,
     environment: {
       KEVIN_OWNER_ID: p.kevinOwnerId,
       RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
@@ -193,6 +213,7 @@ export function wireTriageAndVoiceCapture(
     entry: svcEntry('voice-capture'),
     timeout: Duration.seconds(60),
     memory: 1024,
+    ...vpcConfig,
     environment: {
       KEVIN_OWNER_ID: p.kevinOwnerId,
       RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
@@ -250,6 +271,7 @@ export function wireTriageAndVoiceCapture(
     entry: svcEntry('entity-resolver'),
     timeout: Duration.seconds(60),
     memory: 1024,
+    ...vpcConfig,
     environment: {
       KEVIN_OWNER_ID: p.kevinOwnerId,
       RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
@@ -326,6 +348,7 @@ export function wireTriageAndVoiceCapture(
     entry: svcEntry('bulk-import-kontakter'),
     timeout: Duration.minutes(15),
     memory: 1024,
+    ...vpcConfig,
     environment: {
       KEVIN_OWNER_ID: p.kevinOwnerId,
       RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
@@ -378,6 +401,7 @@ export function wireTriageAndVoiceCapture(
     entry: svcEntry('bulk-import-granola-gmail'),
     timeout: Duration.minutes(15),
     memory: 1024,
+    ...vpcConfig,
     environment: {
       KEVIN_OWNER_ID: p.kevinOwnerId,
       RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,

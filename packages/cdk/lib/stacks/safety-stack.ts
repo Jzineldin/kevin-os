@@ -30,6 +30,7 @@ import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 // targeting this stack's alarmTopic ARN. See scripts/create-cost-budget.sh.
 // import { CfnBudget } from 'aws-cdk-lib/aws-budgets';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import { SubnetType, type IVpc, type ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import { PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Rule, type EventBus } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction as LambdaTarget } from 'aws-cdk-lib/aws-events-targets';
@@ -44,6 +45,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export interface SafetyStackProps extends StackProps {
   rdsSecret: ISecret;
   rdsProxyEndpoint: string;
+  /**
+   * VPC + RDS SG. push-telegram now lives INSIDE the VPC (D-05 reversal,
+   * 2026-04-22) so it can reach RDS Proxy for the denied-message queue
+   * write. The NAT gateway in the lambda subnets gives it egress for
+   * api.telegram.org.
+   */
+  vpc: IVpc;
+  rdsSecurityGroup: ISecurityGroup;
+  /** `prx-xxxxxxxx` from DataStack.rdsProxyDbiResourceId — for IAM-auth ARN. */
+  rdsProxyDbiResourceId: string;
   telegramBotTokenSecret: ISecret;
   /**
    * Plan 02-06: push-telegram is now an EventBridge target on the kos.output
@@ -98,6 +109,9 @@ export class SafetyStack extends Stack {
       entry: handlerEntry,
       timeout: Duration.seconds(30),
       memory: 512,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [props.rdsSecurityGroup],
       environment: {
         CAP_TABLE_NAME: this.capTable.tableName,
         RDS_SECRET_ARN: props.rdsSecret.secretArn,
@@ -108,6 +122,17 @@ export class SafetyStack extends Stack {
     this.capTable.grantReadWriteData(this.pushTelegram);
     props.rdsSecret.grantRead(this.pushTelegram);
     props.telegramBotTokenSecret.grantRead(this.pushTelegram);
+    // 2026-04-22: push-telegram now uses RDS Proxy IAM auth, same as the
+    // agent Lambdas (it switched off the rdsSecret password path during
+    // the VPC migration).
+    this.pushTelegram.addToRolePolicy(
+      new PolicyStatement({
+        actions: ['rds-db:connect'],
+        resources: [
+          `arn:aws:rds-db:${this.region}:${this.account}:dbuser:${props.rdsProxyDbiResourceId}/kos_admin`,
+        ],
+      }),
+    );
 
     // --- Plan 02-06 / OUT-01: EventBridge rule kos.output → push-telegram ---
     //

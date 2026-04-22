@@ -13,6 +13,7 @@ import { Stack, type StackProps } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import type { IVpc, ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import {
   wireTriageAndVoiceCapture,
   type AgentsWiring,
@@ -31,6 +32,14 @@ export interface AgentsStackProps extends StackProps {
   rdsIamUser: string;
   rdsProxyDbiResourceId: string;
   kevinOwnerId: string;
+  /**
+   * VPC + SG that allow agent Lambdas to reach RDS Proxy. Without these the
+   * Lambdas land in the public Lambda network and time out on `pg.Pool`
+   * (live-discovered 2026-04-22 during Wave 5 E2E — both notion-indexer and
+   * every Phase 2 agent had `VpcConfig: null`).
+   */
+  vpc: IVpc;
+  rdsSecurityGroup: ISecurityGroup;
   /** Plan 02-09 (ENT-06): Gmail OAuth tokens secret. Optional. */
   gmailOauthSecret?: ISecret;
 }

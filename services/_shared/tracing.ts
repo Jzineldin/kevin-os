@@ -21,20 +21,77 @@ import { LangfuseSpanProcessor } from '@langfuse/otel';
 import { ClaudeAgentSDKInstrumentation } from '@arizeai/openinference-instrumentation-claude-agent-sdk';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { trace } from '@opentelemetry/api';
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from '@aws-sdk/client-secrets-manager';
 
 let tracerProvider: NodeTracerProvider | null = null;
+let setupPromise: Promise<void> | null = null;
 
+const secretsClient = new SecretsManagerClient({});
+
+async function fetchSecret(arn: string | undefined): Promise<string | undefined> {
+  if (!arn) return undefined;
+  try {
+    const r = await secretsClient.send(new GetSecretValueCommand({ SecretId: arn }));
+    const v = r.SecretString;
+    if (!v || v === 'PLACEHOLDER') return undefined;
+    return v;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Async setup. Resolves Langfuse public/secret keys from
+ * `LANGFUSE_PUBLIC_KEY_SECRET_ARN` / `LANGFUSE_SECRET_KEY_SECRET_ARN` first
+ * (the CDK plumbing pattern), then falls back to literal `LANGFUSE_PUBLIC_KEY`
+ * / `LANGFUSE_SECRET_KEY` env vars (local-test convenience). Cached via
+ * module-scope promise so concurrent invocations all share the single
+ * Secrets Manager round-trip.
+ */
+export async function setupOtelTracingAsync(): Promise<void> {
+  if (setupPromise) return setupPromise;
+  setupPromise = (async () => {
+    if (tracerProvider) return;
+    const [secretArnPub, secretArnSec] = [
+      await fetchSecret(process.env['LANGFUSE_PUBLIC_KEY_SECRET_ARN']),
+      await fetchSecret(process.env['LANGFUSE_SECRET_KEY_SECRET_ARN']),
+    ];
+    const publicKey = secretArnPub ?? process.env['LANGFUSE_PUBLIC_KEY'];
+    const secretKey = secretArnSec ?? process.env['LANGFUSE_SECRET_KEY'];
+    if (!publicKey || !secretKey) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[tracing] Langfuse keys missing (neither *_SECRET_ARN nor literal env var resolves); skipping Langfuse wiring',
+      );
+      return;
+    }
+    initTracerProvider(publicKey, secretKey);
+  })();
+  return setupPromise;
+}
+
+/**
+ * Sync entry point retained for backwards compat with handlers that call it
+ * at cold start. Defers to the literal-env-var path only — async secret
+ * resolution requires `setupOtelTracingAsync()`. Call the async version
+ * from the handler entry instead.
+ */
 export function setupOtelTracing(): void {
   if (tracerProvider) return;
   const publicKey = process.env['LANGFUSE_PUBLIC_KEY'];
   const secretKey = process.env['LANGFUSE_SECRET_KEY'];
   if (!publicKey || !secretKey) {
-    // Graceful degradation: run without Langfuse if secrets not seeded yet.
-    // Logged once at cold start so we notice in CloudWatch if env drift hides the keys.
     // eslint-disable-next-line no-console
-    console.warn('[tracing] LANGFUSE_PUBLIC_KEY/SECRET_KEY missing; skipping Langfuse wiring');
+    console.warn('[tracing] LANGFUSE_PUBLIC_KEY/SECRET_KEY missing; skipping Langfuse wiring (use setupOtelTracingAsync to resolve from Secrets Manager)');
     return;
   }
+  initTracerProvider(publicKey, secretKey);
+}
+
+function initTracerProvider(publicKey: string, secretKey: string): void {
   // LangfuseSpanProcessor's structural span shape can drift across the
   // sdk-trace-base v1↔v2 boundary depending on which peer the consuming
   // service resolves (services with @sentry/aws-serverless's @sentry/node

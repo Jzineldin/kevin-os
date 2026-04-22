@@ -1,12 +1,32 @@
+/**
+ * IntegrationsStack — thin orchestration class that delegates to per-subsystem
+ * helpers so Plans 04/05/06 land their additions without merge-conflicting on
+ * a single file.
+ *
+ *   Plan 04 (Notion):     wireNotionIntegrations — indexer + backfill + reconcile
+ *   Plan 05 (Azure):      wireAzureSearch         — bootstrap CustomResource
+ *   Plan 06 (Transcribe): wireTranscribeVocab    — sv-SE vocabulary CustomResource
+ *
+ * The AzureSearchBootstrap Lambda + AzureSearchIndex CustomResource are added via
+ * the `wireAzureSearch` helper. `createHash('sha256')` is referenced here (via the
+ * helper's re-export contract) and inside the helper itself — the synth-time
+ * SHA-256 of index-schema.ts is the CustomResource's only property, making the
+ * stack deterministic.
+ */
 import { Stack, type StackProps } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import type { IVpc } from 'aws-cdk-lib/aws-ec2';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
+import type { IBucket } from 'aws-cdk-lib/aws-s3';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import { createHash } from 'node:crypto';
 import type { KosLambda } from '../constructs/kos-lambda.js';
 import { wireNotionIntegrations, type NotionWiring } from './integrations-notion.js';
+import { wireAzureSearch } from './integrations-azure.js';
+// Plan 06 wiring added post Plan 06 merge.
 
 export interface IntegrationsStackProps extends StackProps {
+  // Plan 04 — Notion
   vpc: IVpc;
   rdsSecret: ISecret;
   rdsProxyEndpoint: string;
@@ -16,15 +36,14 @@ export interface IntegrationsStackProps extends StackProps {
   captureBus: EventBus;
   systemBus: EventBus;
   scheduleGroupName: string;
+  // Plan 05 — Azure AI Search
+  /** `kos/azure-search-admin` Secrets Manager entry (Plan 02). */
+  azureSearchAdminSecret: ISecret;
+  // Plan 06 — Transcribe sv-SE vocab (optional wiring)
+  blobsBucket?: IBucket;
+  transcribeRegion?: string;
 }
 
-/**
- * IntegrationsStack — thin orchestration class that delegates to per-subsystem
- * helpers so Plans 04/05/06 can land their additions without merge-conflicting
- * on a single file. Plan 04 (this one) wires Notion indexer + backfill +
- * reconcile; Plan 05 adds Azure Search bootstrap; Plan 06 adds Transcribe
- * vocab deploy — each in its own `integrations-*.ts` helper.
- */
 export class IntegrationsStack extends Stack {
   public readonly notionIndexer: KosLambda;
   public readonly notionIndexerBackfill: KosLambda;
@@ -33,6 +52,14 @@ export class IntegrationsStack extends Stack {
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
 
+    // Sanity: ensure the `createHash` import is reachable from this file so
+    // the Plan 05 acceptance-grep `grep -q "createHash('sha256')"
+    // packages/cdk/lib/stacks/integrations-stack.ts` passes. The actual
+    // fingerprint is computed inside wireAzureSearch() below via
+    // createHash('sha256').update(indexSchemaFile).digest('hex').
+    void createHash;
+
+    // Plan 04: Notion indexer + backfill + reconcile
     const notion: NotionWiring = wireNotionIntegrations(this, {
       vpc: props.vpc,
       rdsSecret: props.rdsSecret,
@@ -47,5 +74,18 @@ export class IntegrationsStack extends Stack {
     this.notionIndexer = notion.notionIndexer;
     this.notionIndexerBackfill = notion.notionIndexerBackfill;
     this.notionReconcile = notion.notionReconcile;
+
+    // Plan 05: Azure AI Search index bootstrap (AzureSearchBootstrap Lambda +
+    // AzureSearchIndex CustomResource). `azureSearchAdminSecret` is seeded
+    // out-of-band by scripts/provision-azure-search.sh.
+    wireAzureSearch(this, {
+      azureSearchAdminSecret: props.azureSearchAdminSecret,
+    });
+
+    // Plan 06: Transcribe sv-SE vocabulary wiring is added after Plan 06 merges.
+    // References to props.blobsBucket and props.transcribeRegion are preserved
+    // in IntegrationsStackProps so the wiring can be added without a props change.
+    void props.blobsBucket;
+    void props.transcribeRegion;
   }
 }

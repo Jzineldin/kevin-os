@@ -45,6 +45,22 @@ function loadCommandCenterId(): string {
   return parsed.commandCenter;
 }
 
+/**
+ * KOS Inbox DB ID is created by Plan 02-07 (ENT-11 bootstrap). Until that
+ * plan runs the key is absent; inject an empty string at synth time and
+ * let the Lambda runtime surface the actionable error on first invocation.
+ * This keeps Plan 02-05 synth + deploy unblocked on the Plan 02-07 prereq.
+ */
+function loadKosInboxIdOrEmpty(): string {
+  const idFile = path.resolve(REPO_ROOT, 'scripts/.notion-db-ids.json');
+  try {
+    const parsed = JSON.parse(fs.readFileSync(idFile, 'utf8')) as { kosInbox?: string };
+    return parsed.kosInbox ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export interface AgentsWiringProps {
   captureBus: EventBus;
   triageBus: EventBus;
@@ -65,8 +81,10 @@ export interface AgentsWiringProps {
 export interface AgentsWiring {
   triageFn: KosLambda;
   voiceCaptureFn: KosLambda;
+  resolverFn: KosLambda;
   triageRule: Rule;
   voiceCaptureRule: Rule;
+  resolverRule: Rule;
 }
 
 export function wireTriageAndVoiceCapture(
@@ -75,6 +93,7 @@ export function wireTriageAndVoiceCapture(
 ): AgentsWiring {
   const stack = Stack.of(scope);
   const commandCenterId = loadCommandCenterId();
+  const kosInboxId = loadKosInboxIdOrEmpty();
   const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${p.rdsProxyDbiResourceId}/${p.rdsIamUser}`;
 
   // --- Per-pipeline DLQs (live in this stack to avoid E↔C cycle) ----------
@@ -85,6 +104,17 @@ export function wireTriageAndVoiceCapture(
   });
   const voiceCaptureDlq = new Queue(scope, 'VoiceCaptureDlq', {
     queueName: 'kos-voice-capture-dlq',
+    retentionPeriod: Duration.days(14),
+    visibilityTimeout: Duration.minutes(5),
+  });
+  // Plan 02-05: per-pipeline resolver DLQ. Plan asked for events.dlqs.agent
+  // but referencing it from the AgentsStack rule creates an E↔A cyclic
+  // reference (EventsStack → AgentsStack via DLQ ARN; AgentsStack →
+  // EventsStack via agentBus). Same pattern Plan 02-04 hit. Use a per-
+  // pipeline DLQ in this stack instead — Plan 02-09 alarms on it the same
+  // way they already alarm on triage + voice-capture DLQs.
+  const entityResolverDlq = new Queue(scope, 'EntityResolverDlq', {
+    queueName: 'kos-entity-resolver-dlq',
     retentionPeriod: Duration.days(14),
     visibilityTimeout: Duration.minutes(5),
   });
@@ -183,7 +213,82 @@ export function wireTriageAndVoiceCapture(
     ],
   });
 
-  return { triageFn, voiceCaptureFn, triageRule, voiceCaptureRule };
+  // --- Entity-resolver Lambda (AGT-03 / ENT-09) — Plan 02-05 --------------
+  //
+  // Timeout 60s (Sonnet 4.6 disambig ≤5s + embed ≤500ms + up to 3 DB + 2
+  // Notion calls + PutEvents); memory 1024 MB for SDK + pg + @notionhq
+  // + OTel. Consumes entity.mention.detected from kos.agent (emitted by
+  // voice-capture). Uses the shared kos.agent DLQ (events.dlqs.agent)
+  // rather than per-pipeline to keep Plan 02-09 alarm surface simple.
+  const resolverFn = new KosLambda(scope, 'EntityResolver', {
+    entry: svcEntry('entity-resolver'),
+    timeout: Duration.seconds(60),
+    memory: 1024,
+    environment: {
+      KEVIN_OWNER_ID: p.kevinOwnerId,
+      RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
+      RDS_IAM_USER: p.rdsIamUser,
+      NOTION_TOKEN_SECRET_ARN: p.notionTokenSecret.secretArn,
+      // KOS Inbox DB ID is injected at synth time iff Plan 02-07 bootstrap
+      // has already populated scripts/.notion-db-ids.json; otherwise empty
+      // and the Lambda throws a clear error when it tries to dual-read.
+      NOTION_KOS_INBOX_DB_ID: kosInboxId,
+      SENTRY_DSN_SECRET_ARN: p.sentryDsnSecret.secretArn,
+      LANGFUSE_PUBLIC_KEY_SECRET_ARN: p.langfusePublicSecret.secretArn,
+      LANGFUSE_SECRET_KEY_SECRET_ARN: p.langfuseSecretSecret.secretArn,
+      CLAUDE_CODE_USE_BEDROCK: '1',
+    },
+  });
+  grantBedrock(resolverFn);
+  // Cohere Embed Multilingual v3 (embedBatch in @kos/resolver) is invoked
+  // against Bedrock — grant the foundation-model ARN separately so future
+  // embed-model swaps don't drift from the agent grants.
+  resolverFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['arn:aws:bedrock:*::foundation-model/cohere.embed-multilingual-v3*'],
+    }),
+  );
+  resolverFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectResource],
+    }),
+  );
+  p.notionTokenSecret.grantRead(resolverFn);
+  p.sentryDsnSecret.grantRead(resolverFn);
+  p.langfusePublicSecret.grantRead(resolverFn);
+  p.langfuseSecretSecret.grantRead(resolverFn);
+  // The resolver emits mention.resolved back to kos.agent (same bus it
+  // reads from — EventBridge supports self-bus PutEvents, the resolver's
+  // own rule filters by detail-type so there's no feedback loop).
+  p.agentBus.grantPutEventsTo(resolverFn);
+
+  const resolverRule = new Rule(scope, 'EntityResolverFromAgentRule', {
+    eventBus: p.agentBus,
+    eventPattern: {
+      source: ['kos.agent'],
+      detailType: ['entity.mention.detected'],
+    },
+    targets: [
+      new LambdaTarget(resolverFn, {
+        deadLetterQueue: entityResolverDlq,
+        maxEventAge: Duration.hours(1),
+        retryAttempts: 2,
+      }),
+    ],
+  });
+
+  return {
+    triageFn,
+    voiceCaptureFn,
+    resolverFn,
+    triageRule,
+    voiceCaptureRule,
+    resolverRule,
+  };
 }
 
 /**

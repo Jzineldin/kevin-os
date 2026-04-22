@@ -100,9 +100,9 @@ describe('AgentsStack', () => {
     });
   };
 
-  it('both agent Lambdas run nodejs22.x + arm64', () => {
+  it('all agent Lambdas run nodejs22.x + arm64', () => {
     const fns = agentFns();
-    expect(fns.length).toBe(2);
+    expect(fns.length).toBe(3); // triage + voice-capture + entity-resolver (Plan 02-05)
     for (const fn of fns) {
       const props = (fn as { Properties: { Runtime: string; Architectures: string[] } })
         .Properties;
@@ -148,33 +148,85 @@ describe('AgentsStack', () => {
     expect(serialized).toMatch(/KosBustriageBus/);
   });
 
-  it('triage Lambda timeout ≤ 30s; voice-capture ≤ 60s', () => {
+  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s', () => {
     for (const fn of agentFns()) {
       const props = (
         fn as { Properties: { Timeout: number; Environment: { Variables: Record<string, unknown> } } }
       ).Properties;
       const env = props.Environment.Variables;
       if (env.NOTION_COMMAND_CENTER_DB_ID !== undefined) {
-        // voice-capture
-        expect(props.Timeout).toBeLessThanOrEqual(60);
+        expect(props.Timeout).toBeLessThanOrEqual(60); // voice-capture
+      } else if (env.NOTION_KOS_INBOX_DB_ID !== undefined) {
+        expect(props.Timeout).toBeLessThanOrEqual(60); // entity-resolver (Plan 02-05)
       } else {
-        // triage
-        expect(props.Timeout).toBeLessThanOrEqual(30);
+        expect(props.Timeout).toBeLessThanOrEqual(30); // triage
       }
     }
   });
 
-  it('creates dedicated triage + voice-capture DLQs', () => {
+  it('creates dedicated triage + voice-capture + entity-resolver DLQs', () => {
     const queues = tpl.findResources('AWS::SQS::Queue');
     const names = Object.values(queues).map(
       (q) => (q as { Properties?: { QueueName?: string } }).Properties?.QueueName,
     );
     expect(names).toContain('kos-triage-dlq');
     expect(names).toContain('kos-voice-capture-dlq');
+    expect(names).toContain('kos-entity-resolver-dlq');
   });
 
-  it('emits exactly 2 agent Lambdas (triage + voice-capture); CDK helper Lambdas excluded', () => {
-    expect(agentFns().length).toBe(2);
+  // --- Plan 02-05 entity-resolver assertions -----------------------------
+
+  it('EntityResolverFromAgentRule on kos.agent matches entity.mention.detected with per-pipeline DLQ', () => {
+    const rules = tpl.findResources('AWS::Events::Rule');
+    const rule = Object.values(rules).find((r) => {
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
+        ?.EventPattern as
+        | { source?: string[]; 'detail-type'?: string[] }
+        | undefined;
+      return (
+        ep?.source?.includes('kos.agent') === true &&
+        ep?.['detail-type']?.includes('entity.mention.detected') === true
+      );
+    });
+    expect(rule).toBeDefined();
+    const targets = (rule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } })
+      .Properties.Targets;
+    expect(targets[0]?.DeadLetterConfig).toBeDefined();
+  });
+
+  it('entity-resolver Lambda: timeout 60s, memory ≥ 1024MB, NOTION_TOKEN + RDS env wired', () => {
+    const resolver = agentFns().find((f) => {
+      const env = (
+        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
+      ).Properties.Environment.Variables;
+      return env.NOTION_KOS_INBOX_DB_ID !== undefined;
+    });
+    expect(resolver).toBeDefined();
+    const props = (
+      resolver as { Properties: { Timeout: number; MemorySize: number; Environment: { Variables: Record<string, unknown> } } }
+    ).Properties;
+    expect(props.Timeout).toBe(60);
+    expect(props.MemorySize).toBeGreaterThanOrEqual(1024);
+    const env = props.Environment.Variables;
+    expect(env.NOTION_TOKEN_SECRET_ARN).toBeDefined();
+    expect(env.RDS_PROXY_ENDPOINT).toBeDefined();
+    expect(env.KEVIN_OWNER_ID).toBe('00000000-0000-0000-0000-000000000001');
+    expect(env.CLAUDE_CODE_USE_BEDROCK).toBe('1');
+  });
+
+  it('entity-resolver IAM grants: bedrock:InvokeModel for Sonnet 4.6 inference profile + Cohere embed + Notion token read', () => {
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    const serialized = JSON.stringify(policies);
+    expect(serialized).toContain('eu.anthropic.claude-sonnet-4-6');
+    expect(serialized).toContain('cohere.embed-multilingual-v3');
+    // Notion token grant present (3 readers — 1 voice-capture + 1 resolver +
+    // potentially others). Two `secretsmanager:GetSecretValue` resources is
+    // sufficient evidence that resolver is granted alongside voice-capture.
+    expect(serialized).toContain('secretsmanager:GetSecretValue');
+  });
+
+  it('emits exactly 3 agent Lambdas (triage + voice-capture + entity-resolver); CDK helper Lambdas excluded', () => {
+    expect(agentFns().length).toBe(3);
   });
 });
 

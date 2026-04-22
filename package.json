@@ -11,7 +11,11 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "preflight": "bash scripts/preflight.sh",
-    "db:push": "bash scripts/db-push.sh"
+    "db:push": "bash scripts/db-push.sh",
+    "notion:bootstrap": "node scripts/bootstrap-notion-dbs.mjs"
+  },
+  "dependencies": {
+    "@notionhq/client": "2.3.0"
   },
   "devDependencies": {
     "@types/node": "22.9.0",

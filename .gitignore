@@ -6,6 +6,14 @@ cdk.out/
 .env.local
 *.log
 coverage/
+
+# CDK deploy artifacts (generated at `cdk deploy` time — not source)
+cdk-outputs.json
+cdk-deploy*.log
+
+# Claude Code session state (IDE-local)
+.claude/
+
 # Drizzle migration SQL + _journal.json are source-controlled (schema history).
 # If drizzle-kit ever introduces an ignorable subdirectory, ignore that path
 # specifically — don't blanket-ignore packages/db/drizzle/.

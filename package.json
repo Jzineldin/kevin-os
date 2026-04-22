@@ -16,14 +16,16 @@
     "verify:stacks": "bash scripts/verify-stacks-exist.sh",
     "verify:gate-1": "node scripts/verify-gate-1.mjs"
   },
-  "dependencies": {
-    "@notionhq/client": "2.3.0"
-  },
   "devDependencies": {
+    "@aws-sdk/client-eventbridge": "3.691.0",
+    "@aws-sdk/client-lambda": "^3.1034.0",
+    "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@notionhq/client": "2.3.0",
     "@types/node": "22.9.0",
     "@typescript-eslint/eslint-plugin": "8.13.0",
     "@typescript-eslint/parser": "8.13.0",
     "eslint": "9.14.0",
+    "pg": "8.13.1",
     "prettier": "3.3.3",
     "typescript": "5.6.3",
     "vitest": "2.1.4"

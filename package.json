@@ -10,7 +10,8 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "preflight": "bash scripts/preflight.sh"
+    "preflight": "bash scripts/preflight.sh",
+    "db:push": "bash scripts/db-push.sh"
   },
   "devDependencies": {
     "@types/node": "22.9.0",

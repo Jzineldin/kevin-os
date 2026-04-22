@@ -1,9 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "..",
     "outDir": "dist",
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@opentelemetry/*": ["./node_modules/@opentelemetry/*"],
+      "@langfuse/*": ["./node_modules/@langfuse/*"],
+      "@arizeai/*": ["./node_modules/@arizeai/*"]
+    }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "../_shared/**/*.ts"]
 }

@@ -14,6 +14,7 @@ import { DataStack } from '../lib/stacks/data-stack.js';
 import { IntegrationsStack } from '../lib/stacks/integrations-stack.js';
 import { SafetyStack } from '../lib/stacks/safety-stack.js';
 import { CaptureStack } from '../lib/stacks/capture-stack.js';
+import { AgentsStack } from '../lib/stacks/agents-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const transcribeRegion = (() => {
@@ -83,6 +84,32 @@ const capture = new CaptureStack(app, 'KosCapture', {
 capture.addDependency(data);
 capture.addDependency(events);
 void capture;
+
+// AgentsStack — Plan 02-04 (AGT-01 triage + AGT-02 voice-capture).
+// KEVIN_OWNER_ID is the single-user UUID Kevin operates as; supplied via
+// env var or CDK context at synth time.
+const agents = new AgentsStack(app, 'KosAgents', {
+  env,
+  captureBus: events.buses.capture,
+  triageBus: events.buses.triage,
+  agentBus: events.buses.agent,
+  outputBus: events.buses.output,
+  notionTokenSecret: data.notionTokenSecret,
+  sentryDsnSecret: data.sentryDsnSecret,
+  langfusePublicSecret: data.langfusePublicSecret,
+  langfuseSecretSecret: data.langfuseSecretSecret,
+  rdsProxyEndpoint: data.rdsProxyEndpoint,
+  rdsIamUser: 'kos_admin',
+  rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
+  kevinOwnerId:
+    process.env.KEVIN_OWNER_ID ??
+    (app.node.tryGetContext('kevinOwnerId') as string | undefined) ??
+    '',
+});
+agents.addDependency(data);
+agents.addDependency(events);
+agents.addDependency(integrations); // commandCenter ID source-of-truth
+void agents;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

@@ -31,6 +31,8 @@ export interface AgentsStackProps extends StackProps {
   rdsIamUser: string;
   rdsProxyDbiResourceId: string;
   kevinOwnerId: string;
+  /** Plan 02-09 (ENT-06): Gmail OAuth tokens secret. Optional. */
+  gmailOauthSecret?: ISecret;
 }
 
 export class AgentsStack extends Stack {

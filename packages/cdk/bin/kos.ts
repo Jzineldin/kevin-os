@@ -111,6 +111,9 @@ const agents = new AgentsStack(app, 'KosAgents', {
     process.env.KEVIN_OWNER_ID ??
     (app.node.tryGetContext('kevinOwnerId') as string | undefined) ??
     '',
+  // Plan 02-09 (ENT-06): wire Gmail OAuth secret created in DataStack so the
+  // BulkImportGranolaGmail Lambda has a typed grant + ARN-by-Ref binding.
+  gmailOauthSecret: data.gmailOauthSecret,
 });
 agents.addDependency(data);
 agents.addDependency(events);

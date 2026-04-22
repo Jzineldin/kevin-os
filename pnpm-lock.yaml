@@ -182,6 +182,9 @@ importers:
       '@aws-sdk/client-secrets-manager':
         specifier: 3.691.0
         version: 3.691.0
+      '@aws-sdk/rds-signer':
+        specifier: 3.691.0
+        version: 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))
       '@kos/resolver':
         specifier: workspace:*
         version: link:../../packages/resolver
@@ -194,6 +197,9 @@ importers:
       googleapis:
         specifier: ^144
         version: 144.0.0
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
       zod:
         specifier: 3.23.8
         version: 3.23.8
@@ -204,6 +210,9 @@ importers:
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
       typescript:
         specifier: 5.6.3
         version: 5.6.3

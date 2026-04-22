@@ -44,7 +44,11 @@ export function setupOtelTracing(): void {
     ],
   });
   tracerProvider.register();
-  registerInstrumentations({ instrumentations: [new ClaudeAgentSDKInstrumentation()] });
+  // ClaudeAgentSDKInstrumentation typing drifts vs core OTel Instrumentation
+  // shape across versions; the runtime contract is correct. Cast to unknown.
+  registerInstrumentations({
+    instrumentations: [new ClaudeAgentSDKInstrumentation() as unknown as never],
+  });
 }
 
 export async function flush(): Promise<void> {

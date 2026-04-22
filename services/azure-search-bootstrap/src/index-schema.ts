@@ -48,7 +48,11 @@ export const KOS_MEMORY_INDEX_DEFINITION = {
     {
       name: 'content_vector',
       type: 'Collection(Edm.Single)',
-      dimensions: 1536,
+      // Phase 2 Plan 03: resized 1536 → 1024 for Cohere Embed Multilingual v3 (D-06).
+      // Bumping the bytes of this file via this constant re-fires the CDK CustomResource
+      // fingerprint; the bootstrap Lambda handles the delete-then-recreate dance since
+      // vector-dim changes cannot be patched into an existing index.
+      dimensions: 1024,
       vectorSearchProfile: 'kos-hnsw-binary',
     },
   ],

@@ -25,12 +25,12 @@ describe('Azure index schema', () => {
     expect(f?.filterable).toBe(true);
   });
 
-  it('content_vector dimensions = 1536', () => {
+  it('content_vector.dimensions === 1024 (Phase 2 D-06 Cohere Embed Multilingual v3)', () => {
     const f = KOS_MEMORY_INDEX_DEFINITION.fields.find(
       (x) => x.name === 'content_vector',
     );
     // dimensions is only present on vector fields; narrow via cast.
-    expect((f as { dimensions?: number } | undefined)?.dimensions).toBe(1536);
+    expect((f as { dimensions?: number } | undefined)?.dimensions).toBe(1024);
   });
 
   it('semantic config kos-semantic exists', () => {

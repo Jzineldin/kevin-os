@@ -960,32 +960,17 @@ export async function flush(): Promise<void> {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Granola REST API existence + auth**
-   - What we know: CONTEXT says "Granola via REST (API key in new secret)". Local MCP exists but isn't Lambda-usable.
-   - What's unclear: Public Granola API? Beta API key program? Scraping via authenticated session?
-   - Recommendation: At plan-time, Kevin checks Granola account for API key option. If none, (a) defer ENT-06 Granola portion to a later phase or (b) explore Granola's Notion export → Transkripten DB and read from Notion instead of REST. Current Phase 6 plan already pulls Granola through Notion Transkripten.
+1. **Granola REST API existence + auth** — **RESOLVED 2026-04-22**: Use **Notion Transkripten DB** path. ENT-06 reads Granola meetings from the existing Notion Transkripten DB (same path Phase 6 plan already uses). No new Granola REST client, no new Secrets Manager entry. Native REST deferred until Granola publishes a stable API.
 
-2. **Cohere Embed v3 EU inference profile ID**
-   - What we know: Bedrock supports EU cross-region inference for many models via `eu.*` prefix on model ID.
-   - What's unclear: Does `eu.cohere.embed-multilingual-v3` exist? Or is the base ID the correct form, routed automatically?
-   - Recommendation: Plan-time command: `aws bedrock list-inference-profiles --region eu-north-1 --query 'inferenceProfileSummaries[?contains(inferenceProfileName, \`cohere\`)]'`. Use the profile ID that covers the model in EU. If only base ID works with cross-region to us-east-1, accept the posture (same as Claude pre-2025).
+2. **Cohere Embed v3 EU inference profile ID** — **RESOLVED 2026-04-22** (runbook, not blocker): Plan 02-08/02-09 must include a plan-time discovery step — `aws bedrock list-inference-profiles --region eu-north-1 --query 'inferenceProfileSummaries[?contains(inferenceProfileName, \`cohere\`)]'` — and write the discovered profile ID into Secrets Manager or CDK context. If only the base model ID works (cross-region to us-east-1), accept the posture (same as Claude pre-2025) and document in plan SUMMARY.
 
-3. **Kontakter DB ID**
-   - What we know: Referenced in ROADMAP + CONTEXT; Kevin uses it today.
-   - What's unclear: UUID not yet captured; ID not in `scripts/.notion-db-ids.json`.
-   - Recommendation: Plan-time Kevin provides, or bulk import discovers via `notion.search`.
+3. **Kontakter DB ID** — **RESOLVED 2026-04-22** (runbook, not blocker): Plan 02-08 (Kontakter bulk import) starts with `notion.search` for "Kontakter" as the first task; captures the UUID into `scripts/.notion-db-ids.json` via a one-time write; all subsequent plan tasks read from that file. Kevin does not need to provide manually.
 
-4. **Telegram webhook cold-start budget headroom**
-   - What we know: 2 s ack target, cold start ~500 ms expected.
-   - What's unclear: Real-world tail latency at Kevin's usage rate (spiky, day-long gaps).
-   - Recommendation: Instrument stage-1 ack latency as a CloudWatch metric; alarm at p95 > 1.8 s. Add provisioned concurrency only if alarm fires.
+4. **Telegram webhook cold-start budget headroom** — **RESOLVED 2026-04-22** (runtime alarm, not blocker): Plan 02-10 (observability) includes a CloudWatch metric for stage-1 ack latency with a p95 > 1.8 s alarm. Provisioned concurrency added only if the alarm fires. Phase 2 ships without provisioned concurrency.
 
-5. **KOS Inbox DB approval latency vs next capture**
-   - What we know: Notion-indexer polls every 5 min. Kevin approves a Pending row at 14:02; indexer syncs at 14:05.
-   - What's unclear: If Kevin says "Ping Lovable" at 14:03 (30 s after approval), the resolver still doesn't know "Lovable" exists → creates a second Inbox row.
-   - Recommendation: Decision — live with the 5-min window for Phase 2 (Kevin manually resolves duplicates); OR resolver Lambda additionally queries Inbox directly (not just entity_index) for Status=Approved rows before deciding to create a new Inbox entry. Ship with the simpler version; revisit if Kevin reports duplicates.
+5. **KOS Inbox DB approval latency vs next capture** — **RESOLVED 2026-04-22**: Resolver Lambda **also queries KOS Inbox** for `Status=Approved` rows (in addition to `entity_index`) before deciding to create a new Inbox entry. Eliminates the 5-min race window. Adds ~500 ms + one Notion request per resolve (well under the 3 req/s rate limit for Kevin's capture volume). Plan 02-05 (entity-resolver Lambda) must include this second read path.
 
 ---
 

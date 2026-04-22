@@ -2,7 +2,7 @@ import { Stack, type StackProps, RemovalPolicy, Duration, Fn } from 'aws-cdk-lib
 import type { Construct } from 'constructs';
 import { Bucket, BucketEncryption, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
 import { PolicyStatement, Effect, AnyPrincipal, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Port, type IVpc, type IGatewayVpcEndpoint, type SecurityGroup } from 'aws-cdk-lib/aws-ec2';
+import { Port, SubnetType, type IVpc, type IGatewayVpcEndpoint, type SecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import { Secret, type ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import {
   DatabaseProxy,
@@ -96,6 +96,11 @@ export class DataStack extends Stack {
       proxyTarget: ProxyTarget.fromInstance(rds.instance),
       secrets: [this.rdsCredentialsSecret],
       vpc: props.vpc,
+      // Pin proxy to PRIVATE_ISOLATED only so adding new subnet types
+      // (e.g. the PRIVATE_WITH_EGRESS 'lambda' subnets in 2026-04-22's
+      // network refactor) doesn't trigger a CFN replacement on the
+      // proxy's VpcSubnetIds set.
+      vpcSubnets: { subnetType: SubnetType.PRIVATE_ISOLATED },
       iamAuth: true,
       requireTLS: true,
       role: proxyRole,

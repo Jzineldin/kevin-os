@@ -13,8 +13,15 @@
  * Swedish-first: the prompt explicitly tells the model to keep Kevin's
  * language (he code-switches SV/EN constantly).
  */
-import { query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+// 2026-04-22: replaced @anthropic-ai/claude-agent-sdk's query() (spawns
+// `claude` CLI subprocess that doesn't ship in Lambda bundles) with direct
+// Bedrock invocation via @anthropic-ai/sdk's AnthropicBedrock client.
+import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
 import { z } from 'zod';
+
+const client = new AnthropicBedrock({
+  awsRegion: process.env.AWS_REGION ?? 'eu-north-1',
+});
 
 export const VC_BASE_PROMPT = `You are the KOS Voice-Capture agent.
 Turn the user's captured message into ONE actionable Notion row. Extract entity mentions
@@ -57,50 +64,39 @@ export interface VCUsage {
 export async function runVoiceCaptureAgent(
   input: VCInput,
 ): Promise<{ output: VoiceCaptureOutput; usage: VCUsage }> {
+  // Skip empty Kevin Context block — Bedrock rejects cache_control on
+  // empty text blocks.
   const systemPrompt = [
     {
       type: 'text' as const,
       text: VC_BASE_PROMPT,
       cache_control: { type: 'ephemeral' as const },
     },
-    {
-      type: 'text' as const,
-      text: input.kevinContextBlock,
-      cache_control: { type: 'ephemeral' as const },
-    },
+    ...(input.kevinContextBlock.trim()
+      ? [{
+          type: 'text' as const,
+          text: input.kevinContextBlock,
+          cache_control: { type: 'ephemeral' as const },
+        }]
+      : []),
   ];
   const prompt = `Triage hint: ${JSON.stringify(input.triageHint ?? {})}\n<user_content>\n${input.text}\n</user_content>\nReturn JSON only.`;
 
-  let raw = '';
-  let usage: VCUsage = {};
+  const resp = await client.messages.create({
+    model: 'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
+    system: systemPrompt,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 800,
+  });
 
-  for await (const msg of query({
-    prompt,
-    options: {
-      model: 'eu.anthropic.claude-haiku-4-5',
-      systemPrompt,
-      allowedTools: [],
-      maxTokens: 800,
-      maxTurns: 1,
-    } as unknown as never,
-  })) {
-    const m = msg as SDKMessage & {
-      type?: string;
-      result?: string;
-      content?: Array<{ type: string; text?: string }>;
-      usage?: { input_tokens?: number; output_tokens?: number };
-    };
-    if (m.type === 'result' && typeof m.result === 'string') {
-      raw = m.result;
-    } else if (Array.isArray(m.content)) {
-      for (const c of m.content) {
-        if (c.type === 'text' && c.text) raw = c.text;
-      }
-    }
-    if (m.usage) {
-      usage = { inputTokens: m.usage.input_tokens, outputTokens: m.usage.output_tokens };
-    }
-  }
+  const raw = resp.content
+    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  const usage: VCUsage = {
+    inputTokens: resp.usage?.input_tokens,
+    outputTokens: resp.usage?.output_tokens,
+  };
 
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('voice-capture output missing JSON');

@@ -15,7 +15,7 @@
 
 import { Stack, Duration } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
-import type { IVpc } from 'aws-cdk-lib/aws-ec2';
+import { SubnetType, type IVpc, type ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
 import { CfnSchedule } from 'aws-cdk-lib/aws-scheduler';
@@ -71,6 +71,14 @@ function loadNotionIds(): NotionIds {
 
 export interface WireNotionProps {
   vpc: IVpc;
+  /**
+   * RDS Proxy security group — required so notion-indexer (and the backfill
+   * + reconcile Lambdas) can open a TCP socket to RDS Proxy from inside the
+   * VPC. Without this every `pg.Pool` connect times out (live-discovered
+   * 2026-04-22 — Phase 1 deploy ran for ~3 days with notion-indexer
+   * silently failing every 5-min schedule, no `last_error` surfaced).
+   */
+  rdsSecurityGroup: ISecurityGroup;
   rdsSecret: ISecret;
   rdsProxyEndpoint: string;
   /** `prx-xxxxxxxx` identifier from DataStack.rdsProxyDbiResourceId. */
@@ -99,6 +107,15 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
   const stack = Stack.of(scope);
   const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${props.rdsProxyDbiResourceId}/kos_admin`;
 
+  // Spread into every KosLambda so the notion-indexer trio land in the
+  // private isolated subnets and can reach RDS Proxy. Live-discovered
+  // 2026-04-22 — Phase 1's notion-indexer was failing every 5-min poll.
+  const vpcConfig = {
+    vpc: props.vpc,
+    vpcSubnets: { subnetType: SubnetType.PRIVATE_WITH_EGRESS },
+    securityGroups: [props.rdsSecurityGroup],
+  };
+
   // --- notion-indexer Lambda (5-min poller) ---------------------------------
   // Plan 02-07: NOTION_KOS_INBOX_DB_ID + NOTION_ENTITIES_DB_ID injected so the
   // 'kos_inbox' branch can (a) query the Inbox DB on its own schedule and
@@ -107,6 +124,7 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
     entry: svcEntry('notion-indexer'),
     timeout: Duration.minutes(2),
     memory: 512,
+    ...vpcConfig,
     environment: {
       NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
       RDS_ENDPOINT: props.rdsProxyEndpoint,
@@ -131,6 +149,7 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
     entry: svcEntry('notion-indexer-backfill'),
     timeout: Duration.minutes(15),
     memory: 1024,
+    ...vpcConfig,
     environment: {
       NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
       RDS_SECRET_ARN: props.rdsSecret.secretArn,
@@ -153,6 +172,7 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
     entry: svcEntry('notion-reconcile'),
     timeout: Duration.minutes(15),
     memory: 1024,
+    ...vpcConfig,
     environment: {
       NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
       RDS_ENDPOINT: props.rdsProxyEndpoint,

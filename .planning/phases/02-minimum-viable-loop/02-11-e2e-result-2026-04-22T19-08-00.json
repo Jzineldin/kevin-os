@@ -1,0 +1,42 @@
+{
+  "_note": "Live run on 2026-04-22T19:08Z. Script crashed at S3 PUT (step 1/6) due to bucket resource policy AccessDenied for IAM user kevin. No capture_id reached the pipeline; evidence below is the documented attempt + the parallel direct-invoke probe of every Phase 2 Lambda (which surfaced the universal INIT-time esbuild ESM bundling failure — see Gate 2 evidence file).",
+  "capture_id": "01KPV9DN34SRB3ZWTRBPPJC8EW",
+  "started_at": "2026-04-22T19:08:00.000Z",
+  "elapsed_ms": null,
+  "slo_ms": 25000,
+  "hard_limit_ms": 45000,
+  "fixture_path": "scripts/fixtures/sample-sv-voice-memo.oga",
+  "fixture_bytes": 17797,
+  "bucket": "kosdata-blobsf0f01dc6-etsqrpvycg0c",
+  "audio_key": "audio/2026/04/01KPV9DN34SRB3ZWTRBPPJC8EW.oga",
+  "meta_key": "audio/meta/01KPV9DN34SRB3ZWTRBPPJC8EW.json",
+  "transcribe_status": "NEVER-STARTED",
+  "transcript": null,
+  "log_groups": {
+    "triage": "/aws/lambda/KosAgents-TriageAgentA93D4BB1-f7aRCapBeNp9",
+    "voice_capture": "/aws/lambda/KosAgents-VoiceCaptureAgent59772747-OezibCgXcg9J",
+    "push_telegram": "/aws/lambda/KosSafety-PushTelegram9E9D1A09-5D2fVIjZ1vT9"
+  },
+  "log_hits": {
+    "triage": 0,
+    "voice_capture": 0,
+    "push_telegram": 0
+  },
+  "notion_page_id": null,
+  "notion_command_center_db_id": "f4c693b1-68da-4be6-9828-ca55dc2712ee",
+  "langfuse_session_url": "https://cloud.langfuse.com/sessions/01KPV9DN34SRB3ZWTRBPPJC8EW",
+  "milestones": {
+    "capture_received_published": false,
+    "transcribe_completed": false,
+    "triage_invoked": false,
+    "voice_capture_invoked": false,
+    "push_telegram_invoked": false,
+    "notion_row_present": false,
+    "within_25s_slo": false,
+    "within_45s_hard_limit": false
+  },
+  "blockers": [
+    "S3 bucket kosdata-blobsf0f01dc6-etsqrpvycg0c resource policy denies s3:PutObject to IAM user 'kevin' (operator) — by design, since the bucket is locked down to the telegram-bot Lambda's role only. Workaround for the gate: use the Telegram bot path (real Kevin voice memo), or temporarily relax the bucket policy. NOT a bug — just a friction the e2e script doesn't anticipate.",
+    "EVEN IF S3 PUT had succeeded, the pipeline would have failed: every Phase 2 runtime Lambda crashes at INIT with 'Dynamic require of <X> is not supported' — see Gate 2 evidence file §1.b for the universal esbuild ESM bundling bug."
+  ]
+}

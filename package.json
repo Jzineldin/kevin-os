@@ -17,9 +17,13 @@
     "verify:gate-1": "node scripts/verify-gate-1.mjs"
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudformation": "^3.1034.0",
+    "@aws-sdk/client-cloudwatch-logs": "3.691.0",
     "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/client-lambda": "^3.1034.0",
+    "@aws-sdk/client-s3": "3.691.0",
     "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@aws-sdk/client-transcribe": "3.691.0",
     "@notionhq/client": "2.3.0",
     "@types/node": "22.9.0",
     "@typescript-eslint/eslint-plugin": "8.13.0",

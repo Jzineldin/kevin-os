@@ -15,7 +15,7 @@
  */
 import { Stack, type StackProps } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
-import type { IVpc } from 'aws-cdk-lib/aws-ec2';
+import type { IVpc, ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
 import type { IBucket } from 'aws-cdk-lib/aws-s3';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
@@ -28,6 +28,8 @@ import { wireTranscribeVocab } from './integrations-transcribe.js';
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
   vpc: IVpc;
+  /** RDS Proxy SG — required so notion-indexer can reach RDS Proxy. */
+  rdsSecurityGroup: ISecurityGroup;
   rdsSecret: ISecret;
   rdsProxyEndpoint: string;
   /** `prx-xxxxxxxx` — from DataStack.rdsProxyDbiResourceId. */
@@ -62,6 +64,7 @@ export class IntegrationsStack extends Stack {
     // Plan 04: Notion indexer + backfill + reconcile
     const notion: NotionWiring = wireNotionIntegrations(this, {
       vpc: props.vpc,
+      rdsSecurityGroup: props.rdsSecurityGroup,
       rdsSecret: props.rdsSecret,
       rdsProxyEndpoint: props.rdsProxyEndpoint,
       rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,

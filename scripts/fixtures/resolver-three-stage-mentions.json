@@ -1,0 +1,142 @@
+[
+  {
+    "mention": "Damien",
+    "context": "Ping Damien om convertible loan detaljerna",
+    "type": "Person",
+    "expected_stage": "auto-merge",
+    "notes": "Exact existing-dossier name + project co-occurrence (Outbehaving) should yield >0.95 hybrid score."
+  },
+  {
+    "mention": "Christina",
+    "context": "Christina sa att hon kan vara finance advisor i 6 månader",
+    "type": "Person",
+    "expected_stage": "auto-merge",
+    "notes": "Known dossier (Christina Loh); simple first-name exact match."
+  },
+  {
+    "mention": "Emma Burman",
+    "context": "Emma Burman on the Almi Invest term sheet",
+    "type": "Person",
+    "expected_stage": "auto-merge",
+    "notes": "Full name exact match + project context (Almi Invest)."
+  },
+  {
+    "mention": "Marcus",
+    "context": "Marcus behöver drafta aktieägaravtalet",
+    "type": "Person",
+    "expected_stage": "auto-merge",
+    "notes": "Known legal advisor; frequent mention."
+  },
+  {
+    "mention": "Damian",
+    "context": "Damian sent the convertible loan docs",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "One-letter typo of Damien; pg_trgm similarity ~0.85 so should land in 0.75-0.95 band + LLM disambiguation."
+  },
+  {
+    "mention": "Christin",
+    "context": "Christin mentioned she's free Thursday",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Truncated Christina; trigram match ~0.88."
+  },
+  {
+    "mention": "our CTO",
+    "context": "Our CTO is signing the Outbehaving papers",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Semantic-only match — no lexical overlap with any name; relies on embedding cosine."
+  },
+  {
+    "mention": "Jezper",
+    "context": "Boka möte med Jezper kl 14 i morgon",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Swedish-spelled Jesper; unusual orthography forces LLM judgment."
+  },
+  {
+    "mention": "Anton",
+    "context": "Anton is joining the Lovable call",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Common first name; likely multiple candidates in dossier — forces disambiguation."
+  },
+  {
+    "mention": "Sophia",
+    "context": "Sophia will brief us on the partnership",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Candidate: Sophia Nabil from Lovable network. Ambiguous without project context."
+  },
+  {
+    "mention": "Fredrik",
+    "context": "Fredrik from Speed Capital sent the signing link",
+    "type": "Person",
+    "expected_stage": "auto-merge",
+    "notes": "Project co-occurrence with Speed Capital should trigger auto-merge."
+  },
+  {
+    "mention": "Monika",
+    "context": "Monika is leading Skolpilot Q2",
+    "type": "Person",
+    "expected_stage": "auto-merge",
+    "notes": "Monika Björklund, Skolpilot project co-occurrence."
+  },
+  {
+    "mention": "Simon",
+    "context": "Simon's design directive applied to Outbehaving site",
+    "type": "Person",
+    "expected_stage": "auto-merge",
+    "notes": "Simon Long, Outbehaving project co-occurrence."
+  },
+  {
+    "mention": "Javier",
+    "context": "Javier mentioned OpenClaw at dinner",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Javier Soltero; unusual first name but no strong project co-occurrence in this context."
+  },
+  {
+    "mention": "ZzXxNeverHeardOfEntity",
+    "context": "Random unknown name for inbox test",
+    "type": "Person",
+    "expected_stage": "inbox",
+    "notes": "No lexical or semantic match anywhere → KOS Inbox Pending row."
+  },
+  {
+    "mention": "FluxVolumetrics AB",
+    "context": "FluxVolumetrics AB is a new supplier I have not mentioned before",
+    "type": "Org",
+    "expected_stage": "inbox",
+    "notes": "Invented organisation name; should route to Inbox."
+  },
+  {
+    "mention": "Projektet Nordicloop",
+    "context": "Nytt projekt Nordicloop — ingen koppling till existerande saker",
+    "type": "Project",
+    "expected_stage": "inbox",
+    "notes": "Invented Swedish project name; Inbox."
+  },
+  {
+    "mention": "Kristina",
+    "context": "Kristina från finance team ringde",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Swedish spelling of Christina; trigram ~0.80 — borderline with Christina Loh."
+  },
+  {
+    "mention": "Dames",
+    "context": "Dames forwarded the term sheet",
+    "type": "Person",
+    "expected_stage": "inbox",
+    "notes": "Too short + low trigram to any dossier entry."
+  },
+  {
+    "mention": "Isak",
+    "context": "Isak will join the Lovable standup",
+    "type": "Person",
+    "expected_stage": "llm-disambig",
+    "notes": "Isaak Sundeman; truncated Swedish variant — trigram mid-band."
+  }
+]

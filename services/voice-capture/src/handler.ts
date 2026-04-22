@@ -24,7 +24,7 @@ import {
   EntityMentionDetectedSchema,
 } from '@kos/contracts';
 import {
-  setupOtelTracing,
+  setupOtelTracingAsync,
   flush as langfuseFlush,
   tagTraceWithCaptureId,
 } from '../../_shared/tracing.js';
@@ -37,7 +37,6 @@ import {
 } from './persist.js';
 import { writeCommandCenterRow } from './notion.js';
 
-setupOtelTracing();
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
 
@@ -49,6 +48,7 @@ interface EBEvent {
 
 export const handler = wrapHandler(async (event: EBEvent) => {
   await initSentry();
+  await setupOtelTracingAsync();
   const ownerId = process.env.KEVIN_OWNER_ID;
   if (!ownerId) throw new Error('KEVIN_OWNER_ID not set');
 

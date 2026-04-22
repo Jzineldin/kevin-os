@@ -1,10 +1,14 @@
 /**
- * Triage agent (AGT-01) — Claude Agent SDK wrapper.
+ * Triage agent (AGT-01) — direct Bedrock invocation via @anthropic-ai/sdk.
  *
  * D-19: separate Lambda per agent. D-20: Haiku 4.5 on the EU inference
- * profile via the Claude Agent SDK (CLAUDE_CODE_USE_BEDROCK=1).
+ * profile via Bedrock.
  *
- * Pure classification — no tools allowed, max 1 turn, max 400 tokens.
+ * 2026-04-22 architectural pivot: Was using `@anthropic-ai/claude-agent-sdk`
+ * `query()`, which spawns a `claude` CLI subprocess. That path doesn't work
+ * in Lambda — the CLI binary is an optional peer that esbuild --minify
+ * strips. Replaced with `AnthropicBedrock` from `@anthropic-ai/sdk`. Pure
+ * classification (no tools), so the agent SDK was overkill anyway.
  *
  * Prompt-injection mitigation (T-02-TRIAGE-01): every user-controlled string
  * (text body or transcript) is wrapped in `<user_content>...</user_content>`
@@ -15,8 +19,12 @@
  * ephemerally — the BASE prompt rarely changes and the Kevin Context block
  * changes only when notion-indexer pushes a new section.
  */
-import { query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
 import { z } from 'zod';
+
+const client = new AnthropicBedrock({
+  awsRegion: process.env.AWS_REGION ?? 'eu-north-1',
+});
 
 export const TRIAGE_BASE_PROMPT = `You are the KOS Triage agent.
 Classify each incoming capture into {route, detected_type, urgency}.
@@ -55,50 +63,40 @@ export interface TriageRunResult {
 }
 
 export async function runTriageAgent(input: TriageInput): Promise<TriageRunResult> {
+  // Skip empty Kevin Context block — Bedrock rejects cache_control on
+  // empty text. Skip the entire block (not just the cache_control) so we
+  // don't waste a system slot on whitespace.
   const systemPrompt = [
     {
       type: 'text' as const,
       text: TRIAGE_BASE_PROMPT,
       cache_control: { type: 'ephemeral' as const },
     },
-    {
-      type: 'text' as const,
-      text: input.kevinContextBlock,
-      cache_control: { type: 'ephemeral' as const },
-    },
+    ...(input.kevinContextBlock.trim()
+      ? [{
+          type: 'text' as const,
+          text: input.kevinContextBlock,
+          cache_control: { type: 'ephemeral' as const },
+        }]
+      : []),
   ];
   const userPrompt = `<user_content>\n${input.text}\n</user_content>\n\nReturn JSON only.`;
 
-  let lastText = '';
-  let usage: TriageUsage = {};
+  const resp = await client.messages.create({
+    model: 'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+    max_tokens: 400,
+  });
 
-  for await (const msg of query({
-    prompt: userPrompt,
-    options: {
-      model: 'eu.anthropic.claude-haiku-4-5',
-      systemPrompt,
-      allowedTools: [],
-      maxTokens: 400,
-      maxTurns: 1,
-    } as unknown as never, // Agent SDK options type drifts across versions; pinned in lockfile.
-  })) {
-    const m = msg as SDKMessage & {
-      type?: string;
-      result?: string;
-      usage?: { input_tokens?: number; output_tokens?: number };
-      content?: Array<{ type: string; text?: string }>;
-    };
-    if (m.type === 'result' && typeof m.result === 'string') {
-      lastText = m.result;
-    } else if (Array.isArray(m.content)) {
-      for (const c of m.content) {
-        if (c.type === 'text' && typeof c.text === 'string') lastText = c.text;
-      }
-    }
-    if (m.usage) {
-      usage = { inputTokens: m.usage.input_tokens, outputTokens: m.usage.output_tokens };
-    }
-  }
+  const lastText = resp.content
+    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  const usage: TriageUsage = {
+    inputTokens: resp.usage?.input_tokens,
+    outputTokens: resp.usage?.output_tokens,
+  };
 
   const json = extractJsonObject(lastText);
   const parsed = TriageOutputSchema.parse(JSON.parse(json));

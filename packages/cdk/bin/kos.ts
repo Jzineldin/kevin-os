@@ -46,6 +46,7 @@ const data = new DataStack(app, 'KosData', {
 const integrations = new IntegrationsStack(app, 'KosIntegrations', {
   env,
   vpc: network.vpc,
+  rdsSecurityGroup: data.rdsSecurityGroup,
   rdsSecret: data.rdsCredentialsSecret,
   rdsProxyEndpoint: data.rdsProxyEndpoint,
   rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
@@ -63,6 +64,10 @@ const safety = new SafetyStack(app, 'KosSafety', {
   env,
   rdsSecret: data.rdsCredentialsSecret,
   rdsProxyEndpoint: data.rdsProxyEndpoint,
+  // 2026-04-22: push-telegram now in VPC for RDS Proxy access.
+  vpc: network.vpc,
+  rdsSecurityGroup: data.rdsSecurityGroup,
+  rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
   telegramBotTokenSecret: data.telegramBotTokenSecret,
   // Plan 02-06: push-telegram consumes output.push events from kos.output.
   outputBus: events.buses.output,
@@ -112,6 +117,11 @@ const agents = new AgentsStack(app, 'KosAgents', {
     process.env.KEVIN_OWNER_ID ??
     (app.node.tryGetContext('kevinOwnerId') as string | undefined) ??
     '',
+  // VPC + RDS SG so every agent Lambda lands in the private isolated
+  // subnets and can reach RDS Proxy. Live-discovered fix (2026-04-22) —
+  // without this every `pg.Pool` connection times out.
+  vpc: network.vpc,
+  rdsSecurityGroup: data.rdsSecurityGroup,
   // Plan 02-09 (ENT-06): wire Gmail OAuth secret created in DataStack so the
   // BulkImportGranolaGmail Lambda has a typed grant + ARN-by-Ref binding.
   gmailOauthSecret: data.gmailOauthSecret,

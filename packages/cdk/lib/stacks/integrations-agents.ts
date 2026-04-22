@@ -61,6 +61,22 @@ function loadKosInboxIdOrEmpty(): string {
   }
 }
 
+/**
+ * Plan 02-09: Transkripten DB ID is optional at synth time. If present in
+ * scripts/.notion-db-ids.json under key "transkripten", inject it; otherwise
+ * leave empty and let the Lambda fall back to runtime `notion.search`. The
+ * search path costs one extra Notion call per cold-invocation; trivial.
+ */
+function loadTranskriptenIdOrEmpty(): string {
+  const idFile = path.resolve(REPO_ROOT, 'scripts/.notion-db-ids.json');
+  try {
+    const parsed = JSON.parse(fs.readFileSync(idFile, 'utf8')) as { transkripten?: string };
+    return parsed.transkripten ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export interface AgentsWiringProps {
   captureBus: EventBus;
   triageBus: EventBus;
@@ -76,6 +92,13 @@ export interface AgentsWiringProps {
   /** `prx-xxxxxxxx` from DataStack.rdsProxyDbiResourceId. */
   rdsProxyDbiResourceId: string;
   kevinOwnerId: string;
+  /**
+   * Plan 02-09 (ENT-06): Gmail OAuth tokens secret (`kos/gmail-oauth-tokens`).
+   * Optional — if absent, the BulkImportGranolaGmail Lambda is wired without
+   * the grant and Gmail leg gracefully skips. Operator can update later via
+   * AWS Secrets Manager + Lambda env update.
+   */
+  gmailOauthSecret?: ISecret;
 }
 
 export interface AgentsWiring {
@@ -83,6 +106,7 @@ export interface AgentsWiring {
   voiceCaptureFn: KosLambda;
   resolverFn: KosLambda;
   bulkImportKontakterFn: KosLambda;
+  bulkImportGranolaGmailFn: KosLambda;
   triageRule: Rule;
   voiceCaptureRule: Rule;
   resolverRule: Rule;
@@ -95,6 +119,7 @@ export function wireTriageAndVoiceCapture(
   const stack = Stack.of(scope);
   const commandCenterId = loadCommandCenterId();
   const kosInboxId = loadKosInboxIdOrEmpty();
+  const transkriptenId = loadTranskriptenIdOrEmpty();
   const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${p.rdsProxyDbiResourceId}/${p.rdsIamUser}`;
 
   // --- Per-pipeline DLQs (live in this stack to avoid E↔C cycle) ----------
@@ -334,11 +359,75 @@ export function wireTriageAndVoiceCapture(
   p.notionTokenSecret.grantRead(bulkImportKontakterFn);
   p.sentryDsnSecret.grantRead(bulkImportKontakterFn);
 
+  // --- BulkImportGranolaGmail Lambda (Plan 02-09, ENT-06) ----------------
+  //
+  // One-shot operator-invoked Lambda. No EventBridge rule — invoked on demand
+  // via scripts/bulk-import-granola-gmail.sh. Reads Notion Transkripten DB
+  // (Resolved Open Q1 — NOT Granola REST) + Gmail signatures via OAuth,
+  // extracts Person candidates with confidence gating, deduplicates against
+  // KOS Inbox + entity_index, writes Pending rows.
+  //
+  // IAM grants: Notion token secret read, Gmail OAuth secret read (optional —
+  // if not wired, Gmail leg gracefully skips), RDS Proxy IAM auth (entity_index
+  // dedup SELECT). NO Bedrock InvokeModel — this Lambda doesn't embed.
+  //
+  // Timeout 900s (15 min): full Transkripten 90-day pull + 350ms-paced creates
+  // for ~500 candidates ~= 200s; 900s leaves headroom for Gmail metadata calls.
+  // Memory 1024MB.
+  const bulkImportGranolaGmailFn = new KosLambda(scope, 'BulkImportGranolaGmail', {
+    entry: svcEntry('bulk-import-granola-gmail'),
+    timeout: Duration.minutes(15),
+    memory: 1024,
+    environment: {
+      KEVIN_OWNER_ID: p.kevinOwnerId,
+      RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
+      RDS_IAM_USER: p.rdsIamUser,
+      NOTION_TOKEN_SECRET_ARN: p.notionTokenSecret.secretArn,
+      NOTION_KOS_INBOX_DB_ID: kosInboxId,
+      // Discriminator for tests + bulk-import grouping (mirrors Plan 02-08).
+      // Operator may update post-discovery to skip notion.search round-trip.
+      TRANSKRIPTEN_DB_ID_OPTIONAL: transkriptenId,
+      // Gmail OAuth secret ID (matches DataStack.gmailOauthSecret name).
+      GMAIL_OAUTH_SECRET_ID: 'kos/gmail-oauth-tokens',
+      SENTRY_DSN_SECRET_ARN: p.sentryDsnSecret.secretArn,
+    },
+  });
+  bulkImportGranolaGmailFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectResource],
+    }),
+  );
+  p.notionTokenSecret.grantRead(bulkImportGranolaGmailFn);
+  p.sentryDsnSecret.grantRead(bulkImportGranolaGmailFn);
+  // Gmail OAuth secret grant — optional. If absent, Gmail leg fails fast in
+  // loadGmailTokens; the handler catches + sets gmailSkipped=true so the
+  // Granola leg still runs. Wiring the grant here when the secret is
+  // available avoids the operator having to attach it manually.
+  if (p.gmailOauthSecret) {
+    p.gmailOauthSecret.grantRead(bulkImportGranolaGmailFn);
+  } else {
+    // Fallback: grant by ARN pattern so operator can populate the secret
+    // post-deploy without re-deploying the stack. The exact-name secret ARN
+    // suffix is randomized (-XXXXXX), so use a wildcard.
+    bulkImportGranolaGmailFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [
+          `arn:aws:secretsmanager:${stack.region}:${stack.account}:secret:kos/gmail-oauth-tokens-*`,
+        ],
+      }),
+    );
+  }
+
   return {
     triageFn,
     voiceCaptureFn,
     resolverFn,
     bulkImportKontakterFn,
+    bulkImportGranolaGmailFn,
     triageRule,
     voiceCaptureRule,
     resolverRule,

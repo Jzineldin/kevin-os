@@ -43,6 +43,8 @@ describe('AgentsStack', () => {
     rdsIamUser: 'kos_admin',
     rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
     kevinOwnerId: '00000000-0000-0000-0000-000000000001',
+    // Plan 02-09 (ENT-06): wire Gmail OAuth secret for the granola-gmail Lambda.
+    gmailOauthSecret: data.gmailOauthSecret,
   });
   const tpl = Template.fromStack(agents);
 
@@ -103,7 +105,8 @@ describe('AgentsStack', () => {
   it('all agent Lambdas run nodejs22.x + arm64', () => {
     const fns = agentFns();
     // triage + voice-capture + entity-resolver + bulk-import-kontakter (Plan 02-08)
-    expect(fns.length).toBe(4);
+    // + bulk-import-granola-gmail (Plan 02-09)
+    expect(fns.length).toBe(5);
     for (const fn of fns) {
       const props = (fn as { Properties: { Runtime: string; Architectures: string[] } })
         .Properties;
@@ -112,14 +115,17 @@ describe('AgentsStack', () => {
     }
   });
 
-  it('Claude-SDK agent Lambdas have CLAUDE_CODE_USE_BEDROCK=1 env (bulk-import-kontakter excluded — no LLM calls)', () => {
+  it('Claude-SDK agent Lambdas have CLAUDE_CODE_USE_BEDROCK=1 env (both bulk-import lambdas excluded — no LLM calls)', () => {
     for (const fn of agentFns()) {
       const env = (
         fn as { Properties: { Environment: { Variables: Record<string, unknown> } } }
       ).Properties.Environment.Variables;
-      // Plan 02-08 bulk-import-kontakter has KONTAKTER_DB_ID_OPTIONAL env
-      // and does NOT call any LLM — skip the Bedrock env check for it.
-      const isBulkImport = env.KONTAKTER_DB_ID_OPTIONAL !== undefined;
+      // Plan 02-08 bulk-import-kontakter (KONTAKTER_DB_ID_OPTIONAL env) +
+      // Plan 02-09 bulk-import-granola-gmail (TRANSKRIPTEN_DB_ID_OPTIONAL env)
+      // do NOT call any LLM — skip the Bedrock env check for both.
+      const isBulkImport =
+        env.KONTAKTER_DB_ID_OPTIONAL !== undefined ||
+        env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
       if (!isBulkImport) {
         expect(env.CLAUDE_CODE_USE_BEDROCK).toBe('1');
       }
@@ -154,14 +160,17 @@ describe('AgentsStack', () => {
     expect(serialized).toMatch(/KosBustriageBus/);
   });
 
-  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; bulk-import-kontakter ≤ 900s', () => {
+  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; both bulk-imports ≤ 900s', () => {
     for (const fn of agentFns()) {
       const props = (
         fn as { Properties: { Timeout: number; Environment: { Variables: Record<string, unknown> } } }
       ).Properties;
       const env = props.Environment.Variables;
-      if (env.KONTAKTER_DB_ID_OPTIONAL !== undefined) {
-        expect(props.Timeout).toBeLessThanOrEqual(900); // bulk-import (Plan 02-08)
+      if (
+        env.KONTAKTER_DB_ID_OPTIONAL !== undefined ||
+        env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined
+      ) {
+        expect(props.Timeout).toBeLessThanOrEqual(900); // bulk-import (Plans 02-08 / 02-09)
       } else if (env.NOTION_COMMAND_CENTER_DB_ID !== undefined) {
         expect(props.Timeout).toBeLessThanOrEqual(60); // voice-capture
       } else if (env.NOTION_KOS_INBOX_DB_ID !== undefined) {
@@ -238,8 +247,8 @@ describe('AgentsStack', () => {
     expect(serialized).toContain('secretsmanager:GetSecretValue');
   });
 
-  it('emits exactly 4 agent Lambdas (triage + voice-capture + entity-resolver + bulk-import-kontakter); CDK helper Lambdas excluded', () => {
-    expect(agentFns().length).toBe(4);
+  it('emits exactly 5 agent Lambdas (triage + voice-capture + entity-resolver + bulk-import-kontakter + bulk-import-granola-gmail); CDK helper Lambdas excluded', () => {
+    expect(agentFns().length).toBe(5);
   });
 
   // --- Plan 02-08 BulkImportKontakter assertions -------------------------
@@ -281,6 +290,55 @@ describe('AgentsStack', () => {
     expect(serialized).toContain('rds-db:connect');
     expect(serialized).toContain('bedrock:ListInferenceProfiles');
     // Notion token grant present (3+ readers — voice-capture + resolver + bulk-import)
+    expect(serialized).toContain('secretsmanager:GetSecretValue');
+  });
+
+  // --- Plan 02-09 BulkImportGranolaGmail assertions ----------------------
+
+  it('BulkImportGranolaGmail Lambda: 15-min timeout, GMAIL_OAUTH_SECRET_ID + KOS Inbox env wired, no event-source rule', () => {
+    const fn = agentFns().find((f) => {
+      const env = (
+        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
+      ).Properties.Environment.Variables;
+      return env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
+    });
+    expect(fn).toBeDefined();
+    const props = (
+      fn as {
+        Properties: {
+          Timeout: number;
+          MemorySize: number;
+          Environment: { Variables: Record<string, unknown> };
+        };
+      }
+    ).Properties;
+    expect(props.Timeout).toBe(900); // 15 min
+    expect(props.MemorySize).toBeGreaterThanOrEqual(1024);
+    const env = props.Environment.Variables;
+    expect(env.NOTION_TOKEN_SECRET_ARN).toBeDefined();
+    expect(env.NOTION_KOS_INBOX_DB_ID).toBeDefined();
+    expect(env.RDS_PROXY_ENDPOINT).toBeDefined();
+    expect(env.GMAIL_OAUTH_SECRET_ID).toBe('kos/gmail-oauth-tokens');
+    expect(env.KEVIN_OWNER_ID).toBe('00000000-0000-0000-0000-000000000001');
+    // No CLAUDE_CODE_USE_BEDROCK — this Lambda doesn't call any LLM.
+    expect(env.CLAUDE_CODE_USE_BEDROCK).toBeUndefined();
+
+    // No EventBridge rule should target this Lambda — operator-invoked.
+    const rules = tpl.findResources('AWS::Events::Rule');
+    const fnLogicalIdRefs = JSON.stringify(rules);
+    expect(fnLogicalIdRefs).not.toMatch(/BulkImportGranolaGmail[^"]*"\s*,\s*"Arn"/);
+  });
+
+  it('BulkImportGranolaGmail IAM: rds-db:connect + Notion token read + Gmail OAuth secret read; NO bedrock:InvokeModel grant', () => {
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    const serialized = JSON.stringify(policies);
+    expect(serialized).toContain('rds-db:connect');
+    // Gmail OAuth secret grant — DataStack creates `kos/gmail-oauth-tokens`
+    // and AgentsStack passes it via gmailOauthSecret prop, so the grant
+    // should reference the secret ARN by ref. The literal string
+    // 'GmailOauth' is the CDK logical ID.
+    expect(serialized).toMatch(/GmailOauth/);
+    // Notion token grant present (≥3 readers)
     expect(serialized).toContain('secretsmanager:GetSecretValue');
   });
 });

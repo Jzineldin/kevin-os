@@ -35,6 +35,7 @@ describe('IntegrationsStack (Notion wiring)', () => {
     rdsProxyEndpoint: data.rdsProxyEndpoint,
     rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
     notionTokenSecret: data.notionTokenSecret,
+    azureSearchAdminSecret: data.azureSearchAdminSecret,
     captureBus: events.buses.capture,
     systemBus: events.buses.system,
     scheduleGroupName: events.scheduleGroupName,

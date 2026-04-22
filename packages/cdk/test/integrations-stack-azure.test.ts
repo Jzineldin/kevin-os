@@ -3,6 +3,7 @@ import { Template, Match } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 import { NetworkStack } from '../lib/stacks/network-stack';
 import { DataStack } from '../lib/stacks/data-stack';
+import { EventsStack } from '../lib/stacks/events-stack';
 import { IntegrationsStack } from '../lib/stacks/integrations-stack';
 
 /**
@@ -21,6 +22,7 @@ describe('IntegrationsStack — Azure Search bootstrap', () => {
   function synth() {
     const app = new App();
     const net = new NetworkStack(app, 'N', { env });
+    const events = new EventsStack(app, 'E', { env });
     const data = new DataStack(app, 'D', {
       env,
       vpc: net.vpc,
@@ -28,7 +30,15 @@ describe('IntegrationsStack — Azure Search bootstrap', () => {
     });
     const integrations = new IntegrationsStack(app, 'I', {
       env,
+      vpc: net.vpc,
+      rdsSecret: data.rdsCredentialsSecret,
+      rdsProxyEndpoint: data.rdsProxyEndpoint,
+      rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
+      notionTokenSecret: data.notionTokenSecret,
       azureSearchAdminSecret: data.azureSearchAdminSecret,
+      captureBus: events.buses.capture,
+      systemBus: events.buses.system,
+      scheduleGroupName: events.scheduleGroupName,
     });
     return { app, tpl: Template.fromStack(integrations) };
   }

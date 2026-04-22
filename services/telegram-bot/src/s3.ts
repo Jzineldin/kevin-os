@@ -31,3 +31,29 @@ export async function putVoiceAudio(
   );
   return { bucket, key };
 }
+
+/**
+ * Writes a JSON sidecar at `audio/meta/{captureId}.json` holding the capture
+ * metadata (raw_ref, sender, received_at, telegram fields). Plan 02-02's
+ * transcribe-complete Lambda reads this to reconstruct the downstream
+ * `capture.voice.transcribed` event — Transcribe itself doesn't carry
+ * user/chat context through its completion event.
+ *
+ * Key shape is fully deterministic (captureId only) and has no
+ * user-controlled path components (T-02-S3-01 / T-02-TRANSCRIBE-03).
+ */
+export async function putVoiceMeta(
+  captureId: string,
+  meta: unknown,
+): Promise<void> {
+  const bucket = process.env.BLOBS_BUCKET;
+  if (!bucket) throw new Error('BLOBS_BUCKET env var not set');
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: `audio/meta/${captureId}.json`,
+      Body: JSON.stringify(meta),
+      ContentType: 'application/json',
+    }),
+  );
+}

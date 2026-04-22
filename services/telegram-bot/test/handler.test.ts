@@ -8,11 +8,10 @@ vi.mock('@aws-sdk/client-eventbridge', () => ({
   PutEventsCommand: vi.fn().mockImplementation((x: unknown) => ({ input: x })),
 }));
 
-// S3 mock — no-op.
+// S3 mock — shared send so tests can inspect Put calls (audio + meta sidecar).
+const s3Send = vi.fn().mockResolvedValue({});
 vi.mock('@aws-sdk/client-s3', () => ({
-  S3Client: vi.fn().mockImplementation(() => ({
-    send: vi.fn().mockResolvedValue({}),
-  })),
+  S3Client: vi.fn().mockImplementation(() => ({ send: s3Send })),
   PutObjectCommand: vi.fn().mockImplementation((x: unknown) => ({ input: x })),
 }));
 
@@ -60,6 +59,25 @@ vi.mock('node-fetch', () => {
         arrayBuffer: async () => new ArrayBuffer(16),
       };
     }
+    if (u.includes('/getFile')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Map([['content-type', 'application/json']]),
+        json: async () => ({
+          ok: true,
+          result: {
+            file_id: 'voice-abc',
+            file_unique_id: 'u1',
+            file_size: 16,
+            file_path: 'voice/file_1.oga',
+          },
+        }),
+        text: async () =>
+          '{"ok":true,"result":{"file_id":"voice-abc","file_unique_id":"u1","file_size":16,"file_path":"voice/file_1.oga"}}',
+        arrayBuffer: async () => new ArrayBuffer(16),
+      };
+    }
     return {
       ok: true,
       status: 200,
@@ -71,6 +89,17 @@ vi.mock('node-fetch', () => {
   });
   return { default: fetchMock };
 });
+
+// Global fetch is also used by the handler for the file-download URL
+// (https://api.telegram.org/file/bot{token}/{path}) — must return bytes.
+vi.stubGlobal(
+  'fetch',
+  vi.fn().mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    arrayBuffer: async () => new ArrayBuffer(64),
+  })),
+);
 
 type AnyHandler = (e: unknown, c?: unknown, cb?: unknown) => Promise<unknown>;
 
@@ -89,6 +118,8 @@ describe('telegram-bot handler', () => {
       can_read_all_group_messages: false, supports_inline_queries: false,
     });
     mockSend.mockClear();
+    s3Send.mockClear();
+    s3Send.mockResolvedValue({});
     vi.resetModules();
   });
 
@@ -118,6 +149,44 @@ describe('telegram-bot handler', () => {
       JSON.stringify(c[0]).includes('capture.received'),
     );
     expect(putEventsCalls.length).toBe(0);
+  });
+
+  it('putVoiceMeta writes meta sidecar at audio/meta/<id>.json (Plan 02-02 bridge)', async () => {
+    const mod = await import('../src/s3.js');
+    await mod.putVoiceMeta('01HABCDEFGHJKMNPQRSTVWXYZ0', {
+      raw_ref: {
+        s3_bucket: 'kos-blobs-test',
+        s3_key: 'audio/2026/04/01HABCDEFGHJKMNPQRSTVWXYZ0.oga',
+        duration_sec: 8,
+        mime_type: 'audio/ogg',
+      },
+      sender: { id: 111, display: 'Kevin' },
+      received_at: new Date().toISOString(),
+      telegram: { chat_id: 111, message_id: 1 },
+    });
+    const metaPut = s3Send.mock.calls.find((c) => {
+      const k = (c[0] as { input?: { Key?: string } }).input?.Key;
+      return typeof k === 'string' && k.startsWith('audio/meta/');
+    });
+    expect(metaPut).toBeDefined();
+    const put = metaPut![0] as { input: { Key: string; Bucket: string; Body: string; ContentType: string } };
+    expect(put.input.Key).toBe(
+      'audio/meta/01HABCDEFGHJKMNPQRSTVWXYZ0.json',
+    );
+    expect(put.input.Bucket).toBe('kos-blobs-test');
+    expect(put.input.ContentType).toBe('application/json');
+    const body = JSON.parse(put.input.Body) as { telegram: { chat_id: number } };
+    expect(body.telegram.chat_id).toBe(111);
+  });
+
+  it('handler module imports putVoiceMeta (Plan 02-02 wiring)', async () => {
+    const handlerSrc = await import('node:fs').then((fs) =>
+      fs.readFileSync(
+        new URL('../src/handler.ts', import.meta.url),
+        'utf8',
+      ),
+    );
+    expect(handlerSrc).toMatch(/putVoiceMeta/);
   });
 
   it('text message -> PutEvents with kind=text and ULID capture_id', async () => {

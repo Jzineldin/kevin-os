@@ -536,6 +536,9 @@ importers:
       '@kos/test-fixtures':
         specifier: workspace:*
         version: link:../../packages/test-fixtures
+      '@types/aws-lambda':
+        specifier: 8.10.145
+        version: 8.10.145
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0
@@ -567,6 +570,9 @@ importers:
       '@kos/test-fixtures':
         specifier: workspace:*
         version: link:../../packages/test-fixtures
+      '@types/aws-lambda':
+        specifier: 8.10.145
+        version: 8.10.145
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0

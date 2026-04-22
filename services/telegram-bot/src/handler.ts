@@ -26,7 +26,7 @@ import type {
 import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
 import { CaptureReceivedSchema } from '@kos/contracts';
 import { getTelegramSecrets } from './secrets.js';
-import { putVoiceAudio } from './s3.js';
+import { putVoiceAudio, putVoiceMeta } from './s3.js';
 import { publishCaptureReceived } from './events.js';
 
 sentryInit({
@@ -119,6 +119,15 @@ async function getBot(): Promise<Bot> {
         },
       };
       CaptureReceivedSchema.parse(detail);
+      // Plan 02-02 bridge: transcribe-complete reads this sidecar to
+      // reconstruct the capture.voice.transcribed event payload (chat_id,
+      // message_id, sender) — Transcribe itself doesn't carry these.
+      await putVoiceMeta(capture_id, {
+        raw_ref: detail.raw_ref,
+        sender: detail.sender,
+        received_at: detail.received_at,
+        telegram: detail.telegram,
+      });
       await publishCaptureReceived(detail);
       try {
         await ctx.reply('⏳ Transkriberar…', {

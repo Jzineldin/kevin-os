@@ -19,6 +19,10 @@ import {
   wireTelegramIngress,
   type TelegramWiring,
 } from './integrations-telegram.js';
+import {
+  wireTranscribePipeline,
+  type TranscribePipelineWiring,
+} from './integrations-transcribe-pipeline.js';
 
 export interface CaptureStackProps extends StackProps {
   blobsBucket: IBucket;
@@ -26,14 +30,22 @@ export interface CaptureStackProps extends StackProps {
   telegramWebhookSecret: ISecret;
   sentryDsnSecret: ISecret;
   captureBus: EventBus;
+  systemBus: EventBus;
   kevinTelegramUserId: string;
 }
 
 export class CaptureStack extends Stack {
   public readonly telegram: TelegramWiring;
+  public readonly transcribe: TranscribePipelineWiring;
 
   constructor(scope: Construct, id: string, props: CaptureStackProps) {
     super(scope, id, props);
     this.telegram = wireTelegramIngress(this, props);
+    this.transcribe = wireTranscribePipeline(this, {
+      captureBus: props.captureBus,
+      systemBus: props.systemBus,
+      blobsBucket: props.blobsBucket,
+      sentryDsnSecret: props.sentryDsnSecret,
+    });
   }
 }

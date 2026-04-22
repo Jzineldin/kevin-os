@@ -34,6 +34,7 @@ describe('CaptureStack', () => {
     telegramWebhookSecret: data.telegramWebhookSecret,
     sentryDsnSecret: data.sentryDsnSecret,
     captureBus: events.buses.capture,
+    systemBus: events.buses.system,
     kevinTelegramUserId: '111222333',
   });
   const tpl = Template.fromStack(capture);
@@ -103,5 +104,102 @@ describe('CaptureStack', () => {
         Export: Match.objectLike({ Name: 'KosTelegramWebhookUrl' }),
       }),
     );
+  });
+
+  // --- Plan 02-02: transcribe pipeline assertions --------------------------
+
+  it('CaptureReceivedVoiceRule has detail.kind=voice pattern + DLQ', () => {
+    const rules = tpl.findResources('AWS::Events::Rule');
+    const voiceRule = Object.values(rules).find((r) => {
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
+        ?.EventPattern as
+        | { source?: string[]; 'detail-type'?: string[]; detail?: { kind?: string[] } }
+        | undefined;
+      return (
+        ep?.source?.includes('kos.capture') === true &&
+        ep?.['detail-type']?.includes('capture.received') === true &&
+        ep?.detail?.kind?.includes('voice') === true
+      );
+    });
+    expect(voiceRule).toBeDefined();
+    const targets = (voiceRule as { Properties?: { Targets?: unknown[] } })
+      .Properties?.Targets as { DeadLetterConfig?: { Arn?: unknown } }[];
+    expect(targets[0]?.DeadLetterConfig).toBeDefined();
+  });
+
+  it('TranscribeJobStateChangeRule filters source=aws.transcribe + kos- prefix', () => {
+    const rules = tpl.findResources('AWS::Events::Rule');
+    const completionRule = Object.values(rules).find((r) => {
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
+        ?.EventPattern as
+        | { source?: string[]; 'detail-type'?: string[] }
+        | undefined;
+      return (
+        ep?.source?.includes('aws.transcribe') === true &&
+        ep?.['detail-type']?.includes('Transcribe Job State Change') === true
+      );
+    });
+    expect(completionRule).toBeDefined();
+    const ep = (completionRule as { Properties: { EventPattern: { detail: { TranscriptionJobName: { prefix: string }[] } } } })
+      .Properties.EventPattern;
+    expect(ep.detail.TranscriptionJobName[0]?.prefix).toBe('kos-');
+    const targets = (completionRule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } })
+      .Properties.Targets;
+    expect(targets[0]?.DeadLetterConfig).toBeDefined();
+  });
+
+  it('TranscribeStarter + TranscribeComplete Lambdas use nodejs22.x + arm64', () => {
+    const fns = tpl.findResources('AWS::Lambda::Function');
+    const transcribeFns = Object.values(fns).filter((f) => {
+      const env = (f as { Properties?: { Environment?: { Variables?: Record<string, unknown> } } })
+        .Properties?.Environment?.Variables;
+      // transcribe lambdas have BLOBS_BUCKET but NOT TELEGRAM_BOT_TOKEN_SECRET_ARN.
+      return (
+        env?.BLOBS_BUCKET !== undefined &&
+        env?.TELEGRAM_BOT_TOKEN_SECRET_ARN === undefined
+      );
+    });
+    expect(transcribeFns.length).toBeGreaterThanOrEqual(2);
+    for (const fn of transcribeFns) {
+      const props = (fn as { Properties: { Runtime: string; Architectures: string[] } }).Properties;
+      expect(props.Runtime).toBe('nodejs22.x');
+      expect(props.Architectures).toEqual(['arm64']);
+    }
+  });
+
+  it('TranscribeStarter has transcribe:StartTranscriptionJob policy', () => {
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    const serialized = JSON.stringify(policies);
+    expect(serialized).toContain('transcribe:StartTranscriptionJob');
+  });
+
+  it('TranscribeComplete has transcribe:GetTranscriptionJob + PutEvents on capture and system buses', () => {
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    const completePolicy = Object.entries(policies).find(([name]) =>
+      name.startsWith('TranscribeCompleteServiceRoleDefaultPolicy'),
+    );
+    expect(completePolicy).toBeDefined();
+    const [, policyRes] = completePolicy as [string, { Properties: { PolicyDocument: { Statement: { Action: string | string[]; Resource: unknown }[] } } }];
+    const statements = policyRes.Properties.PolicyDocument.Statement;
+    expect(
+      statements.some((s) => s.Action === 'transcribe:GetTranscriptionJob'),
+    ).toBe(true);
+    const putEvents = statements.filter((s) => s.Action === 'events:PutEvents');
+    // Two PutEvents grants — one per bus (capture + system). Bus ARNs are
+    // Fn::ImportValue tokens pointing at EventsStack exports; the two exports
+    // have distinct logical IDs.
+    expect(putEvents.length).toBe(2);
+    const serialized = JSON.stringify(putEvents);
+    expect(serialized).toMatch(/KosBuscaptureBus/);
+    expect(serialized).toMatch(/KosBussystemBus/);
+  });
+
+  it('creates dedicated transcribe DLQs (pipeline-scoped, not shared with capture)', () => {
+    const queues = tpl.findResources('AWS::SQS::Queue');
+    const names = Object.values(queues).map(
+      (q) => (q as { Properties?: { QueueName?: string } }).Properties?.QueueName,
+    );
+    expect(names).toContain('kos-transcribe-starter-dlq');
+    expect(names).toContain('kos-transcribe-complete-dlq');
   });
 });

@@ -74,6 +74,7 @@ const capture = new CaptureStack(app, 'KosCapture', {
   telegramWebhookSecret: data.telegramWebhookSecret,
   sentryDsnSecret: data.sentryDsnSecret,
   captureBus: events.buses.capture,
+  systemBus: events.buses.system,
   kevinTelegramUserId:
     process.env.KEVIN_TELEGRAM_USER_ID ??
     (app.node.tryGetContext('kevinTelegramUserId') as string | undefined) ??

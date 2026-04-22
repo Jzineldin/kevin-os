@@ -1,0 +1,27 @@
+{
+  "name": "@kos/service-notion-reconcile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/handler.ts",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@notionhq/client": "2.3.0",
+    "@kos/db": "workspace:*",
+    "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@aws-sdk/client-eventbridge": "3.691.0",
+    "@aws-sdk/rds-signer": "3.691.0",
+    "drizzle-orm": "0.36.0",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.9.0",
+    "@types/pg": "8.11.10",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}

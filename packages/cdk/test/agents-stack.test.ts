@@ -102,7 +102,8 @@ describe('AgentsStack', () => {
 
   it('all agent Lambdas run nodejs22.x + arm64', () => {
     const fns = agentFns();
-    expect(fns.length).toBe(3); // triage + voice-capture + entity-resolver (Plan 02-05)
+    // triage + voice-capture + entity-resolver + bulk-import-kontakter (Plan 02-08)
+    expect(fns.length).toBe(4);
     for (const fn of fns) {
       const props = (fn as { Properties: { Runtime: string; Architectures: string[] } })
         .Properties;
@@ -111,12 +112,17 @@ describe('AgentsStack', () => {
     }
   });
 
-  it('both agent Lambdas have CLAUDE_CODE_USE_BEDROCK=1 env', () => {
+  it('Claude-SDK agent Lambdas have CLAUDE_CODE_USE_BEDROCK=1 env (bulk-import-kontakter excluded — no LLM calls)', () => {
     for (const fn of agentFns()) {
       const env = (
         fn as { Properties: { Environment: { Variables: Record<string, unknown> } } }
       ).Properties.Environment.Variables;
-      expect(env.CLAUDE_CODE_USE_BEDROCK).toBe('1');
+      // Plan 02-08 bulk-import-kontakter has KONTAKTER_DB_ID_OPTIONAL env
+      // and does NOT call any LLM — skip the Bedrock env check for it.
+      const isBulkImport = env.KONTAKTER_DB_ID_OPTIONAL !== undefined;
+      if (!isBulkImport) {
+        expect(env.CLAUDE_CODE_USE_BEDROCK).toBe('1');
+      }
       expect(env.KEVIN_OWNER_ID).toBe('00000000-0000-0000-0000-000000000001');
       expect(env.RDS_PROXY_ENDPOINT).toBeDefined();
       expect(env.RDS_IAM_USER).toBe('kos_admin');
@@ -148,13 +154,15 @@ describe('AgentsStack', () => {
     expect(serialized).toMatch(/KosBustriageBus/);
   });
 
-  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s', () => {
+  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; bulk-import-kontakter ≤ 900s', () => {
     for (const fn of agentFns()) {
       const props = (
         fn as { Properties: { Timeout: number; Environment: { Variables: Record<string, unknown> } } }
       ).Properties;
       const env = props.Environment.Variables;
-      if (env.NOTION_COMMAND_CENTER_DB_ID !== undefined) {
+      if (env.KONTAKTER_DB_ID_OPTIONAL !== undefined) {
+        expect(props.Timeout).toBeLessThanOrEqual(900); // bulk-import (Plan 02-08)
+      } else if (env.NOTION_COMMAND_CENTER_DB_ID !== undefined) {
         expect(props.Timeout).toBeLessThanOrEqual(60); // voice-capture
       } else if (env.NOTION_KOS_INBOX_DB_ID !== undefined) {
         expect(props.Timeout).toBeLessThanOrEqual(60); // entity-resolver (Plan 02-05)
@@ -199,7 +207,12 @@ describe('AgentsStack', () => {
       const env = (
         f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
       ).Properties.Environment.Variables;
-      return env.NOTION_KOS_INBOX_DB_ID !== undefined;
+      // Disambiguate from bulk-import-kontakter (which also has
+      // NOTION_KOS_INBOX_DB_ID) by requiring CLAUDE_CODE_USE_BEDROCK.
+      return (
+        env.NOTION_KOS_INBOX_DB_ID !== undefined &&
+        env.CLAUDE_CODE_USE_BEDROCK === '1'
+      );
     });
     expect(resolver).toBeDefined();
     const props = (
@@ -225,8 +238,50 @@ describe('AgentsStack', () => {
     expect(serialized).toContain('secretsmanager:GetSecretValue');
   });
 
-  it('emits exactly 3 agent Lambdas (triage + voice-capture + entity-resolver); CDK helper Lambdas excluded', () => {
-    expect(agentFns().length).toBe(3);
+  it('emits exactly 4 agent Lambdas (triage + voice-capture + entity-resolver + bulk-import-kontakter); CDK helper Lambdas excluded', () => {
+    expect(agentFns().length).toBe(4);
+  });
+
+  // --- Plan 02-08 BulkImportKontakter assertions -------------------------
+
+  it('BulkImportKontakter Lambda: 15-min timeout, NOTION_TOKEN + KOS Inbox env wired, no event-source rule', () => {
+    const fn = agentFns().find((f) => {
+      const env = (
+        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
+      ).Properties.Environment.Variables;
+      return env.KONTAKTER_DB_ID_OPTIONAL !== undefined;
+    });
+    expect(fn).toBeDefined();
+    const props = (
+      fn as {
+        Properties: {
+          Timeout: number;
+          MemorySize: number;
+          Environment: { Variables: Record<string, unknown> };
+        };
+      }
+    ).Properties;
+    expect(props.Timeout).toBe(900); // 15 min
+    expect(props.MemorySize).toBeGreaterThanOrEqual(1024);
+    const env = props.Environment.Variables;
+    expect(env.NOTION_TOKEN_SECRET_ARN).toBeDefined();
+    expect(env.NOTION_KOS_INBOX_DB_ID).toBeDefined();
+    expect(env.RDS_PROXY_ENDPOINT).toBeDefined();
+    expect(env.KEVIN_OWNER_ID).toBe('00000000-0000-0000-0000-000000000001');
+
+    // No EventBridge rule should target this Lambda — it's operator-invoked.
+    const rules = tpl.findResources('AWS::Events::Rule');
+    const fnLogicalIdRefs = JSON.stringify(rules);
+    expect(fnLogicalIdRefs).not.toMatch(/BulkImportKontakter[^"]*"\s*,\s*"Arn"/);
+  });
+
+  it('BulkImportKontakter IAM: rds-db:connect + bedrock:ListInferenceProfiles + Notion token read', () => {
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    const serialized = JSON.stringify(policies);
+    expect(serialized).toContain('rds-db:connect');
+    expect(serialized).toContain('bedrock:ListInferenceProfiles');
+    // Notion token grant present (3+ readers — voice-capture + resolver + bulk-import)
+    expect(serialized).toContain('secretsmanager:GetSecretValue');
   });
 });
 

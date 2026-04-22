@@ -82,6 +82,7 @@ export interface AgentsWiring {
   triageFn: KosLambda;
   voiceCaptureFn: KosLambda;
   resolverFn: KosLambda;
+  bulkImportKontakterFn: KosLambda;
   triageRule: Rule;
   voiceCaptureRule: Rule;
   resolverRule: Rule;
@@ -281,10 +282,63 @@ export function wireTriageAndVoiceCapture(
     ],
   });
 
+  // --- BulkImportKontakter Lambda (Plan 02-08, ENT-05) -------------------
+  //
+  // One-shot operator-invoked Lambda. No EventBridge rule — invoked on demand
+  // via scripts/bulk-import-kontakter.sh. Reads Kontakter Notion DB, dedups
+  // against KOS Inbox + entity_index, writes Pending rows. Embeddings NOT
+  // written here (Plan 02-08 Task 2 extends notion-indexer to embed on
+  // entities upsert when Kevin approves).
+  //
+  // IAM grants: Notion token secret read, RDS Proxy IAM auth (for entity_index
+  // dedup SELECT), bedrock:ListInferenceProfiles (operator discovery
+  // breadcrumb). No Bedrock InvokeModel grant — this Lambda does not embed.
+  //
+  // Timeout 900s (15 min): full Kontakter pull + 350ms-paced creates for 500
+  // rows ~= 200s; 900s leaves headroom for cold start + retries. Memory
+  // 1024MB for decent cold-start latency on one-shot invocations.
+  const bulkImportKontakterFn = new KosLambda(scope, 'BulkImportKontakter', {
+    entry: svcEntry('bulk-import-kontakter'),
+    timeout: Duration.minutes(15),
+    memory: 1024,
+    environment: {
+      KEVIN_OWNER_ID: p.kevinOwnerId,
+      RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
+      RDS_IAM_USER: p.rdsIamUser,
+      NOTION_TOKEN_SECRET_ARN: p.notionTokenSecret.secretArn,
+      NOTION_KOS_INBOX_DB_ID: kosInboxId,
+      // Operator can set KONTAKTER_DB_ID post-discovery via
+      // 'aws lambda update-function-configuration' to skip the notion.search
+      // round trip on every invocation.
+      KONTAKTER_DB_ID_OPTIONAL: '',
+      SENTRY_DSN_SECRET_ARN: p.sentryDsnSecret.secretArn,
+    },
+  });
+  bulkImportKontakterFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectResource],
+    }),
+  );
+  // Bedrock list-inference-profiles for the embed-profile discovery breadcrumb
+  // (Plan 02-08 Open Question 2 runbook). Lambda only reads metadata, never
+  // InvokeModel — that grant stays with indexer (Task 2) and resolver.
+  bulkImportKontakterFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['bedrock:ListInferenceProfiles'],
+      resources: ['*'],
+    }),
+  );
+  p.notionTokenSecret.grantRead(bulkImportKontakterFn);
+  p.sentryDsnSecret.grantRead(bulkImportKontakterFn);
+
   return {
     triageFn,
     voiceCaptureFn,
     resolverFn,
+    bulkImportKontakterFn,
     triageRule,
     voiceCaptureRule,
     resolverRule,

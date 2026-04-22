@@ -143,6 +143,18 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
       resources: [rdsDbConnectResource],
     }),
   );
+  // 2026-04-22 (Wave 5 Gap A): Plan 02-08 extended notion-indexer to embed
+  // entity rows via Cohere Embed v4. Grant Bedrock InvokeModel on the EU
+  // inference profile + the foundation-model ARNs it fans out to.
+  notionIndexer.addToRolePolicy(
+    new PolicyStatement({
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        'arn:aws:bedrock:*:*:inference-profile/eu.cohere.embed-v4*',
+        'arn:aws:bedrock:*::foundation-model/cohere.embed-v4*',
+      ],
+    }),
+  );
 
   // --- notion-indexer-backfill Lambda (one-shot full scan) ------------------
   const notionIndexerBackfill = new KosLambda(scope, 'NotionIndexerBackfill', {

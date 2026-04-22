@@ -10,20 +10,21 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2",
     "@aws-sdk/client-dynamodb": "3.691.0",
-    "@aws-sdk/lib-dynamodb": "3.691.0",
     "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@aws-sdk/lib-dynamodb": "3.691.0",
+    "@aws-sdk/rds-signer": "3.691.0",
     "@kos/contracts": "workspace:*",
     "@kos/db": "workspace:*",
+    "@langfuse/otel": "^5",
+    "@opentelemetry/api": "^1",
+    "@opentelemetry/instrumentation": "^0.215",
+    "@opentelemetry/sdk-trace-node": "^2",
     "@sentry/aws-serverless": "^8",
     "drizzle-orm": "0.36.0",
     "pg": "8.13.1",
-    "ulid": "2.3.0",
-    "@langfuse/otel": "^5",
-    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2",
-    "@opentelemetry/api": "^1",
-    "@opentelemetry/sdk-trace-node": "^2",
-    "@opentelemetry/instrumentation": "^0.215"
+    "ulid": "2.3.0"
   },
   "devDependencies": {
     "@types/node": "22.9.0",

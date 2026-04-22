@@ -114,8 +114,11 @@ export class SafetyStack extends Stack {
       securityGroups: [props.rdsSecurityGroup],
       environment: {
         CAP_TABLE_NAME: this.capTable.tableName,
+        // RDS_SECRET_ARN retained for backwards-compat tests; runtime now
+        // uses IAM-token auth via RDS_IAM_USER + Signer.
         RDS_SECRET_ARN: props.rdsSecret.secretArn,
         RDS_ENDPOINT: props.rdsProxyEndpoint,
+        RDS_IAM_USER: 'kos_admin',
         TELEGRAM_BOT_TOKEN_SECRET_ARN: props.telegramBotTokenSecret.secretArn,
       },
     });

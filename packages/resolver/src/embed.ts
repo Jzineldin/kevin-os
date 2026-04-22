@@ -1,7 +1,13 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
-export const MODEL_ID = 'cohere.embed-multilingual-v3';
-const COHERE_MAX_INPUTS = 96; // Cohere API hard limit
+// 2026-04-22 (Wave 5 Gap A): migrated from `cohere.embed-multilingual-v3`
+// (not available in eu-north-1 Bedrock) to Cohere Embed v4 via the EU
+// inference profile. v4 keeps the same request/response schema for text
+// embedding; the only addition is `output_dimension` (256/512/1024/1536),
+// which we pin to 1024 to keep Postgres `vector(1024)` + Azure index dims
+// stable from migration 0003 (D-06).
+export const MODEL_ID = 'eu.cohere.embed-v4:0';
+const COHERE_MAX_INPUTS = 96; // Cohere API hard limit (v3 + v4)
 const COHERE_MAX_CHAR_WARN = 2000; // rough proxy for 512 tokens
 
 let client: BedrockRuntimeClient | null = null;
@@ -13,13 +19,14 @@ function getClient(): BedrockRuntimeClient {
 export type EmbedInputType = 'search_document' | 'search_query';
 
 /**
- * Cohere Embed Multilingual v3 on Bedrock. 1024-dim floats, max 96 texts, 512 tokens per text.
+ * Cohere Embed v4 on Bedrock (EU inference profile). 1024-dim floats
+ * pinned via `output_dimension`, max 96 texts, 512 tokens per text.
  * Explicitly sets `truncate: 'END'` (Pitfall 3) to avoid errors on long inputs.
  */
 export async function embedBatch(texts: string[], inputType: EmbedInputType): Promise<number[][]> {
   if (texts.length === 0) return [];
   if (texts.length > COHERE_MAX_INPUTS) {
-    throw new Error(`embedBatch received ${texts.length} texts; Cohere v3 max is ${COHERE_MAX_INPUTS}`);
+    throw new Error(`embedBatch received ${texts.length} texts; Cohere v4 max is ${COHERE_MAX_INPUTS}`);
   }
   for (const t of texts) {
     if (t.length > COHERE_MAX_CHAR_WARN) {
@@ -31,6 +38,7 @@ export async function embedBatch(texts: string[], inputType: EmbedInputType): Pr
     input_type: inputType,
     truncate: 'END' as const,
     embedding_types: ['float'] as const,
+    output_dimension: 1024,
   };
   const resp = await getClient().send(
     new InvokeModelCommand({

@@ -288,14 +288,19 @@ export function wireTriageAndVoiceCapture(
     },
   });
   grantBedrock(resolverFn);
-  // Cohere Embed Multilingual v3 (embedBatch in @kos/resolver) is invoked
-  // against Bedrock — grant the foundation-model ARN separately so future
-  // embed-model swaps don't drift from the agent grants.
+  // Cohere Embed v4 (embedBatch in @kos/resolver) via the EU inference
+  // profile. v3 was retired from eu-north-1; Wave 5 Gap A migration moved
+  // us to v4. Grant covers BOTH the inference-profile ARN AND every
+  // foundation-model ARN the profile fans out to (eu-north-1, eu-west-1,
+  // eu-west-3, eu-central-1, eu-south-1, eu-south-2).
   resolverFn.addToRolePolicy(
     new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ['bedrock:InvokeModel'],
-      resources: ['arn:aws:bedrock:*::foundation-model/cohere.embed-multilingual-v3*'],
+      resources: [
+        'arn:aws:bedrock:*:*:inference-profile/eu.cohere.embed-v4*',
+        'arn:aws:bedrock:*::foundation-model/cohere.embed-v4*',
+      ],
     }),
   );
   resolverFn.addToRolePolicy(

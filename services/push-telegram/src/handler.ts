@@ -37,6 +37,7 @@
 
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
+import { Signer } from '@aws-sdk/rds-signer';
 import {
   SecretsManagerClient,
   GetSecretValueCommand,
@@ -75,31 +76,27 @@ export interface PushTelegramResult {
 // --- Module-scope RDS pool cache (survives warm starts) ---------------------
 let pool: PgPool | null = null;
 
+// 2026-04-22 (Wave 5 Gap B): switched from RDS_SECRET password auth to RDS
+// Proxy IAM-token auth. The proxy is configured `iamAuth: true,
+// requireTLS: true` and rejects password auth even with valid creds.
+// Pattern matches services/triage/src/persist.ts.
 async function getPool(): Promise<PgPool> {
   if (pool) return pool;
-  const secretArn = process.env.RDS_SECRET_ARN;
   const host = process.env.RDS_ENDPOINT;
-  if (!secretArn || !host) {
-    throw new Error('RDS_SECRET_ARN and RDS_ENDPOINT must be set');
-  }
-  const sm = new SecretsManagerClient({});
-  const secret = await sm.send(new GetSecretValueCommand({ SecretId: secretArn }));
-  if (!secret.SecretString) {
-    throw new Error(`Secret ${secretArn} has no SecretString`);
-  }
-  const creds = JSON.parse(secret.SecretString) as {
-    username: string;
-    password: string;
-  };
+  const user = process.env.RDS_IAM_USER ?? 'kos_admin';
+  if (!host) throw new Error('RDS_ENDPOINT not set');
+  const region = process.env.AWS_REGION ?? 'eu-north-1';
+  const signer = new Signer({ hostname: host, port: 5432, region, username: user });
   pool = new Pool({
     host,
     port: 5432,
-    user: creds.username,
-    password: creds.password,
+    user,
     database: 'kos',
     ssl: { rejectUnauthorized: false },
+    password: async () => signer.getAuthToken(),
     max: 2,
-  });
+    idleTimeoutMillis: 10_000,
+  } as never);
   return pool;
 }
 

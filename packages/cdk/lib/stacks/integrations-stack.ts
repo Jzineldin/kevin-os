@@ -23,7 +23,7 @@ import { createHash } from 'node:crypto';
 import type { KosLambda } from '../constructs/kos-lambda.js';
 import { wireNotionIntegrations, type NotionWiring } from './integrations-notion.js';
 import { wireAzureSearch } from './integrations-azure.js';
-// Plan 06 wiring added post Plan 06 merge.
+import { wireTranscribeVocab } from './integrations-transcribe.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -82,10 +82,14 @@ export class IntegrationsStack extends Stack {
       azureSearchAdminSecret: props.azureSearchAdminSecret,
     });
 
-    // Plan 06: Transcribe sv-SE vocabulary wiring is added after Plan 06 merges.
-    // References to props.blobsBucket and props.transcribeRegion are preserved
-    // in IntegrationsStackProps so the wiring can be added without a props change.
-    void props.blobsBucket;
-    void props.transcribeRegion;
+    // Plan 06: Transcribe sv-SE vocabulary. The CustomResource uploads
+    // vocab/sv-se-v1.txt via CDK Asset construct and invokes CreateVocabulary /
+    // UpdateVocabulary with polling to READY.
+    if (props.blobsBucket && props.transcribeRegion) {
+      wireTranscribeVocab(this, {
+        blobsBucket: props.blobsBucket,
+        transcribeRegion: props.transcribeRegion,
+      });
+    }
   }
 }

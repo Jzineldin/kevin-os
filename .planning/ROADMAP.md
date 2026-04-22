@@ -302,7 +302,7 @@
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Foundation | 0/9 | Planned | - |
 | 2. Minimum Viable Loop | 0/12 | Planned | - |
-| 3. Dashboard MVP | 0/? | Not started | - |
+| 3. Dashboard MVP | 0/14 | Planned | - |
 | 4. Email Pipeline + iOS Capture | 0/? | Not started | - |
 | 5. Messaging Channels | 0/? | Not started | - |
 | 6. Granola + Semantic Memory | 0/? | Not started | - |

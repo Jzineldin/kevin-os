@@ -8,6 +8,7 @@ import { RESOLVED_ENV } from '../lib/config/env.js';
 import { NetworkStack } from '../lib/stacks/network-stack.js';
 import { EventsStack } from '../lib/stacks/events-stack.js';
 import { DataStack } from '../lib/stacks/data-stack.js';
+import { IntegrationsStack } from '../lib/stacks/integrations-stack.js';
 
 const app = new App();
 const env: Environment = RESOLVED_ENV;
@@ -25,10 +26,15 @@ const data = new DataStack(app, 'KosData', {
   vpc: network.vpc,
   s3Endpoint: network.s3GatewayEndpoint,
 });
-// `data` is referenced by IntegrationsStack (Plan 04) via props
-// { rds: data.rds, rdsSecurityGroup: data.rdsSecurityGroup, blobsBucket: data.blobsBucket, ... }.
+// Plan 05: IntegrationsStack owns the Azure Search bootstrap CustomResource.
+// Plans 04 and 06 extend IntegrationsStackProps with additional dependencies
+// (rds, notion secret, capture bus, schedule group, etc.).
+const integrations = new IntegrationsStack(app, 'KosIntegrations', {
+  env,
+  azureSearchAdminSecret: data.azureSearchAdminSecret,
+});
 void events;
-void data;
+void integrations;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

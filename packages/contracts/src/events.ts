@@ -19,3 +19,84 @@ export const EventMetadataSchema = z.object({
   occurredAt: z.string().datetime(),
 });
 export type EventMetadata = z.infer<typeof EventMetadataSchema>;
+
+// --- Phase 2 / Plan 02-01: CAP-01 Telegram ingress ------------------------
+//
+// `kos.capture` / `capture.received` — Phase 2 Telegram (text + voice variants).
+// Voice detail carries raw_ref (S3) and no transcript; transcribe-complete
+// later emits `capture.voice.transcribed` with the text (Plan 02-02). See
+// .planning/phases/02-minimum-viable-loop/02-CONTEXT.md D-01, D-02, D-04.
+
+// ULID shape (26 chars, Crockford base32 alphabet excluding I L O U).
+const UlidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
+export const CaptureReceivedTextSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('telegram'),
+  kind: z.literal('text'),
+  text: z.string().min(1).max(8000),
+  sender: z.object({
+    id: z.number().int(),
+    display: z.string().optional(),
+  }),
+  received_at: z.string().datetime(),
+  telegram: z.object({
+    chat_id: z.number().int(),
+    message_id: z.number().int(),
+  }),
+});
+
+export const CaptureReceivedVoiceSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('telegram'),
+  kind: z.literal('voice'),
+  raw_ref: z.object({
+    s3_bucket: z.string(),
+    s3_key: z.string(),
+    duration_sec: z.number().int().min(0),
+    mime_type: z.string(),
+  }),
+  sender: z.object({
+    id: z.number().int(),
+    display: z.string().optional(),
+  }),
+  received_at: z.string().datetime(),
+  telegram: z.object({
+    chat_id: z.number().int(),
+    message_id: z.number().int(),
+  }),
+});
+
+export const CaptureReceivedSchema = z.discriminatedUnion('kind', [
+  CaptureReceivedTextSchema,
+  CaptureReceivedVoiceSchema,
+]);
+
+export const CaptureVoiceTranscribedSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('telegram'),
+  kind: z.literal('voice'),
+  text: z.string(),
+  raw_ref: z.object({
+    s3_bucket: z.string(),
+    s3_key: z.string(),
+    duration_sec: z.number().int().min(0),
+    mime_type: z.string(),
+  }),
+  sender: z.object({
+    id: z.number().int(),
+    display: z.string().optional(),
+  }),
+  received_at: z.string().datetime(),
+  transcribed_at: z.string().datetime(),
+  telegram: z.object({
+    chat_id: z.number().int(),
+    message_id: z.number().int(),
+  }),
+  vocab_name: z.literal('kos-sv-se-v1'),
+});
+
+export type CaptureReceivedText = z.infer<typeof CaptureReceivedTextSchema>;
+export type CaptureReceivedVoice = z.infer<typeof CaptureReceivedVoiceSchema>;
+export type CaptureReceived = z.infer<typeof CaptureReceivedSchema>;
+export type CaptureVoiceTranscribed = z.infer<typeof CaptureVoiceTranscribedSchema>;

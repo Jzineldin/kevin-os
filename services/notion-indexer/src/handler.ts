@@ -32,6 +32,7 @@ import {
   upsertProject,
   upsertKevinContextSection,
   handleArchivedOrMissing,
+  processKosInboxBatch,
   type DbExec,
 } from './upsert.js';
 
@@ -108,7 +109,13 @@ async function getPool(): Promise<Pool> {
 
 export type IndexerEvent = {
   dbId: string;
-  dbKind: 'entities' | 'projects' | 'kevin_context' | 'command_center';
+  dbKind: 'entities' | 'projects' | 'kevin_context' | 'command_center' | 'kos_inbox';
+  /**
+   * Plan 02-07 alias: CDK schedule for KOS Inbox emits `dbName: 'kosInbox'`
+   * alongside `dbKind: 'kos_inbox'`. Both are honoured (kosInbox name is the
+   * operator-friendly key matching scripts/.notion-db-ids.json).
+   */
+  dbName?: string;
 };
 
 export type IndexerResult = {
@@ -151,6 +158,26 @@ export async function runIndexer(event: IndexerEvent, deps: Deps = {}): Promise<
 
   // D-08: 2-minute overlap to absorb Notion clock skew.
   const overlapFrom = new Date(Math.max(lastCursor.getTime() - 2 * 60 * 1000, 0));
+
+  // --- Plan 02-07: KOS Inbox dispatch (kosInbox / kos_inbox) ----------------
+  // The KOS Inbox poll is batch-oriented (returns counters, not per-page upsert
+  // outcomes), so it lives in its own short-circuit branch. Cursor advanced
+  // after the batch completes successfully — same Phase 1 pattern.
+  if (event.dbKind === 'kos_inbox' || event.dbName === 'kosInbox') {
+    const entitiesDbId = process.env.NOTION_ENTITIES_DB_ID;
+    if (!entitiesDbId) {
+      throw new Error(
+        'NOTION_ENTITIES_DB_ID env var missing — required for KOS Inbox Approve→create-or-reuse Entities-DB page (Plan 02-07)',
+      );
+    }
+    return runKosInboxIndexer({
+      event,
+      db,
+      notion,
+      overlapFrom,
+      entitiesDbId,
+    });
+  }
 
   const stats: IndexerResult = {
     dbId: event.dbId,
@@ -318,6 +345,110 @@ async function indexKevinContextPage(
     }
   }
   return { action: lastAction };
+}
+
+/**
+ * Plan 02-07: KOS Inbox poll branch.
+ *
+ * Queries the KOS Inbox DB for rows changed since the last cursor (with the
+ * standard 2-min overlap), filtered to Status != Pending so we only see rows
+ * Kevin has acted on. Each batch is processed via processKosInboxBatch:
+ *   - Approved → create-or-reuse Entities page + flip Inbox to Merged
+ *   - Rejected → archive (D-09 archive-not-delete) + event_log
+ *   - Merged   → skip (already processed)
+ *
+ * Cursor advanced after the full pagination + batch completes successfully.
+ */
+async function runKosInboxIndexer(args: {
+  event: IndexerEvent;
+  db: DbExec;
+  notion: any;
+  overlapFrom: Date;
+  entitiesDbId: string;
+}): Promise<IndexerResult> {
+  const { event, db, notion, overlapFrom, entitiesDbId } = args;
+  const ownerId = process.env.KEVIN_OWNER_ID ?? '';
+
+  const stats: IndexerResult = {
+    dbId: event.dbId,
+    dbKind: event.dbKind,
+    pagesSeen: 0,
+    inserted: 0, // approved → counted as inserted for symmetry with other branches
+    updated: 0,
+    skipped: 0,
+    hardDeletesLogged: 0,
+    cursorAdvancedTo: null,
+  };
+
+  let maxSeenEditedAt = new Date(Math.max(overlapFrom.getTime(), 0));
+  let startCursor: string | undefined;
+  const allRows: any[] = [];
+
+  try {
+    do {
+      const res: any = await notion.databases.query({
+        database_id: event.dbId,
+        filter: {
+          and: [
+            {
+              timestamp: 'last_edited_time',
+              last_edited_time: { after: overlapFrom.toISOString() },
+            },
+            { property: 'Status', select: { does_not_equal: 'Pending' } },
+          ],
+        },
+        sorts: [{ timestamp: 'last_edited_time', direction: 'ascending' }],
+        start_cursor: startCursor,
+        page_size: 100,
+      });
+
+      for (const page of res.results ?? []) {
+        stats.pagesSeen += 1;
+        const editedAt = new Date(page.last_edited_time);
+        if (editedAt.getTime() > maxSeenEditedAt.getTime()) maxSeenEditedAt = editedAt;
+        allRows.push(page);
+      }
+      startCursor = res.next_cursor ?? undefined;
+    } while (startCursor);
+
+    const counters = await processKosInboxBatch({
+      client: notion,
+      db,
+      rows: allRows,
+      ownerId,
+      entitiesDbId,
+    });
+    stats.inserted = counters.approved;
+    stats.updated = counters.rejected; // 'updated' here means 'archived'; reused stat for parity
+    stats.skipped = counters.skipped;
+
+    // Advance cursor only after full batch success.
+    await db.query(
+      `INSERT INTO notion_indexer_cursor (db_id, db_kind, last_cursor_at, last_run_at, last_error)
+       VALUES ($1, $2, $3, now(), NULL)
+       ON CONFLICT (db_id) DO UPDATE SET
+         last_cursor_at = GREATEST(EXCLUDED.last_cursor_at, notion_indexer_cursor.last_cursor_at),
+         db_kind = EXCLUDED.db_kind,
+         last_run_at = now(),
+         last_error = NULL`,
+      [event.dbId, event.dbKind, maxSeenEditedAt.toISOString()],
+    );
+    stats.cursorAdvancedTo = maxSeenEditedAt.toISOString();
+    return stats;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    try {
+      await db.query(
+        `UPDATE notion_indexer_cursor
+            SET last_error = $1, last_run_at = now()
+          WHERE db_id = $2`,
+        [message.slice(0, 2000), event.dbId],
+      );
+    } catch {
+      /* best-effort */
+    }
+    throw err;
+  }
 }
 
 export const handler = async (event: IndexerEvent): Promise<IndexerResult> => {

@@ -61,3 +61,42 @@ export function getPageTitle(page: any): string {
   }
   return '';
 }
+
+// --- Plan 02-07: KOS Inbox row schema --------------------------------------
+
+import { z } from 'zod';
+
+/**
+ * Zod schema for a KOS Inbox Notion row (D-13 properties + MergedInto).
+ *
+ * Used by processKosInboxBatch to validate incoming rows before dispatching
+ * Status transitions. We accept any extra properties — Notion's response
+ * always includes more than we read.
+ *
+ * Note: this validates the *shape* (presence of expected properties), not the
+ * deep structure of every nested array. The downstream extractor functions
+ * (getTitlePlainText, getSelectName, getRichTextPlainText) handle empty/null
+ * defensively, so a partial row still flows through gracefully.
+ */
+export const KosInboxRowSchema = z
+  .object({
+    id: z.string(),
+    last_edited_time: z.string(),
+    archived: z.boolean().optional(),
+    properties: z
+      .object({
+        'Proposed Entity Name': z.unknown().optional(),
+        Type: z.unknown().optional(),
+        'Candidate Matches': z.unknown().optional(),
+        'Source Capture ID': z.unknown().optional(),
+        Status: z.unknown().optional(),
+        Confidence: z.unknown().optional(),
+        'Raw Context': z.unknown().optional(),
+        Created: z.unknown().optional(),
+        MergedInto: z.unknown().optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export type KosInboxRow = z.infer<typeof KosInboxRowSchema>;

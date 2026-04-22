@@ -9,6 +9,7 @@ import {
   type ISecurityGroup,
   Port,
 } from 'aws-cdk-lib/aws-ec2';
+import { ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 
 export interface KosBastionProps {
   vpc: IVpc;
@@ -39,6 +40,14 @@ export class KosBastion extends Construct {
       subnetSelection: { subnetType: SubnetType.PRIVATE_ISOLATED },
       instanceType: InstanceType.of(InstanceClass.T4G, InstanceSize.NANO),
     });
+
+    // Explicitly attach SSM core policy. BastionHostLinux is documented to
+    // attach this by default, but in aws-cdk-lib 2.248.0 on eu-north-1 the
+    // attachment did NOT happen (reproduced 2026-04-22: role had zero attached
+    // policies). Adding explicitly guarantees SSM Session Manager works.
+    this.host.instance.role.addManagedPolicy(
+      ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
+    );
 
     const bastionSg = this.host.connections.securityGroups[0];
     if (!bastionSg) {

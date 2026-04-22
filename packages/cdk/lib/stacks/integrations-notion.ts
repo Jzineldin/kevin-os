@@ -160,15 +160,17 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
   );
 
   // --- Scheduler role --------------------------------------------------------
+  // Trust policy: scheduler.amazonaws.com. We intentionally DO NOT add an
+  // aws:SourceArn condition because AWS Scheduler validates the role at
+  // schedule-creation time by calling sts:AssumeRole BEFORE the schedule ARN
+  // exists — reproduced 2026-04-22 with error "The execution role you provide
+  // must allow AWS EventBridge Scheduler to assume the role". Blast radius is
+  // still narrow: grantInvoke calls below restrict which Lambdas this role
+  // can invoke (notionIndexer + notionReconcile only).
   const schedulerRole = new Role(scope, 'SchedulerRole', {
-    assumedBy: new ServicePrincipal('scheduler.amazonaws.com', {
-      conditions: {
-        ArnLike: {
-          'aws:SourceArn': `arn:aws:scheduler:${stack.region}:${stack.account}:schedule/${props.scheduleGroupName}/*`,
-        },
-      },
-    }),
+    assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
   });
+  void stack; // preserved for future use; condition previously referenced it
   notionIndexer.grantInvoke(schedulerRole);
   notionReconcile.grantInvoke(schedulerRole);
 

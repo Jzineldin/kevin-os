@@ -3,6 +3,7 @@ import { Template, Match } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
 import { NetworkStack } from '../lib/stacks/network-stack';
 import { DataStack } from '../lib/stacks/data-stack';
+import { EventsStack } from '../lib/stacks/events-stack';
 import { SafetyStack } from '../lib/stacks/safety-stack';
 
 /**
@@ -25,11 +26,14 @@ describe('SafetyStack', () => {
     vpc: net.vpc,
     s3Endpoint: net.s3GatewayEndpoint,
   });
+  const events = new EventsStack(app, 'E', { env });
   const safety = new SafetyStack(app, 'S', {
     env,
     rdsSecret: data.rdsCredentialsSecret,
     rdsProxyEndpoint: data.rdsProxyEndpoint,
     telegramBotTokenSecret: data.telegramBotTokenSecret,
+    // Plan 02-06 — push-telegram is now an EB target on kos.output.
+    outputBus: events.buses.output,
   });
   const tpl = Template.fromStack(safety);
 
@@ -111,5 +115,50 @@ describe('SafetyStack', () => {
     expect(serialised).toContain('budgets.amazonaws.com');
     expect(serialised).toContain('budget/kos-monthly');
     expect(serialised).toContain('aws:SourceArn');
+  });
+
+  // --- Plan 02-06 / OUT-01: EventBridge rule on kos.output ---------------
+  it('creates a Rule on kos.output matching detail-type=output.push targeting push-telegram', () => {
+    tpl.hasResourceProperties(
+      'AWS::Events::Rule',
+      Match.objectLike({
+        EventPattern: Match.objectLike({
+          source: ['kos.output'],
+          'detail-type': ['output.push'],
+        }),
+      }),
+    );
+    // And the rule must have a DLQ (DeadLetterConfig on the target).
+    const rules = tpl.findResources('AWS::Events::Rule');
+    const pushRule = Object.values(rules).find((r: unknown) => {
+      const props = (r as { Properties: { EventPattern?: { source?: string[] } } }).Properties;
+      return props.EventPattern?.source?.[0] === 'kos.output';
+    }) as
+      | { Properties: { Targets: Array<{ DeadLetterConfig?: unknown }> } }
+      | undefined;
+    expect(pushRule).toBeDefined();
+    expect(pushRule!.Properties.Targets.length).toBeGreaterThan(0);
+    expect(pushRule!.Properties.Targets[0]!.DeadLetterConfig).toBeDefined();
+  });
+
+  it('creates the kos-push-telegram-dlq SQS queue', () => {
+    tpl.hasResourceProperties(
+      'AWS::SQS::Queue',
+      Match.objectLike({ QueueName: 'kos-push-telegram-dlq' }),
+    );
+  });
+
+  it('Lambda execution role includes GetSecretValue permission for telegram bot token', () => {
+    // The telegramBotTokenSecret.grantRead() was already wired in Phase 1
+    // (PLACEHOLDER secret); Plan 02-06 now actually consumes it at runtime.
+    // Verify the grant is present by scanning all IAM policies for a
+    // GetSecretValue action — at least one policy must reference the
+    // telegram-bot-token secret ARN.
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    const serialised = JSON.stringify(Object.values(policies));
+    expect(serialised).toContain('secretsmanager:GetSecretValue');
+    // The secret logical-id prefix `TelegramBotToken` comes from DataStack
+    // and is reachable via Fn::ImportValue in safety-stack tests.
+    expect(serialised.toLowerCase()).toContain('telegram');
   });
 });

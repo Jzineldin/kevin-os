@@ -47,6 +47,15 @@ export interface CapDeps {
   ddb?: DynamoDBDocumentClient;
   /** Optional clock for tests. */
   now?: () => Date;
+  /**
+   * §13 / Pitfall 6 — Kevin-initiated synchronous replies (e.g. voice-capture's
+   * "✅ Saved to Command Center · …" ack) bypass BOTH the quiet-hours gate AND
+   * the daily cap. Upstream callers (voice-capture, triage) set this when
+   * emitting `output.push` events with `is_reply=true`; scheduled pushes
+   * (morning brief, daily close) MUST leave this undefined/false so Kevin's
+   * notification budget stays honest.
+   */
+  isReply?: boolean;
 }
 
 /** TTL window for cap rows — 48h is plenty for the daily cap plus slack. */
@@ -60,6 +69,11 @@ const TTL_SECONDS = 48 * 3600;
  * drain can surface them later.
  */
 export async function enforceAndIncrement(deps: CapDeps): Promise<CapCheckResult> {
+  // §13 bypass — Kevin-initiated synchronous replies (voice-capture ack, etc.)
+  // skip BOTH the quiet-hours gate AND the DynamoDB cap. Intentionally the
+  // very first line: no slot consumed, no quiet-hours check, no DDB call.
+  if (deps.isReply) return { allowed: true };
+
   const now = deps.now ? deps.now() : new Date();
   if (isQuietHour(now)) {
     return { allowed: false, reason: 'quiet-hours' };

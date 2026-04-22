@@ -63,7 +63,13 @@ const safety = new SafetyStack(app, 'KosSafety', {
   rdsSecret: data.rdsCredentialsSecret,
   rdsProxyEndpoint: data.rdsProxyEndpoint,
   telegramBotTokenSecret: data.telegramBotTokenSecret,
+  // Plan 02-06: push-telegram consumes output.push events from kos.output.
+  outputBus: events.buses.output,
 });
+// Plan 02-06: SafetyStack now takes a reference to the kos.output bus,
+// so it depends on EventsStack. addDependency keeps `cdk deploy` order
+// correct (EventsStack provisions the bus before SafetyStack's rule).
+safety.addDependency(events);
 void safety;
 
 // CaptureStack — Plan 02-01 (CAP-01 Telegram ingress).

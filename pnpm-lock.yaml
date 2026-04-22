@@ -446,9 +446,15 @@ importers:
       '@aws-sdk/lib-dynamodb':
         specifier: 3.691.0
         version: 3.691.0(@aws-sdk/client-dynamodb@3.691.0)
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@kos/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
       drizzle-orm:
         specifier: 0.36.0
         version: 0.36.0(@opentelemetry/api@1.9.1)(@types/pg@8.11.10)(pg@8.13.1)

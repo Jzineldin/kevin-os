@@ -166,3 +166,30 @@ export const MentionResolvedSchema = z.object({
   resolved_at: z.string().datetime(),
 });
 export type MentionResolved = z.infer<typeof MentionResolvedSchema>;
+
+// --- Phase 2 / Plan 02-06: OUT-01 push-telegram -------------------------
+//
+// `kos.output` / `output.push` — emitted by agent Lambdas (voice-capture
+// synchronous ack with is_reply=true; Phase 7 morning-brief/daily-close with
+// is_reply=false). Consumed by push-telegram (Plan 02-06) via an EventBridge
+// rule on the kos.output bus. Telegram sendMessage `text` field is capped at
+// 4096 chars (Telegram Bot API hard limit — longer text requires splitting
+// before PutEvents).
+//
+// `is_reply=true` carries the §13 Pitfall-6 contract: Kevin-initiated replies
+// bypass BOTH the 3/day notification cap AND the Stockholm 20:00-08:00 quiet
+// hours suppression. Only direct-response agents (voice-capture) may set
+// is_reply=true; scheduled pushes (morning brief, urgent drafts, etc.) MUST
+// leave it unset / false. See push-telegram/src/cap.ts for the enforcement.
+export const OutputPushSchema = z.object({
+  capture_id: z.string().regex(UlidRegex).optional(),
+  body: z.string().min(1).max(4096), // Telegram sendMessage text limit
+  is_reply: z.boolean().optional(),
+  telegram: z
+    .object({
+      chat_id: z.number().int(),
+      reply_to_message_id: z.number().int().optional(),
+    })
+    .optional(),
+});
+export type OutputPush = z.infer<typeof OutputPushSchema>;

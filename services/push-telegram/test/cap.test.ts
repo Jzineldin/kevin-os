@@ -126,3 +126,61 @@ describe('enforceAndIncrement', () => {
     ).rejects.toThrow(/Provisioned/);
   });
 });
+
+/**
+ * Plan 02-06 / §13 Pitfall-6 — is_reply bypass.
+ *
+ * Kevin-initiated synchronous replies (e.g. voice-capture's "✅ Saved to
+ * Command Center · …" ack) MUST bypass BOTH the quiet-hours gate AND the
+ * DynamoDB cap. They flow through the same enforceAndIncrement entry point
+ * but short-circuit to `{allowed: true}` before either check runs.
+ *
+ * The production handler forwards `is_reply` from the EB detail onto
+ * `enforceAndIncrement({ ..., isReply })`; these tests lock that contract in.
+ */
+describe('enforceAndIncrement — Plan 02-06 is_reply bypass (§13 / Pitfall 6)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('isReply=true at Stockholm 22:00 (quiet hours) → allowed without hitting DynamoDB', async () => {
+    const { client, send } = mockDdb(async () => {
+      throw new Error('DDB must not be called on is_reply bypass');
+    });
+    const res = await enforceAndIncrement({
+      tableName: 'cap',
+      isReply: true,
+      ddb: client,
+      now: () => QUIET_UTC,
+    });
+    expect(res).toEqual({ allowed: true });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('isReply=true during active hours → allowed without hitting DynamoDB (no slot consumed)', async () => {
+    const { client, send } = mockDdb(async () => {
+      throw new Error('DDB must not be called on is_reply bypass');
+    });
+    const res = await enforceAndIncrement({
+      tableName: 'cap',
+      isReply: true,
+      ddb: client,
+      now: () => ACTIVE_UTC,
+    });
+    expect(res).toEqual({ allowed: true });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('isReply=false at 22:00 → quiet-hours denial (existing Phase 1 behaviour preserved)', async () => {
+    const { client, send } = mockDdb(async () => ({ Attributes: { count: 1 } }));
+    const res = await enforceAndIncrement({
+      tableName: 'cap',
+      isReply: false,
+      ddb: client,
+      now: () => QUIET_UTC,
+    });
+    expect(res.allowed).toBe(false);
+    expect(res.reason).toBe('quiet-hours');
+    expect(send).not.toHaveBeenCalled();
+  });
+});

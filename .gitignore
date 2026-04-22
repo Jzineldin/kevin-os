@@ -6,4 +6,6 @@ cdk.out/
 .env.local
 *.log
 coverage/
-packages/db/drizzle/
+# Drizzle migration SQL + _journal.json are source-controlled (schema history).
+# If drizzle-kit ever introduces an ignorable subdirectory, ignore that path
+# specifically — don't blanket-ignore packages/db/drizzle/.

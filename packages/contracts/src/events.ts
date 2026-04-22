@@ -148,3 +148,21 @@ export const EntityMentionDetectedSchema = z.object({
   notion_command_center_page_id: z.string().optional(),
 });
 export type EntityMentionDetected = z.infer<typeof EntityMentionDetectedSchema>;
+
+// --- Phase 2 / Plan 02-05: AGT-03 entity-resolver ------------------------
+//
+// `kos.agent` / `mention.resolved` — emitted by entity-resolver Lambda
+// (AGT-03) after each entity.mention.detected is processed. Carries the
+// 3-stage outcome (auto-merge, llm-disambig, inbox) for downstream
+// observability + Plan 02-11 e2e assertions.
+export const MentionResolvedSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  mention_text: z.string(),
+  stage: z.enum(['auto-merge', 'llm-disambig', 'inbox']),
+  outcome: z.enum(['matched', 'inbox-new', 'inbox-appended', 'approved-inbox', 'unknown']),
+  matched_entity_id: z.string().uuid().optional(),
+  inbox_page_id: z.string().optional(),
+  score: z.number().min(0).max(1).optional(),
+  resolved_at: z.string().datetime(),
+});
+export type MentionResolved = z.infer<typeof MentionResolvedSchema>;

@@ -12,6 +12,7 @@ import { NetworkStack } from '../lib/stacks/network-stack.js';
 import { EventsStack } from '../lib/stacks/events-stack.js';
 import { DataStack } from '../lib/stacks/data-stack.js';
 import { IntegrationsStack } from '../lib/stacks/integrations-stack.js';
+import { SafetyStack } from '../lib/stacks/safety-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const transcribeRegion = (() => {
@@ -53,6 +54,14 @@ const integrations = new IntegrationsStack(app, 'KosIntegrations', {
   scheduleGroupName: events.scheduleGroupName,
 });
 void integrations;
+
+const safety = new SafetyStack(app, 'KosSafety', {
+  env,
+  rdsSecret: data.rdsCredentialsSecret,
+  rdsProxyEndpoint: data.rdsProxyEndpoint,
+  telegramBotTokenSecret: data.telegramBotTokenSecret,
+});
+void safety;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

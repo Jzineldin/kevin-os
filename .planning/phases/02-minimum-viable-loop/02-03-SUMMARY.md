@@ -97,9 +97,21 @@ Realize D-05 (Cohere Embed Multilingual v3 at 1024 dims), D-06 (Azure 1024 dims)
 - **`scripts/db-migrate-0003.sh`** (new, +x): BLOCKING operator runbook. Reads `KOS_DB_TUNNEL_PORT`, pulls `kos/rds-credentials` from Secrets Manager, runs `psql -v ON_ERROR_STOP=1 -f` on 0003 then 0004, then runs a verify SELECT reporting `embedding_type`, `has_pg_trgm`, `has_trgm_idx`, `has_hnsw`, `has_embedding_model`.
 - **`scripts/verify-resolver-explain.sh`** (new, +x): runs `EXPLAIN (FORMAT JSON) ... WHERE LOWER(name) % 'kevin' ...`; greps output for `entity_index_name_trgm` index usage, exits non-zero if missing.
 
-### Task 3 — [BLOCKING] Live migration application (PENDING OPERATOR ACTION)
+### Task 3 — [BLOCKING] Live migration application (APPLIED 2026-04-22)
 
-**Status: not applied — requires Kevin to run AWS commands.** The migrations are authored, tested, and committed to the repository; applying them against live RDS requires a short-lived SSM bastion tunnel which the agent environment cannot provision. See "Pending Operator Actions" section below for the exact commands.
+**Status: applied successfully against live RDS.** Orchestrator executed via `aws ssm send-command` against the bastion (`i-08f68e4298b80b871`) after creating temporary VPC interface endpoints for SSM/ssmmessages/ec2messages (the bastion's `PRIVATE_ISOLATED` subnet had no path to SSM control plane — Phase 1 architectural gap). Bastion was torn down after migration; temp endpoints + SG removed. Azure index recreated at 1024 dims via direct REST DELETE+POST (CDK CustomResource only does PUT, can't change vector dims).
+
+**Verification SELECT (live RDS, eu-north-1):**
+
+```
+ embedding_type | has_pg_trgm | has_trgm_idx | has_hnsw | has_embedding_model
+----------------+-------------+--------------+----------+---------------------
+ vector(1024)   |           1 |            1 |        1 | embedding_model
+```
+
+**Azure Search verify:** `content_vector dims: 1024, profile: kos-hnsw-binary` (binary quantization preserved).
+
+**Bastion architectural finding (carry to Phase 1.x backlog):** `KosBastion` deploys to `PRIVATE_ISOLATED` subnet with `natGateways: 0` and no SSM VPC endpoints in `KosNetwork`. This breaks SSM Session Manager out-of-the-box. Two fixes possible: (a) add `InterfaceVpcEndpoint`s for `ssm`, `ssmmessages`, `ec2messages` to `KosNetwork` (always-on cost ~$22/mo for 3 endpoints in 2 AZs) OR (b) gate the endpoints to bastion=true via `KosBastion` so they only exist while the bastion is up.
 
 ### Task 4 — Azure AI Search dimensions 1536 → 1024 (commit `2c634a6`)
 
@@ -154,7 +166,9 @@ Realize D-05 (Cohere Embed Multilingual v3 at 1024 dims), D-06 (Azure 1024 dims)
 - **Commit:** `575b981`
 - **Rule rationale:** Rule 1 — the correctness bug is in the plan text's test expectation, not the library. Catching this mismatch is exactly what the fixture is for.
 
-## Pending Operator Actions
+## Pending Operator Actions — RESOLVED 2026-04-22
+
+All pending actions in this section were completed by the orchestrator on 2026-04-22 via `aws ssm send-command` against bastion `i-08f68e4298b80b871`. Bastion + temp SSM endpoints torn down. KosIntegrations CDK redeployed cleanly (CustomResource succeeded once Azure index matched at 1024 dims). Section retained below for historical context.
 
 ### Task 3 — [BLOCKING] apply migrations 0003 + 0004 to live RDS (Kevin only)
 

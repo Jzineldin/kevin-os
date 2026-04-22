@@ -1,0 +1,26 @@
+{
+  "name": "@kos/service-bulk-import-kontakter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/handler.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@kos/resolver": "workspace:*",
+    "@notionhq/client": "2.3.0",
+    "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@aws-sdk/client-bedrock-runtime": "3.691.0",
+    "zod": "3.23.8",
+    "@sentry/aws-serverless": "^8"
+  },
+  "devDependencies": {
+    "@kos/test-fixtures": "workspace:*",
+    "@types/node": "22.9.0",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}

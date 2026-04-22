@@ -56,6 +56,9 @@ export const entityIndex = pgTable(
     embedding: vector('embedding', { dimensions: 1024 }),
     // Phase 2 Migration 0003 added this column for provenance (which model produced this vector).
     embeddingModel: text('embedding_model'),
+    // Plan 02-08 Migration 0006: sha256 of D-08 entity text that produced `embedding`.
+    // Used by notion-indexer to skip re-embed when source text is unchanged.
+    embedHash: text('embed_hash'),
     notionLastEditedTime: timestamp('notion_last_edited_time', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

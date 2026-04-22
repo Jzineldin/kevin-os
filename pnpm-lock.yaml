@@ -338,6 +338,9 @@ importers:
       '@kos/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@kos/resolver':
+        specifier: workspace:*
+        version: link:../../packages/resolver
       '@notionhq/client':
         specifier: 2.3.0
         version: 2.3.0

@@ -21,6 +21,13 @@ import {
   getRelationIds,
 } from './notion-shapes.js';
 
+import { createHash } from 'node:crypto';
+import {
+  embedBatch,
+  buildEntityEmbedText,
+  EMBED_MODEL_ID,
+} from '@kos/resolver';
+
 export type DbExec = {
   query: (text: string, values?: unknown[]) => Promise<{ rows: any[]; rowCount: number | null }>;
 };
@@ -115,7 +122,74 @@ export async function upsertEntity(db: DbExec, page: any): Promise<UpsertResult>
     ],
   );
   if (res.rows.length === 0) return { action: 'skipped' };
-  return { action: res.rows[0].inserted ? 'inserted' : 'updated' };
+  const action: 'inserted' | 'updated' = res.rows[0].inserted ? 'inserted' : 'updated';
+
+  // Plan 02-08 Task 2: embed D-08 entity text on insert + on field changes.
+  // Wrapped in try/catch so an embed failure NEVER fails the upsert (the
+  // resolver still works on trigram-only when embedding is NULL).
+  await embedEntityIfNeeded(db, notionPageId, {
+    name,
+    aliases: aliases ?? [],
+    seedContext,
+    role,
+    org,
+    relationship,
+  });
+  return { action };
+}
+
+/**
+ * Embed the D-08 entity text and persist {embedding, embedding_model, embed_hash}
+ * iff the text hash differs from the cached embed_hash on the row. No-op when
+ * the row is already up to date with the current text. Best-effort: failures
+ * log a warning + continue (entity_index.embedding stays NULL until the next
+ * successful tick).
+ */
+export async function embedEntityIfNeeded(
+  db: DbExec,
+  notionPageId: string,
+  entity: {
+    name: string;
+    aliases: string[];
+    seedContext: string | null;
+    role: string | null;
+    org: string | null;
+    relationship: string | null;
+  },
+): Promise<void> {
+  try {
+    const text = buildEntityEmbedText(entity);
+    if (!text || text.length === 0) return;
+    const newHash = createHash('sha256').update(text).digest('hex');
+    const existing = await db.query(
+      'SELECT embed_hash FROM entity_index WHERE notion_page_id = $1',
+      [notionPageId],
+    );
+    const storedHash =
+      (existing.rows?.[0]?.embed_hash as string | null | undefined) ?? null;
+    if (storedHash === newHash) return; // identical text — skip embed
+
+    const [vec] = await embedBatch([text], 'search_document');
+    if (!vec || vec.length === 0) {
+      console.warn(`[indexer-embed] empty embedding for ${notionPageId}; skipping update`);
+      return;
+    }
+
+    // Format vector for pgvector text input: '[1.0,2.0,...]'
+    const vecLiteral = '[' + vec.join(',') + ']';
+    await db.query(
+      `UPDATE entity_index
+          SET embedding = $1::vector,
+              embedding_model = $2,
+              embed_hash = $3
+        WHERE notion_page_id = $4`,
+      [vecLiteral, EMBED_MODEL_ID, newHash, notionPageId],
+    );
+  } catch (err) {
+    console.warn(
+      `[indexer-embed] failed for ${notionPageId} (non-fatal): ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 // --- project_index ----------------------------------------------------------

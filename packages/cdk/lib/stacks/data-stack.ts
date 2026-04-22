@@ -9,8 +9,10 @@ import {
   ProxyTarget,
   type DatabaseInstance,
 } from 'aws-cdk-lib/aws-rds';
+import type { Cluster } from 'aws-cdk-lib/aws-ecs';
 import { KosRds } from '../constructs/kos-rds.js';
 import { KosBastion } from '../constructs/kos-bastion.js';
+import { KosCluster } from '../constructs/kos-cluster.js';
 
 export interface DataStackProps extends StackProps {
   vpc: IVpc;
@@ -50,6 +52,7 @@ export class DataStack extends Stack {
    */
   public readonly rdsProxyDbiResourceId: string;
   public readonly blobsBucket: Bucket;
+  public readonly ecsCluster: Cluster;
   public readonly notionTokenSecret: Secret;
   public readonly azureSearchAdminSecret: Secret;
   public readonly telegramBotTokenSecret: Secret;
@@ -167,6 +170,12 @@ export class DataStack extends Stack {
       'kos/dashboard-bearer',
       'Static Bearer token for Next.js dashboard (Phase 3 consumer)',
     );
+
+    // --- ECS Fargate cluster (INF-06) ---------------------------------------
+    // Phase 1: cluster shell only. Services (EmailEngine/Baileys/Postiz) attach
+    // onto `this.ecsCluster` in Phases 4, 5, and 8. Platform version 1.4.0 and
+    // ARM64 CPU architecture are declared at service-attach time, not here.
+    this.ecsCluster = new KosCluster(this, 'EcsCluster', { vpc: props.vpc }).cluster;
 
     // --- Bastion (opt-in via CDK context) -----------------------------------
     // Usage: `cdk deploy KosData --context bastion=true` provisions the

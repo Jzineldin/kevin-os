@@ -52,8 +52,10 @@ export const entityIndex = pgTable(
     manualNotes: text('manual_notes'),
     confidence: integer('confidence'),
     source: text('source').array().default(sql`ARRAY[]::text[]`),
-    // Phase 6 populates this; column created here so we never ALTER TABLE for a vector column (Pitfall 5).
-    embedding: vector('embedding', { dimensions: 1536 }),
+    // Phase 2 Migration 0003 resized this from 1536 → 1024 for Cohere Embed Multilingual v3 (D-05).
+    embedding: vector('embedding', { dimensions: 1024 }),
+    // Phase 2 Migration 0003 added this column for provenance (which model produced this vector).
+    embeddingModel: text('embedding_model'),
     notionLastEditedTime: timestamp('notion_last_edited_time', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

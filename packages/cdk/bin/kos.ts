@@ -13,6 +13,7 @@ import { EventsStack } from '../lib/stacks/events-stack.js';
 import { DataStack } from '../lib/stacks/data-stack.js';
 import { IntegrationsStack } from '../lib/stacks/integrations-stack.js';
 import { SafetyStack } from '../lib/stacks/safety-stack.js';
+import { CaptureStack } from '../lib/stacks/capture-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const transcribeRegion = (() => {
@@ -32,6 +33,7 @@ const env: Environment = RESOLVED_ENV;
 //   EventsStack       — Plan 03
 //   IntegrationsStack — Plans 04, 05, 06
 //   SafetyStack       — Plan 07
+//   CaptureStack      — Plan 02-01 (CAP-01 Telegram ingress)
 const network = new NetworkStack(app, 'KosNetwork', { env });
 const events = new EventsStack(app, 'KosEvents', { env });
 const data = new DataStack(app, 'KosData', {
@@ -62,6 +64,24 @@ const safety = new SafetyStack(app, 'KosSafety', {
   telegramBotTokenSecret: data.telegramBotTokenSecret,
 });
 void safety;
+
+// CaptureStack — Plan 02-01 (CAP-01 Telegram ingress).
+// KEVIN_TELEGRAM_USER_ID is supplied at synth time via env var or CDK context.
+const capture = new CaptureStack(app, 'KosCapture', {
+  env,
+  blobsBucket: data.blobsBucket,
+  telegramBotTokenSecret: data.telegramBotTokenSecret,
+  telegramWebhookSecret: data.telegramWebhookSecret,
+  sentryDsnSecret: data.sentryDsnSecret,
+  captureBus: events.buses.capture,
+  kevinTelegramUserId:
+    process.env.KEVIN_TELEGRAM_USER_ID ??
+    (app.node.tryGetContext('kevinTelegramUserId') as string | undefined) ??
+    '',
+});
+capture.addDependency(data);
+capture.addDependency(events);
+void capture;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

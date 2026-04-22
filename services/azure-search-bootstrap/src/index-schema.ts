@@ -89,8 +89,14 @@ export const KOS_MEMORY_INDEX_DEFINITION = {
       {
         name: 'kos-semantic',
         prioritizedFields: {
-          contentFields: [{ fieldName: 'content' }],
-          keywordsFields: [{ fieldName: 'entity_ids' }],
+          // Azure AI Search REST API 2025-09-01 renamed these properties:
+          //   contentFields  → prioritizedContentFields
+          //   keywordsFields → prioritizedKeywordsFields
+          // (error confirmed 2026-04-22: "Cannot find nested property
+          // 'contentFields' on the resource type
+          // 'Microsoft.Azure.Search.V2025_09_01.PrioritizedFields'").
+          prioritizedContentFields: [{ fieldName: 'content' }],
+          prioritizedKeywordsFields: [{ fieldName: 'entity_ids' }],
         },
       },
     ],

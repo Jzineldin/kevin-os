@@ -15,6 +15,7 @@ import { IntegrationsStack } from '../lib/stacks/integrations-stack.js';
 import { SafetyStack } from '../lib/stacks/safety-stack.js';
 import { CaptureStack } from '../lib/stacks/capture-stack.js';
 import { AgentsStack } from '../lib/stacks/agents-stack.js';
+import { ObservabilityStack } from '../lib/stacks/observability-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const transcribeRegion = (() => {
@@ -119,6 +120,22 @@ agents.addDependency(data);
 agents.addDependency(events);
 agents.addDependency(integrations); // commandCenter ID source-of-truth
 void agents;
+
+// ObservabilityStack — Plan 02-10 (D-25 / D-26 + Resolved Open Q4).
+// CloudWatch alarms + SNS topic for the runtime-observability surface.
+// Depends on CaptureStack (telegram-bot Fn) + AgentsStack (agent Lambdas).
+const observability = new ObservabilityStack(app, 'KosObservability', {
+  env,
+  telegramBotFn: capture.telegram.bot,
+  agentLambdas: [
+    agents.agents.triageFn,
+    agents.agents.voiceCaptureFn,
+    agents.agents.resolverFn,
+  ],
+});
+observability.addDependency(capture);
+observability.addDependency(agents);
+void observability;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

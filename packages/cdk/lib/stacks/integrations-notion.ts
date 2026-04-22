@@ -35,6 +35,15 @@ type NotionIds = {
   kevinContext: string;
   legacyInbox: string;
   commandCenter: string;
+  // Plan 02-07: human-in-the-loop entity-resolver inbox queue (D-13). Optional
+  // here only because Plan 02-07 ships the bootstrap script + indexer wiring
+  // BEFORE Kevin has run the live Notion bootstrap. Once `scripts/bootstrap-
+  // notion-dbs.mjs` populates this key, redeploy and the schedule receives
+  // the real DB UUID. Until then we synth with empty string and the runtime
+  // surfaces an actionable error on first invocation — mirrors the
+  // NOTION_KOS_INBOX_DB_ID empty-fallback pattern in integrations-agents.ts
+  // (Plan 02-05 deploy-unblock convention).
+  kosInbox: string;
 };
 
 function loadNotionIds(): NotionIds {
@@ -56,7 +65,8 @@ function loadNotionIds(): NotionIds {
       );
     }
   }
-  return parsed as NotionIds;
+  // kosInbox is permitted to be empty at synth time — see type comment above.
+  return { ...parsed, kosInbox: parsed.kosInbox ?? '' } as NotionIds;
 }
 
 export interface WireNotionProps {
@@ -90,6 +100,9 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
   const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${props.rdsProxyDbiResourceId}/kos_admin`;
 
   // --- notion-indexer Lambda (5-min poller) ---------------------------------
+  // Plan 02-07: NOTION_KOS_INBOX_DB_ID + NOTION_ENTITIES_DB_ID injected so the
+  // 'kos_inbox' branch can (a) query the Inbox DB on its own schedule and
+  // (b) create new Entities-DB pages on Status=Approved transitions.
   const notionIndexer = new KosLambda(scope, 'NotionIndexer', {
     entry: svcEntry('notion-indexer'),
     timeout: Duration.minutes(2),
@@ -100,6 +113,8 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
       RDS_USER: 'kos_admin',
       RDS_DATABASE: 'kos',
       CAPTURE_BUS_NAME: props.captureBus.eventBusName,
+      NOTION_KOS_INBOX_DB_ID: NOTION_IDS.kosInbox,
+      NOTION_ENTITIES_DB_ID: NOTION_IDS.entities,
     },
   });
   props.notionTokenSecret.grantRead(notionIndexer);
@@ -174,17 +189,26 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
   notionIndexer.grantInvoke(schedulerRole);
   notionReconcile.grantInvoke(schedulerRole);
 
-  // --- Indexer schedules (4 per D-11) ---------------------------------------
+  // --- Indexer schedules (4 per D-11 + 1 per Plan 02-07 KOS Inbox) ---------
+  // Plan 02-07 adds the 5th schedule (`kos-inbox-poll`) — the same indexer
+  // Lambda runs against KOS Inbox every 5 min with dbKind='kos_inbox'. The
+  // handler dispatches to processKosInboxBatch which syncs Status transitions
+  // (Approved → create/reuse Entities page + flip to Merged; Rejected → archive).
   const watched = [
     { key: 'Entities', dbId: NOTION_IDS.entities, dbKind: 'entities' },
     { key: 'Projects', dbId: NOTION_IDS.projects, dbKind: 'projects' },
     { key: 'KevinContext', dbId: NOTION_IDS.kevinContext, dbKind: 'kevin_context' },
     { key: 'CommandCenter', dbId: NOTION_IDS.commandCenter, dbKind: 'command_center' },
+    { key: 'KosInbox', dbId: NOTION_IDS.kosInbox, dbKind: 'kos_inbox' },
   ] as const;
 
   for (const w of watched) {
+    // Plan 02-07: KOS Inbox schedule is named 'kos-inbox-poll' to match the
+    // operator-friendly naming the plan acceptance test greps for.
+    const scheduleName =
+      w.key === 'KosInbox' ? 'kos-inbox-poll' : 'notion-indexer-' + w.key.toLowerCase();
     new CfnSchedule(scope, 'IndexerSchedule-' + w.key, {
-      name: 'notion-indexer-' + w.key.toLowerCase(),
+      name: scheduleName,
       groupName: props.scheduleGroupName,
       scheduleExpression: 'rate(5 minutes)',
       scheduleExpressionTimezone: 'Europe/Stockholm',
@@ -192,7 +216,7 @@ export function wireNotionIntegrations(scope: Construct, props: WireNotionProps)
       target: {
         arn: notionIndexer.functionArn,
         roleArn: schedulerRole.roleArn,
-        input: JSON.stringify({ dbId: w.dbId, dbKind: w.dbKind }),
+        input: JSON.stringify({ dbId: w.dbId, dbKind: w.dbKind, dbName: w.key === 'KosInbox' ? 'kosInbox' : undefined }),
       },
       state: 'ENABLED',
     });

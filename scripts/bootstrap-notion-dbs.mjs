@@ -76,7 +76,7 @@ const notion = new Client({ auth: NOTION_TOKEN });
 
 // --- State ------------------------------------------------------------------
 
-/** @type {{entities?: string, projects?: string, kevinContext?: string, legacyInbox?: string, commandCenter?: string}} */
+/** @type {{entities?: string, projects?: string, kevinContext?: string, legacyInbox?: string, commandCenter?: string, kosInbox?: string}} */
 let state = {};
 if (existsSync(ID_FILE)) {
   try {
@@ -339,6 +339,79 @@ async function ensureLegacyInboxDb() {
   return state.legacyInbox;
 }
 
+// D-13 KOS Inbox schema (8 D-13 properties + MergedInto for D-14 merge path).
+// Status defaults: Pending → Approved → Merged (or Rejected).
+// Confidence is `number` not `percent` because Plan 02-05 resolver writes raw 0-1 floats.
+function kosInboxProperties(entitiesDbId) {
+  return {
+    'Proposed Entity Name': { title: {} },
+    'Type': {
+      select: {
+        options: [
+          { name: 'Person', color: 'blue' },
+          { name: 'Project', color: 'purple' },
+          { name: 'Org', color: 'green' },
+          { name: 'Other', color: 'gray' },
+        ],
+      },
+    },
+    'Candidate Matches': {
+      relation: {
+        database_id: entitiesDbId,
+        single_property: {},
+      },
+    },
+    'Source Capture ID': { rich_text: {} },
+    'Status': {
+      select: {
+        options: [
+          { name: 'Pending', color: 'yellow' },
+          { name: 'Approved', color: 'green' },
+          { name: 'Merged', color: 'gray' },
+          { name: 'Rejected', color: 'red' },
+        ],
+      },
+    },
+    'Confidence': { number: { format: 'number' } },
+    'Raw Context': { rich_text: {} },
+    'Created': { date: {} },
+    // Plan 02-07 extra: enables D-14 merge path. Indexer sets this to the
+    // Entities-DB page that absorbed the row when it flips Status→Merged.
+    'MergedInto': {
+      relation: {
+        database_id: entitiesDbId,
+        single_property: {},
+      },
+    },
+  };
+}
+
+async function ensureKosInboxDb(entitiesDbId) {
+  if (await existsDb(state.kosInbox)) {
+    console.log('[skip] KOS Inbox DB already exists:', state.kosInbox);
+    return state.kosInbox;
+  }
+  console.log('[create] KOS Inbox DB');
+  const resp = await notion.databases.create({
+    parent: { type: 'page_id', page_id: PARENT_PAGE_ID },
+    title: [{ type: 'text', text: { content: 'KOS Inbox' } }],
+    description: [
+      {
+        type: 'text',
+        text: {
+          content:
+            "Low-confidence entity mentions awaiting Kevin's approval (D-13). " +
+            'Flip Status to Approved / Merged / Rejected; notion-indexer syncs within 5 min.',
+        },
+      },
+    ],
+    properties: kosInboxProperties(entitiesDbId),
+  });
+  state.kosInbox = resp.id;
+  saveState();
+  return state.kosInbox;
+}
+
 async function verifyAndPinCommandCenter() {
   if (!(await existsDb(EXISTING_COMMAND_CENTER_DB_ID))) {
     throw new Error(
@@ -360,6 +433,7 @@ async function main() {
   const kevinContextId = await ensureKevinContextPage();
   const legacyInboxId = await ensureLegacyInboxDb();
   const commandCenterId = await verifyAndPinCommandCenter();
+  const kosInboxId = await ensureKosInboxDb(entitiesId);
 
   console.log('');
   console.log('==== KOS Notion IDs ====');
@@ -368,6 +442,7 @@ async function main() {
   console.log('  kevinContext   :', kevinContextId);
   console.log('  legacyInbox    :', legacyInboxId);
   console.log('  commandCenter  :', commandCenterId, '(existing)');
+  console.log('  kosInbox       :', kosInboxId);
   console.log('');
   console.log('Persisted to:', ID_FILE);
   console.log('');

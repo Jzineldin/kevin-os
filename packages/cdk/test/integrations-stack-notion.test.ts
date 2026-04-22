@@ -44,14 +44,42 @@ describe('IntegrationsStack (Notion wiring)', () => {
   const iTpl = Template.fromStack(integrations);
   const dTpl = Template.fromStack(data);
 
-  it('creates >= 3 AWS::Scheduler::Schedule resources (4 indexer + 1 reconcile)', () => {
+  it('creates >= 3 AWS::Scheduler::Schedule resources (5 indexer + 1 reconcile)', () => {
     const schedules = iTpl.findResources('AWS::Scheduler::Schedule');
     expect(Object.keys(schedules).length).toBeGreaterThanOrEqual(3);
   });
 
-  it('creates exactly 5 schedules total (4 per-DB indexer + 1 weekly reconcile)', () => {
+  it('creates exactly 6 schedules total (4 D-11 + 1 KOS Inbox + 1 weekly reconcile)', () => {
     const schedules = iTpl.findResources('AWS::Scheduler::Schedule');
-    expect(Object.keys(schedules).length).toBe(5);
+    expect(Object.keys(schedules).length).toBe(6);
+  });
+
+  it('Plan 02-07: kos-inbox-poll schedule fires the indexer with dbName=kosInbox every 5 min', () => {
+    iTpl.hasResourceProperties(
+      'AWS::Scheduler::Schedule',
+      Match.objectLike({
+        Name: 'kos-inbox-poll',
+        ScheduleExpression: 'rate(5 minutes)',
+        ScheduleExpressionTimezone: 'Europe/Stockholm',
+        Target: Match.objectLike({
+          // The Input JSON includes `"dbName":"kosInbox"` so the indexer
+          // dispatches to the KOS Inbox branch (Plan 02-07 D-13/D-14 sync).
+          Input: Match.stringLikeRegexp('"dbName":"kosInbox"'),
+        }),
+      }),
+    );
+  });
+
+  it('Plan 02-07: notion-indexer Lambda env contains NOTION_KOS_INBOX_DB_ID + NOTION_ENTITIES_DB_ID', () => {
+    const lambdas = iTpl.findResources('AWS::Lambda::Function');
+    const indexer = Object.entries(lambdas).find(([logicalId]) =>
+      /^NotionIndexer[^B]/i.test(logicalId),
+    );
+    expect(indexer).toBeDefined();
+    const env = (indexer![1] as { Properties: { Environment?: { Variables?: Record<string, unknown> } } })
+      .Properties.Environment?.Variables ?? {};
+    expect(env).toHaveProperty('NOTION_KOS_INBOX_DB_ID');
+    expect(env).toHaveProperty('NOTION_ENTITIES_DB_ID');
   });
 
   it('each indexer schedule has rate(5 minutes) + Europe/Stockholm', () => {

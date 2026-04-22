@@ -1,10 +1,14 @@
-import { Stack, type StackProps, RemovalPolicy, Duration } from 'aws-cdk-lib';
+import { Stack, type StackProps, RemovalPolicy, Duration, Fn } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import { Bucket, BucketEncryption, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
-import { PolicyStatement, Effect, AnyPrincipal } from 'aws-cdk-lib/aws-iam';
-import type { IVpc, IGatewayVpcEndpoint, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
+import { PolicyStatement, Effect, AnyPrincipal, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Port, type IVpc, type IGatewayVpcEndpoint, type SecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import { Secret, type ISecret } from 'aws-cdk-lib/aws-secretsmanager';
-import type { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
+import {
+  DatabaseProxy,
+  ProxyTarget,
+  type DatabaseInstance,
+} from 'aws-cdk-lib/aws-rds';
 import { KosRds } from '../constructs/kos-rds.js';
 import { KosBastion } from '../constructs/kos-bastion.js';
 
@@ -37,6 +41,14 @@ export class DataStack extends Stack {
   public readonly rds: DatabaseInstance;
   public readonly rdsCredentialsSecret: ISecret;
   public readonly rdsSecurityGroup: SecurityGroup;
+  public readonly rdsProxy: DatabaseProxy;
+  public readonly rdsProxyEndpoint: string;
+  /**
+   * The Proxy "DbiResourceId" — the `prx-xxxxxxxx` identifier used in the
+   * IAM `rds-db:connect` resource ARN. Extracted from the Proxy's ARN at
+   * synth time (`arn:aws:rds:region:account:db-proxy:prx-xxxxxxxx`).
+   */
+  public readonly rdsProxyDbiResourceId: string;
   public readonly blobsBucket: Bucket;
   public readonly notionTokenSecret: Secret;
   public readonly azureSearchAdminSecret: Secret;
@@ -56,6 +68,43 @@ export class DataStack extends Stack {
     }
     this.rdsCredentialsSecret = rds.instance.secret;
     this.rdsSecurityGroup = rds.securityGroup;
+
+    // --- RDS Proxy (Plan 04) -------------------------------------------------
+    // T-01-PROXY-01: the Proxy enforces IAM auth; no password path is valid.
+    // Lambdas outside the VPC reach the Proxy over its public endpoint, but
+    // the only accepted credential is an IAM signed auth token (per
+    // `rds-db:connect` on the Proxy's DbiResourceId). `allowFromAnyIpv4` is
+    // accepted because egress IPs for out-of-VPC Lambdas are non-deterministic;
+    // the alternative (putting the indexer in the VPC) would require a NAT
+    // Gateway and violate D-05.
+    const proxyRole = new Role(this, 'RdsProxyRole', {
+      assumedBy: new ServicePrincipal('rds.amazonaws.com'),
+    });
+    this.rdsCredentialsSecret.grantRead(proxyRole);
+
+    this.rdsProxy = new DatabaseProxy(this, 'RdsProxy', {
+      proxyTarget: ProxyTarget.fromInstance(rds.instance),
+      secrets: [this.rdsCredentialsSecret],
+      vpc: props.vpc,
+      iamAuth: true,
+      requireTLS: true,
+      role: proxyRole,
+      securityGroups: [this.rdsSecurityGroup],
+    });
+    // Proxy ingress from anywhere — IAM auth is the gate (documented in SUMMARY).
+    this.rdsProxy.connections.allowFromAnyIpv4(Port.tcp(5432));
+    this.rdsProxyEndpoint = this.rdsProxy.endpoint;
+
+    // Extract `prx-xxxxxxxx` from Proxy ARN at synth time:
+    //   arn:aws:rds:<region>:<account>:db-proxy:prx-xxxxxxxx
+    // Fn.select(6, Fn.split(':', arn)) → 'db-proxy:prx-xxxxxxxx'
+    // Fn.select(1, Fn.split('/', ...))  → 'prx-xxxxxxxx'  (note ARN uses ':')
+    // Simpler: final ARN segment starts with 'prx-', split on ':' index 6.
+    const lastArnSegment = Fn.select(6, Fn.split(':', this.rdsProxy.dbProxyArn));
+    // Segment format: 'db-proxy:prx-xxxxxxxx' is actually ONE ':'-delimited
+    // pair; CDK's dbProxyArn places the prx-id as the final ':' segment:
+    // 'arn:aws:rds:REGION:ACCT:db-proxy:prx-ID'. So index 6 = 'prx-ID'.
+    this.rdsProxyDbiResourceId = lastArnSegment;
 
     // --- Blobs bucket --------------------------------------------------------
     // Audio + transcripts + documents share one bucket with key prefixes

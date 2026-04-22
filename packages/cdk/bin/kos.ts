@@ -8,6 +8,7 @@ import { RESOLVED_ENV } from '../lib/config/env.js';
 import { NetworkStack } from '../lib/stacks/network-stack.js';
 import { EventsStack } from '../lib/stacks/events-stack.js';
 import { DataStack } from '../lib/stacks/data-stack.js';
+import { IntegrationsStack } from '../lib/stacks/integrations-stack.js';
 
 const app = new App();
 const env: Environment = RESOLVED_ENV;
@@ -25,10 +26,18 @@ const data = new DataStack(app, 'KosData', {
   vpc: network.vpc,
   s3Endpoint: network.s3GatewayEndpoint,
 });
-// `data` is referenced by IntegrationsStack (Plan 04) via props
-// { rds: data.rds, rdsSecurityGroup: data.rdsSecurityGroup, blobsBucket: data.blobsBucket, ... }.
-void events;
-void data;
+const integrations = new IntegrationsStack(app, 'KosIntegrations', {
+  env,
+  vpc: network.vpc,
+  rdsSecret: data.rdsCredentialsSecret,
+  rdsProxyEndpoint: data.rdsProxyEndpoint,
+  rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
+  notionTokenSecret: data.notionTokenSecret,
+  captureBus: events.buses.capture,
+  systemBus: events.buses.system,
+  scheduleGroupName: events.scheduleGroupName,
+});
+void integrations;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

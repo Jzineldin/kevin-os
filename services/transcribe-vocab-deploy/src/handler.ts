@@ -93,7 +93,12 @@ export async function handler(
     // Archive-not-delete: preserve the vocabulary on stack delete. Phase 2
     // voice consumers reference it by name; keeping it alive across stack
     // churn avoids accidental data loss.
-    return { PhysicalResourceId: VOCAB_NAME };
+    //
+    // Echo back the incoming PhysicalResourceId so CloudFormation never sees
+    // the ID change between CREATE and DELETE (which otherwise triggers
+    // `cannot change the physical resource ID from X to Y during deletion`
+    // and traps the stack in DELETE_FAILED — see 2026-04-22 retro).
+    return { PhysicalResourceId: event.PhysicalResourceId ?? VOCAB_NAME };
   }
 
   // 1 + 2: fetch seed + strip comments/blanks.

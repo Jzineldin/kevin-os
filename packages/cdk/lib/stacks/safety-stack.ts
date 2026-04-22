@@ -25,7 +25,10 @@ import type { Construct } from 'constructs';
 import { Table, AttributeType, BillingMode } from 'aws-cdk-lib/aws-dynamodb';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
-import { CfnBudget } from 'aws-cdk-lib/aws-budgets';
+// Note: AWS::Budgets::Budget CFN resource is only supported in us-east-1.
+// We create the budget out-of-band via `aws budgets create-budget` (post-deploy)
+// targeting this stack's alarmTopic ARN. See scripts/create-cost-budget.sh.
+// import { CfnBudget } from 'aws-cdk-lib/aws-budgets';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import { PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import * as path from 'node:path';
@@ -101,52 +104,15 @@ export class SafetyStack extends Stack {
     this.alarmTopic.addSubscription(new EmailSubscription(ALARM_EMAIL));
 
     // --- AWS Budgets (D-15) -------------------------------------------------
-    // Use AWS Budgets instead of CloudWatch billing alarms per RESEARCH §Don't
-    // Hand-Roll: Budgets supports monthly COST with forecasted + actual
-    // thresholds natively, and is the canonical AWS-native cost-alert path.
-    new CfnBudget(this, 'CostBudget', {
-      budget: {
-        budgetName: 'kos-monthly',
-        budgetType: 'COST',
-        timeUnit: 'MONTHLY',
-        budgetLimit: { amount: 100, unit: 'USD' },
-      },
-      notificationsWithSubscribers: [
-        {
-          notification: {
-            comparisonOperator: 'GREATER_THAN',
-            notificationType: 'ACTUAL',
-            threshold: 50,
-            thresholdType: 'ABSOLUTE_VALUE',
-          },
-          subscribers: [
-            { address: this.alarmTopic.topicArn, subscriptionType: 'SNS' },
-          ],
-        },
-        {
-          notification: {
-            comparisonOperator: 'GREATER_THAN',
-            notificationType: 'ACTUAL',
-            threshold: 100,
-            thresholdType: 'ABSOLUTE_VALUE',
-          },
-          subscribers: [
-            { address: this.alarmTopic.topicArn, subscriptionType: 'SNS' },
-          ],
-        },
-        {
-          notification: {
-            comparisonOperator: 'GREATER_THAN',
-            notificationType: 'FORECASTED',
-            threshold: 100,
-            thresholdType: 'ABSOLUTE_VALUE',
-          },
-          subscribers: [
-            { address: this.alarmTopic.topicArn, subscriptionType: 'SNS' },
-          ],
-        },
-      ],
-    });
+    // NOTE: AWS::Budgets::Budget is NOT supported as a CloudFormation resource
+    // type in eu-north-1 (CFN validation returns "Unrecognized resource types"
+    // — reproduced 2026-04-22). Budgets is a global API service but the CFN
+    // resource type is only registered in us-east-1.
+    //
+    // Workaround: the budget is created out-of-band via `aws budgets
+    // create-budget` (see scripts/create-cost-budget.sh), targeting this
+    // stack's alarmTopic ARN. The SNS topic + resource policy below stay here
+    // because they ARE regional and they're what Budgets will Publish to.
 
     // T-01-SNS-01 mitigation: scope the Budgets service principal's Publish
     // permission to the specific `kos-monthly` budget via aws:SourceArn, so a

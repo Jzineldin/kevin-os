@@ -96,37 +96,11 @@ describe('SafetyStack', () => {
     );
   });
 
-  it('creates AWS::Budgets::Budget kos-monthly with COST + MONTHLY', () => {
-    tpl.hasResourceProperties(
-      'AWS::Budgets::Budget',
-      Match.objectLike({
-        Budget: Match.objectLike({
-          BudgetName: 'kos-monthly',
-          BudgetType: 'COST',
-          TimeUnit: 'MONTHLY',
-          BudgetLimit: Match.objectLike({ Amount: 100, Unit: 'USD' }),
-        }),
-      }),
-    );
-  });
-
-  it('has 3 Budget notifications — 50 actual, 100 actual, 100 forecasted', () => {
-    const budgets = tpl.findResources('AWS::Budgets::Budget');
-    const keys = Object.keys(budgets);
-    expect(keys.length).toBe(1);
-    const budget = budgets[keys[0]!]!;
-    const notifs = (budget as { Properties: { NotificationsWithSubscribers: Array<{ Notification: Record<string, unknown> }> } })
-      .Properties.NotificationsWithSubscribers;
-    expect(notifs.length).toBe(3);
-    const summaries = notifs.map((n) => ({
-      type: n.Notification.NotificationType,
-      threshold: n.Notification.Threshold,
-      op: n.Notification.ComparisonOperator,
-    }));
-    expect(summaries).toContainEqual({ type: 'ACTUAL', threshold: 50, op: 'GREATER_THAN' });
-    expect(summaries).toContainEqual({ type: 'ACTUAL', threshold: 100, op: 'GREATER_THAN' });
-    expect(summaries).toContainEqual({ type: 'FORECASTED', threshold: 100, op: 'GREATER_THAN' });
-  });
+  // NOTE: AWS::Budgets::Budget CFN resource is not available in eu-north-1
+  // (only us-east-1). The budget is created out-of-band via
+  // scripts/create-cost-budget.sh against the deployed alarmTopic ARN; see
+  // safety-stack.ts comment block for rationale. Synth-level tests for the
+  // budget shape are not meaningful here.
 
   it('SNS topic policy scopes Budgets publish by aws:SourceArn kos-monthly', () => {
     const policies = tpl.findResources('AWS::SNS::TopicPolicy');

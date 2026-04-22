@@ -22,15 +22,18 @@ export interface KosRdsProps {
 }
 
 /**
- * KosRds — single-AZ db.t4g.medium Postgres 16.5 in PRIVATE_ISOLATED subnets.
+ * KosRds — single-AZ db.t4g.medium Postgres 16.x (latest AWS-offered patch) in PRIVATE_ISOLATED subnets.
  *
  * Decisions enforced here:
  *  - D-07: `db.t4g.medium`, single-AZ, 7-day backup retention.
  *  - D-03: `RemovalPolicy.RETAIN` + `deletionProtection: true` — cdk destroy
  *    will never touch the DB, matching archive-not-delete philosophy.
- *  - RESEARCH Pitfall 4: pin `VER_16_5` so pgvector 0.8.0 is available. The
- *    0001 migration's `CREATE EXTENSION vector` fails on 16.2-default
- *    parameter groups.
+ *  - RESEARCH Pitfall 4: pgvector 0.8.0 requires Postgres 16.5+. AWS deprecates
+ *    minor versions over time — originally pinned to VER_16_5, bumped to VER_16_12
+ *    on 2026-04-22 after 16.5 was retired in eu-north-1. All 16.6+ versions
+ *    support pgvector 0.8.0 (the extension is created post-connect via
+ *    `CREATE EXTENSION vector`). VER_16_12 is highest available in aws-cdk-lib
+ *    2.248.0; region offers up to 16.13.
  *  - RESEARCH Pattern 3: force SSL via parameter group so `sslmode=require`
  *    client URLs are enforced at server level, not just documented.
  *
@@ -52,7 +55,7 @@ export class KosRds extends Construct {
     });
 
     const engine = DatabaseInstanceEngine.postgres({
-      version: PostgresEngineVersion.VER_16_5,
+      version: PostgresEngineVersion.VER_16_12,
     });
     const parameterGroup = new ParameterGroup(this, 'Pg', {
       engine,

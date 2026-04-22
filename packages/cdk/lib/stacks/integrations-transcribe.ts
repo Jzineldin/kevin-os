@@ -102,24 +102,23 @@ export function wireTranscribeVocab(
   });
 
   vocabAsset.grantRead(deployFn);
-  // Belt-and-braces S3 grants. `blobsBucket.grantReadWrite()` via cross-stack
-  // import sometimes fails to propagate the object-level actions on first
-  // deploy (reproduced 2026-04-22 — IAM policy synthesised but sts:AssumeRole
-  // path didn't pick up s3:PutObject on the blobs bucket). Adding an explicit
-  // PolicyStatement with bucket + bucket/* resource ARNs guarantees access.
+  // Lambda runs outside the VPC (default Lambda networking). It cannot write
+  // to blobsBucket because that bucket policy restricts access to the S3
+  // Gateway Endpoint (D-06 VPCe-scoped policy).
+  //
+  // Solution: handler writes the cleaned vocab file INTO the CDK asset bucket
+  // (under `vocab-cleaned/...`) rather than blobsBucket. Grant PutObject on
+  // the asset bucket to permit that.
+  //
+  // blobsBucket.grantReadWrite is kept for future Phase-2+ consumers that may
+  // read/write there from inside the VPC.
   props.blobsBucket.grantReadWrite(deployFn);
   deployFn.addToRolePolicy(
     new PolicyStatement({
       effect: Effect.ALLOW,
-      actions: [
-        's3:PutObject',
-        's3:GetObject',
-        's3:DeleteObject',
-        's3:ListBucket',
-      ],
+      actions: ['s3:PutObject', 's3:GetObject'],
       resources: [
-        props.blobsBucket.bucketArn,
-        `${props.blobsBucket.bucketArn}/*`,
+        `arn:aws:s3:::${vocabAsset.s3BucketName}/vocab-cleaned/*`,
       ],
     }),
   );

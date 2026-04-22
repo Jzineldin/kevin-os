@@ -63,7 +63,17 @@ export async function handler(
 ): Promise<BootstrapResponse> {
   if (event.RequestType === 'Delete') {
     // Archive-not-delete (CONTEXT D-03): index survives stack destruction.
-    return { PhysicalResourceId: KOS_MEMORY_INDEX_NAME };
+    //
+    // Echo back the incoming PhysicalResourceId so CloudFormation never sees
+    // the ID change between CREATE and DELETE (which otherwise triggers
+    // `cannot change the physical resource ID from X to Y during deletion`
+    // and traps the stack in ROLLBACK_FAILED — see 2026-04-22 retro;
+    // same pattern applied to Transcribe handler earlier).
+    return {
+      PhysicalResourceId:
+        (event as { PhysicalResourceId?: string }).PhysicalResourceId ??
+        KOS_MEMORY_INDEX_NAME,
+    };
   }
 
   const { endpoint, adminKey } = await getAzureCreds();

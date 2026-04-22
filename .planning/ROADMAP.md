@@ -72,7 +72,20 @@
   4. **Voice-onboarding flows working**: Kevin can voice-onboard a Person (ENT-03) and a Project (ENT-04) entirely via Telegram; bulk-import from existing Kontakter (ENT-05) and from last 90 days of Granola transcripts + Gmail signatures (ENT-06) has produced ≥ 50 candidate dossiers in the Inbox for batch review.
   5. **Reliability primitives in place**: every EventBridge → Lambda rule has a configured DLQ; idempotency keys (capture_id ULID) prevent double-processing on retries; triage Lambda obeys the Phase-1 hard notification cap (cannot push more than 3 Telegram messages/day even under fault).
 
-**Plans**: TBD
+**Plans**: 12 plans
+
+- [x] 02-00-PLAN.md — Wave 0: scaffold 11 workspaces (resolver lib + test-fixtures + 8 services + shared tracing)
+- [x] 02-01-PLAN.md — Wave 1: grammY telegram-bot webhook Lambda + CaptureStack + capture.received PutEvents (D-01/D-02 stage-1 ack)
+- [x] 02-02-PLAN.md — Wave 1: transcribe-starter + transcribe-complete Lambdas; voice → kos-sv-se-v1 vocab → capture.voice.transcribed (INF-08 consumption)
+- [x] 02-03-PLAN.md — Wave 1: @kos/resolver library + migration 0003 (1536→1024 dims + embedding_model) + migration 0004 (pg_trgm GIN + HNSW) + Azure recreate (D-05..D-11)
+- [x] 02-04-PLAN.md — Wave 2: Triage + voice-capture Lambdas (AGT-01+AGT-02, Haiku 4.5, Agent SDK on Bedrock) + AgentsStack + entity.mention.detected emission
+- [x] 02-05-PLAN.md — Wave 2: Entity-resolver Lambda (AGT-03, Sonnet 4.6 disambig, dual-read Inbox) — three-stage ENT-09 pipeline
+- [x] 02-06-PLAN.md — Wave 2: push-telegram is_reply bypass + real Bot API sender + EventBridge rule on kos.output (D-02 stage-2 ack, §13 quiet-hours bypass)
+- [x] 02-07-PLAN.md — Wave 2: KOS Inbox Notion DB bootstrap (D-13) + notion-indexer Inbox-sync extension (D-14)
+- [x] 02-08-PLAN.md — Wave 3: Bulk-import Kontakter Lambda (ENT-05) + indexer embedding population (Cohere Embed v3 on entities upsert)
+- [x] 02-09-PLAN.md — Wave 3: Bulk-import Granola (via Notion Transkripten per resolved Q1) + Gmail signatures (ENT-06)
+- [x] 02-10-PLAN.md — Wave 3: Observability — shared sentry.ts + Langfuse capture_id trace tagging + ObservabilityStack (CloudWatch alarms + SNS)
+- [ ] 02-11-PLAN.md — Wave 4: E2E gate — verify-phase-2-e2e + resolver three-stage scoreboard + Gate 2 evidence checkpoint
 
 **UI hint**: no
 
@@ -288,7 +301,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Foundation | 0/9 | Planned | - |
-| 2. Minimum Viable Loop | 0/? | Not started | - |
+| 2. Minimum Viable Loop | 0/12 | Planned | - |
 | 3. Dashboard MVP | 0/? | Not started | - |
 | 4. Email Pipeline + iOS Capture | 0/? | Not started | - |
 | 5. Messaging Channels | 0/? | Not started | - |

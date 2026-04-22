@@ -13,13 +13,20 @@
     "@notionhq/client": "2.3.0",
     "@kos/db": "workspace:*",
     "@kos/contracts": "workspace:*",
+    "@kos/resolver": "workspace:*",
     "@aws-sdk/client-secrets-manager": "3.691.0",
     "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/rds-signer": "3.691.0",
     "drizzle-orm": "0.36.0",
     "pg": "8.13.1",
     "ulid": "2.3.0",
-    "zod": "3.23.8"
+    "zod": "3.23.8",
+    "@sentry/aws-serverless": "^8",
+    "@langfuse/otel": "^5",
+    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2",
+    "@opentelemetry/api": "^1",
+    "@opentelemetry/sdk-trace-node": "^2",
+    "@opentelemetry/instrumentation": "^0.215"
   },
   "devDependencies": {
     "@types/node": "22.9.0",

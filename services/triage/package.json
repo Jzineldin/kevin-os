@@ -1,0 +1,35 @@
+{
+  "name": "@kos/service-triage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/handler.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@kos/contracts": "workspace:*",
+    "@kos/db": "workspace:*",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.111",
+    "@aws-sdk/client-eventbridge": "3.691.0",
+    "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@aws-sdk/rds-signer": "3.691.0",
+    "pg": "8.13.1",
+    "zod": "3.23.8",
+    "@langfuse/otel": "^5",
+    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2",
+    "@opentelemetry/api": "^1",
+    "@opentelemetry/sdk-trace-node": "^2",
+    "@opentelemetry/instrumentation": "^0.215",
+    "@sentry/aws-serverless": "^8"
+  },
+  "devDependencies": {
+    "@kos/test-fixtures": "workspace:*",
+    "@types/node": "22.9.0",
+    "@types/pg": "8.11.10",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}

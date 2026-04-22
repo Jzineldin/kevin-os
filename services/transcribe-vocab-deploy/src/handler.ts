@@ -93,7 +93,12 @@ export async function handler(
     // Archive-not-delete: preserve the vocabulary on stack delete. Phase 2
     // voice consumers reference it by name; keeping it alive across stack
     // churn avoids accidental data loss.
-    return { PhysicalResourceId: VOCAB_NAME };
+    //
+    // Echo back the incoming PhysicalResourceId so CloudFormation never sees
+    // the ID change between CREATE and DELETE (which otherwise triggers
+    // `cannot change the physical resource ID from X to Y during deletion`
+    // and traps the stack in DELETE_FAILED — see 2026-04-22 retro).
+    return { PhysicalResourceId: event.PhysicalResourceId ?? VOCAB_NAME };
   }
 
   // 1 + 2: fetch seed + strip comments/blanks.
@@ -109,17 +114,33 @@ export async function handler(
     throw new Error('Seed vocab is empty after stripping comments');
   }
 
-  // 3: upload canonical file.
+  // 3: upload cleaned vocab file. Write to the ASSET bucket (not blobsBucket):
+  // blobs bucket policy denies access from outside the VPC (D-06), and this
+  // Lambda runs outside the VPC (Lambda default networking). Using the CDK
+  // asset bucket is acceptable here — it's Kevin's own CDK bootstrap bucket,
+  // already IAM-permitted to this role via vocabAsset.grantRead, and Transcribe
+  // service reads the URI directly.
+  //
+  // We still write a CLEANED copy (comments+blanks stripped) because Transcribe
+  // requires phrase-only content. Key differs from the raw asset to avoid
+  // clobbering the asset reference.
+  const targetBucket = seedBucket;
+  const targetKey = `vocab-cleaned/${seedKey.replace(/^.*\//, '')}`;
   await s3.send(
     new PutObjectCommand({
-      Bucket: bucket,
-      Key: s3Key,
+      Bucket: targetBucket,
+      Key: targetKey,
       Body: cleanContent,
       ContentType: 'text/plain; charset=utf-8',
     }),
   );
 
-  const s3Uri = `s3://${bucket}/${s3Key}`;
+  // VOCAB_BUCKET (blobs) + VOCAB_S3_KEY remain in env for future Phase-2+
+  // voice consumers that reference the canonical path. We still point
+  // Transcribe at the cleaned asset-bucket copy.
+  void bucket;
+  void s3Key;
+  const s3Uri = `s3://${targetBucket}/${targetKey}`;
 
   // 4: create-or-update.
   const exists = await vocabularyExists(transcribe);

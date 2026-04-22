@@ -1,44 +1,78 @@
 /**
- * push-telegram Lambda handler (Phase 1 scaffolding).
+ * push-telegram Lambda handler — Plan 02-06 (OUT-01).
  *
- * Phase 1 scope:
- *  - Enforce DynamoDB notification cap (3/day) + Stockholm quiet hours
- *    (20:00-08:00) INLINE on every invocation (RESEARCH Anti-Pattern line 607).
- *  - On denial (quiet-hours or cap-exceeded), queue the message body into
- *    `telegram_inbox_queue` so the Phase 2 morning-brief drain can release
- *    suppressed items alongside the 08:00 brief.
- *  - On acceptance, log the stub send. Real Telegram API wiring lands in
- *    Phase 2 (CAP-01); Phase 1 exercises cap + quiet-hours via
- *    `scripts/verify-cap.mjs` without needing a real bot token.
+ * Phase 1 shipped this as a scaffolding Lambda with a console.log sender
+ * stub so `scripts/verify-cap.mjs` could drive the cap + quiet-hours rails
+ * end-to-end without a real bot token. Plan 02-06 promotes it to the real
+ * CAP-01 ack path:
  *
- * Wire contract:
- *  - Env: CAP_TABLE_NAME, RDS_SECRET_ARN, RDS_ENDPOINT (RDS Proxy),
- *         TELEGRAM_BOT_TOKEN_SECRET_ARN (not consumed in Phase 1).
- *  - Lambda lives OUTSIDE the VPC (D-05) — Telegram API is public; the
- *    RDS Proxy endpoint accepts IAM-auth connections from the public
- *    internet (see DataStack Proxy config).
+ *  1. Real Telegram Bot API sender (telegram.ts) replaces the stub.
+ *
+ *  2. New `is_reply` flag on the event detail — when voice-capture (or any
+ *     future Kevin-initiated-reply agent) emits `output.push` with
+ *     `is_reply=true`, the handler forwards `isReply: true` to
+ *     `enforceAndIncrement` which short-circuits allowed=true WITHOUT
+ *     touching the DynamoDB cap and WITHOUT the quiet-hours check. This
+ *     realizes the §13 / Pitfall 6 contract: Kevin's synchronous
+ *     Telegram↔Telegram ack flow stays responsive at 22:30 Stockholm
+ *     even though every other push channel is suppressed.
+ *
+ *  3. EventBridge unwrap — the Lambda is now an EB target on `kos.output`
+ *     via the rule added in SafetyStack. The handler accepts BOTH the
+ *     direct-invoke shape (from Phase 1 tests / future ops tools) and the
+ *     EB-wrapped shape `{source, detail-type, detail}`.
+ *
+ *  4. Send-failed queue — on any Bot API 4xx/5xx the body is enqueued to
+ *     `telegram_inbox_queue` with `reason='send-failed'` and the error is
+ *     re-thrown so the EventBridge rule's retry+DLQ budget handles it.
+ *
+ * Wire contract (env):
+ *   - CAP_TABLE_NAME                    (DynamoDB cap table)
+ *   - RDS_SECRET_ARN, RDS_ENDPOINT      (RDS Proxy — queue writes)
+ *   - TELEGRAM_BOT_TOKEN_SECRET_ARN     (the bot token — now consumed)
+ *
+ * D-05: Lambda lives OUTSIDE the VPC (Telegram API is public; the RDS
+ * Proxy endpoint accepts IAM-auth connections from the public internet).
  */
 
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from '@aws-sdk/client-secrets-manager';
 import { telegramInboxQueue } from '@kos/db';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
+import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import { enforceAndIncrement, type CapDenialReason } from './cap.js';
+import { sendTelegramMessage } from './telegram.js';
 
 const { Pool } = pg;
 type PgPool = InstanceType<typeof Pool>;
 
 export interface PushTelegramEvent {
   body: string;
+  capture_id?: string;
+  /**
+   * §13 / Pitfall 6. ONLY set to true by direct-response agents
+   * (voice-capture in Phase 2, triage in future). Scheduled pushes (morning
+   * brief, daily close, urgent email drafts) MUST NOT set this.
+   */
+  is_reply?: boolean;
+  telegram?: {
+    chat_id: number;
+    reply_to_message_id?: number;
+  };
 }
 
 export interface PushTelegramResult {
   sent: boolean;
   queued: boolean;
-  reason?: CapDenialReason;
+  /** `send-failed` extends the Phase 1 cap reasons to cover Bot API failures. */
+  reason?: CapDenialReason | 'send-failed';
 }
 
-// --- Module-scope caches (survive warm-start invocations) --------------------
+// --- Module-scope RDS pool cache (survives warm starts) ---------------------
 let pool: PgPool | null = null;
 
 async function getPool(): Promise<PgPool> {
@@ -53,7 +87,10 @@ async function getPool(): Promise<PgPool> {
   if (!secret.SecretString) {
     throw new Error(`Secret ${secretArn} has no SecretString`);
   }
-  const creds = JSON.parse(secret.SecretString) as { username: string; password: string };
+  const creds = JSON.parse(secret.SecretString) as {
+    username: string;
+    password: string;
+  };
   pool = new Pool({
     host,
     port: 5432,
@@ -66,36 +103,82 @@ async function getPool(): Promise<PgPool> {
   return pool;
 }
 
-export async function handler(event: PushTelegramEvent): Promise<PushTelegramResult> {
-  const capTableName = process.env.CAP_TABLE_NAME;
-  if (!capTableName) {
-    throw new Error('CAP_TABLE_NAME must be set');
+/**
+ * Accept BOTH direct invocation (Phase 1 contract + Phase 2 operator tools)
+ * AND the EventBridge-wrapped shape produced by the kos.output rule:
+ *   { source: 'kos.output', 'detail-type': 'output.push', detail: {...} }
+ *
+ * We sniff `detail` rather than `source`/`detail-type` so a direct-invoke
+ * caller can pass the inner shape without knowing about EB wrapping.
+ */
+function unwrapEvent(raw: unknown): PushTelegramEvent {
+  const ev = raw as { detail?: unknown } | null;
+  if (ev && typeof ev === 'object' && 'detail' in ev && ev.detail) {
+    return ev.detail as PushTelegramEvent;
   }
-
-  const check = await enforceAndIncrement({ tableName: capTableName });
-
-  if (!check.allowed) {
-    // Quiet-hours / cap-exceeded: queue for morning drain. telegramInboxQueue
-    // has `reason` column with values 'cap-exceeded' | 'quiet-hours'.
-    const p = await getPool();
-    const db = drizzle(p);
-    await db.insert(telegramInboxQueue).values({
-      body: event.body,
-      reason: check.reason ?? 'cap-exceeded',
-    });
-    return { sent: false, queued: true, reason: check.reason };
-  }
-
-  // Phase 2 will replace this stub with a real Telegram `sendMessage` call.
-  // Phase 1 keeps the sender path exercisable without a real bot token so
-  // verify-cap.mjs can drive the cap gate end-to-end.
-  // eslint-disable-next-line no-console
-  console.log(
-    JSON.stringify({
-      phase1Stub: true,
-      bodyPreview: event.body.slice(0, 80),
-      count: check.count,
-    }),
-  );
-  return { sent: true, queued: false };
+  return raw as PushTelegramEvent;
 }
+
+export const handler = wrapHandler(
+  async (rawEvent: unknown): Promise<PushTelegramResult> => {
+    await initSentry();
+    const event = unwrapEvent(rawEvent);
+
+    // Carry the upstream capture_id through to Langfuse if the event has one
+    // (voice-capture sets it on output.push). Tag is no-op when no active span.
+    if (event.capture_id) tagTraceWithCaptureId(event.capture_id);
+
+    const capTableName = process.env.CAP_TABLE_NAME;
+    if (!capTableName) {
+      throw new Error('CAP_TABLE_NAME must be set');
+    }
+
+    // Forward is_reply to the cap so it short-circuits allowed=true without
+    // touching DynamoDB or the quiet-hours gate (§13).
+    const check = await enforceAndIncrement({
+      tableName: capTableName,
+      isReply: event.is_reply,
+    });
+
+    if (!check.allowed) {
+      // Quiet-hours / cap-exceeded: queue for the Phase 2 morning-brief drain.
+      // `reason` column on telegram_inbox_queue takes 'cap-exceeded' |
+      // 'quiet-hours' | 'send-failed'.
+      const p = await getPool();
+      const db = drizzle(p);
+      await db.insert(telegramInboxQueue).values({
+        body: event.body,
+        reason: check.reason ?? 'cap-exceeded',
+      });
+      return { sent: false, queued: true, reason: check.reason };
+    }
+
+    // allowed=true. The only legitimate path here is a real Telegram send;
+    // without chat_id we can't call the Bot API, so a missing chat_id is a
+    // programming error (upstream agent forgot to forward sender.chat_id).
+    if (!event.telegram?.chat_id) {
+      throw new Error('push-telegram invoked without telegram.chat_id');
+    }
+
+    try {
+      await sendTelegramMessage({
+        chat_id: event.telegram.chat_id,
+        text: event.body,
+        reply_to_message_id: event.telegram.reply_to_message_id,
+      });
+      return { sent: true, queued: false };
+    } catch (err) {
+      // Queue on send failure so the morning-brief drain can retry the body
+      // (user-visible content); surface the error to the Lambda runtime so
+      // EventBridge counts an invocation failure and either retries within
+      // the rule's budget or routes to the SafetyStack DLQ.
+      const p = await getPool();
+      const db = drizzle(p);
+      await db.insert(telegramInboxQueue).values({
+        body: event.body,
+        reason: 'send-failed',
+      });
+      throw err;
+    }
+  },
+);

@@ -48,7 +48,11 @@ export const KOS_MEMORY_INDEX_DEFINITION = {
     {
       name: 'content_vector',
       type: 'Collection(Edm.Single)',
-      dimensions: 1536,
+      // Phase 2 Plan 03: resized 1536 → 1024 for Cohere Embed Multilingual v3 (D-06).
+      // Bumping the bytes of this file via this constant re-fires the CDK CustomResource
+      // fingerprint; the bootstrap Lambda handles the delete-then-recreate dance since
+      // vector-dim changes cannot be patched into an existing index.
+      dimensions: 1024,
       vectorSearchProfile: 'kos-hnsw-binary',
     },
   ],
@@ -89,8 +93,14 @@ export const KOS_MEMORY_INDEX_DEFINITION = {
       {
         name: 'kos-semantic',
         prioritizedFields: {
-          contentFields: [{ fieldName: 'content' }],
-          keywordsFields: [{ fieldName: 'entity_ids' }],
+          // Azure AI Search REST API 2025-09-01 renamed these properties:
+          //   contentFields  → prioritizedContentFields
+          //   keywordsFields → prioritizedKeywordsFields
+          // (error confirmed 2026-04-22: "Cannot find nested property
+          // 'contentFields' on the resource type
+          // 'Microsoft.Azure.Search.V2025_09_01.PrioritizedFields'").
+          prioritizedContentFields: [{ fieldName: 'content' }],
+          prioritizedKeywordsFields: [{ fieldName: 'entity_ids' }],
         },
       },
     ],

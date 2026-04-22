@@ -25,9 +25,15 @@ import type { Construct } from 'constructs';
 import { Table, AttributeType, BillingMode } from 'aws-cdk-lib/aws-dynamodb';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
-import { CfnBudget } from 'aws-cdk-lib/aws-budgets';
+// Note: AWS::Budgets::Budget CFN resource is only supported in us-east-1.
+// We create the budget out-of-band via `aws budgets create-budget` (post-deploy)
+// targeting this stack's alarmTopic ARN. See scripts/create-cost-budget.sh.
+// import { CfnBudget } from 'aws-cdk-lib/aws-budgets';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import { PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Rule, type EventBus } from 'aws-cdk-lib/aws-events';
+import { LambdaFunction as LambdaTarget } from 'aws-cdk-lib/aws-events-targets';
+import { Queue } from 'aws-cdk-lib/aws-sqs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { KosLambda } from '../constructs/kos-lambda.js';
@@ -39,12 +45,24 @@ export interface SafetyStackProps extends StackProps {
   rdsSecret: ISecret;
   rdsProxyEndpoint: string;
   telegramBotTokenSecret: ISecret;
+  /**
+   * Plan 02-06: push-telegram is now an EventBridge target on the kos.output
+   * bus. The rule + per-pipeline DLQ are added IN this stack (same
+   * per-pipeline DLQ pattern Plan 02-04's AgentsStack uses) so the
+   * EventsStack doesn't take a reference to the push-telegram Lambda
+   * (which would create an E↔S cycle).
+   */
+  outputBus: EventBus;
 }
 
 export class SafetyStack extends Stack {
   public readonly capTable: Table;
   public readonly pushTelegram: KosLambda;
   public readonly alarmTopic: Topic;
+  /** Plan 02-06 — per-pipeline DLQ for the kos.output → push-telegram rule. */
+  public readonly pushTelegramDlq: Queue;
+  /** Plan 02-06 — kos.output / output.push → push-telegram rule. */
+  public readonly pushFromOutputRule: Rule;
 
   constructor(scope: Construct, id: string, props: SafetyStackProps) {
     super(scope, id, props);
@@ -91,6 +109,40 @@ export class SafetyStack extends Stack {
     props.rdsSecret.grantRead(this.pushTelegram);
     props.telegramBotTokenSecret.grantRead(this.pushTelegram);
 
+    // --- Plan 02-06 / OUT-01: EventBridge rule kos.output → push-telegram ---
+    //
+    // Voice-capture (Plan 02-04) emits `output.push` with is_reply=true for
+    // the synchronous "✅ Saved to Command Center · …" ack; future agents
+    // (morning brief, daily close) will emit the same detail-type with
+    // is_reply=false. Both flow through THIS rule; the Lambda's cap +
+    // quiet-hours gate + is_reply bypass handles routing.
+    //
+    // Per-pipeline DLQ (not reused from EventsStack) avoids the
+    // EventsStack↔SafetyStack cyclic-reference pattern that Plan 02-02 /
+    // Plan 02-04 both hit when they tried to take a direct reference to the
+    // shared bus-DLQ. Plan 02-09 observability alarms on this DLQ the same
+    // way it alarms on the triage + voice-capture DLQs.
+    this.pushTelegramDlq = new Queue(this, 'PushTelegramDlq', {
+      queueName: 'kos-push-telegram-dlq',
+      retentionPeriod: Duration.days(14),
+      visibilityTimeout: Duration.minutes(5),
+    });
+
+    this.pushFromOutputRule = new Rule(this, 'PushTelegramFromOutputRule', {
+      eventBus: props.outputBus,
+      eventPattern: {
+        source: ['kos.output'],
+        detailType: ['output.push'],
+      },
+      targets: [
+        new LambdaTarget(this.pushTelegram, {
+          deadLetterQueue: this.pushTelegramDlq,
+          maxEventAge: Duration.hours(1),
+          retryAttempts: 2,
+        }),
+      ],
+    });
+
     // --- SNS topic + email subscription -------------------------------------
     // D-15: cost alarms route ONLY to email, never Telegram (Telegram is
     // cap-gated and quiet-hours-suppressed). Subscription is PendingConfirmation
@@ -101,52 +153,15 @@ export class SafetyStack extends Stack {
     this.alarmTopic.addSubscription(new EmailSubscription(ALARM_EMAIL));
 
     // --- AWS Budgets (D-15) -------------------------------------------------
-    // Use AWS Budgets instead of CloudWatch billing alarms per RESEARCH §Don't
-    // Hand-Roll: Budgets supports monthly COST with forecasted + actual
-    // thresholds natively, and is the canonical AWS-native cost-alert path.
-    new CfnBudget(this, 'CostBudget', {
-      budget: {
-        budgetName: 'kos-monthly',
-        budgetType: 'COST',
-        timeUnit: 'MONTHLY',
-        budgetLimit: { amount: 100, unit: 'USD' },
-      },
-      notificationsWithSubscribers: [
-        {
-          notification: {
-            comparisonOperator: 'GREATER_THAN',
-            notificationType: 'ACTUAL',
-            threshold: 50,
-            thresholdType: 'ABSOLUTE_VALUE',
-          },
-          subscribers: [
-            { address: this.alarmTopic.topicArn, subscriptionType: 'SNS' },
-          ],
-        },
-        {
-          notification: {
-            comparisonOperator: 'GREATER_THAN',
-            notificationType: 'ACTUAL',
-            threshold: 100,
-            thresholdType: 'ABSOLUTE_VALUE',
-          },
-          subscribers: [
-            { address: this.alarmTopic.topicArn, subscriptionType: 'SNS' },
-          ],
-        },
-        {
-          notification: {
-            comparisonOperator: 'GREATER_THAN',
-            notificationType: 'FORECASTED',
-            threshold: 100,
-            thresholdType: 'ABSOLUTE_VALUE',
-          },
-          subscribers: [
-            { address: this.alarmTopic.topicArn, subscriptionType: 'SNS' },
-          ],
-        },
-      ],
-    });
+    // NOTE: AWS::Budgets::Budget is NOT supported as a CloudFormation resource
+    // type in eu-north-1 (CFN validation returns "Unrecognized resource types"
+    // — reproduced 2026-04-22). Budgets is a global API service but the CFN
+    // resource type is only registered in us-east-1.
+    //
+    // Workaround: the budget is created out-of-band via `aws budgets
+    // create-budget` (see scripts/create-cost-budget.sh), targeting this
+    // stack's alarmTopic ARN. The SNS topic + resource policy below stay here
+    // because they ARE regional and they're what Budgets will Publish to.
 
     // T-01-SNS-01 mitigation: scope the Budgets service principal's Publish
     // permission to the specific `kos-monthly` budget via aws:SourceArn, so a

@@ -1,0 +1,16 @@
+-- Migration 0005 — KOS Inbox cursor (Plan 02-07).
+--
+-- Intentionally NO-OP. The Phase 1 `notion_indexer_cursor` table is keyed by
+-- `db_id` (Notion DB UUID) with a free-form `db_kind` text discriminator —
+-- adding the KOS Inbox 5-min poll only requires:
+--   1. Plan 02-07 bootstrap-notion-dbs.mjs creates the new DB and writes the
+--      UUID to scripts/.notion-db-ids.json under key `kosInbox`.
+--   2. CDK passes that UUID to the new `IndexerSchedule-KosInbox` schedule
+--      with `dbKind: 'kos_inbox'`.
+--   3. The indexer's first invocation does INSERT ... ON CONFLICT (db_id)
+--      DO UPDATE — lazy initialisation, no DDL change required.
+--
+-- Recording this migration as a breadcrumb so future schema audits trace the
+-- KOS Inbox poll back to Plan 02-07. Drizzle's journal records it ran; the
+-- statement is a harmless no-op.
+SELECT 1 AS kos_inbox_cursor_noop;

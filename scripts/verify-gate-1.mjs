@@ -77,13 +77,16 @@ record('3/9 Postgres: pgvector + 8 tables + owner_id on each + event_log present
   // Live DB assertions — DATABASE_URL auto-fetched from Secrets Manager.
   // Gate 1 MUST NOT silent-skip these.
   if (!process.env.DATABASE_URL) {
+    // CDK Credentials.fromGeneratedSecret names the secret
+    // `<StackName>RdsInstanceSecret<hash>` (no literal 'Credentials' in the
+    // name). Broaden the match so it finds whatever the actual secret is.
     const arn = execSync(
-      `aws secretsmanager list-secrets --region ${REGION} --query "SecretList[?starts_with(Name, 'KosData') && contains(Name, 'Credentials')].ARN | [0]" --output text`,
+      `aws secretsmanager list-secrets --region ${REGION} --query "SecretList[?starts_with(Name, 'KosData') && contains(Name, 'RdsInstanceSecret')].ARN | [0]" --output text`,
     )
       .toString()
       .trim();
     if (!arn || arn === 'None') {
-      throw new Error('KosData RDS credentials secret not found in Secrets Manager');
+      throw new Error('KosData RDS credentials secret not found in Secrets Manager (looked for KosData*RdsInstanceSecret*)');
     }
     const json = execSync(
       `aws secretsmanager get-secret-value --secret-id ${arn} --region ${REGION} --query SecretString --output text`,

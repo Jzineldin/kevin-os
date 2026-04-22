@@ -179,6 +179,9 @@ importers:
 
   services/bulk-import-granola-gmail:
     dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
       '@aws-sdk/client-secrets-manager':
         specifier: 3.691.0
         version: 3.691.0
@@ -188,9 +191,21 @@ importers:
       '@kos/resolver':
         specifier: workspace:*
         version: link:../../packages/resolver
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
       '@notionhq/client':
         specifier: 2.3.0
         version: 2.3.0
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
       '@sentry/aws-serverless':
         specifier: ^8
         version: 8.55.1
@@ -222,6 +237,9 @@ importers:
 
   services/bulk-import-kontakter:
     dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
       '@aws-sdk/client-bedrock-runtime':
         specifier: 3.691.0
         version: 3.691.0
@@ -234,9 +252,21 @@ importers:
       '@kos/resolver':
         specifier: workspace:*
         version: link:../../packages/resolver
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))
       '@notionhq/client':
         specifier: 2.3.0
         version: 2.3.0
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
       '@sentry/aws-serverless':
         specifier: ^8
         version: 8.55.1
@@ -332,6 +362,9 @@ importers:
 
   services/notion-indexer:
     dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
       '@aws-sdk/client-eventbridge':
         specifier: 3.691.0
         version: 3.691.0
@@ -350,9 +383,24 @@ importers:
       '@kos/resolver':
         specifier: workspace:*
         version: link:../../packages/resolver
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
       '@notionhq/client':
         specifier: 2.3.0
         version: 2.3.0
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
       drizzle-orm:
         specifier: 0.36.0
         version: 0.36.0(@opentelemetry/api@1.9.1)(@types/pg@8.11.10)(pg@8.13.1)
@@ -458,6 +506,9 @@ importers:
 
   services/push-telegram:
     dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
       '@aws-sdk/client-dynamodb':
         specifier: 3.691.0
         version: 3.691.0
@@ -473,6 +524,18 @@ importers:
       '@kos/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
       '@sentry/aws-serverless':
         specifier: ^8
         version: 8.55.1
@@ -501,6 +564,9 @@ importers:
 
   services/telegram-bot:
     dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
       '@aws-sdk/client-eventbridge':
         specifier: 3.691.0
         version: 3.691.0
@@ -513,6 +579,18 @@ importers:
       '@kos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
       '@sentry/aws-serverless':
         specifier: ^8
         version: 8.55.1
@@ -541,10 +619,16 @@ importers:
 
   services/transcribe-complete:
     dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
       '@aws-sdk/client-eventbridge':
         specifier: 3.691.0
         version: 3.691.0
       '@aws-sdk/client-s3':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
         specifier: 3.691.0
         version: 3.691.0
       '@aws-sdk/client-transcribe':
@@ -553,6 +637,18 @@ importers:
       '@kos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
       '@sentry/aws-serverless':
         specifier: ^8
         version: 8.55.1
@@ -578,7 +674,13 @@ importers:
 
   services/transcribe-starter:
     dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
       '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
         specifier: 3.691.0
         version: 3.691.0
       '@aws-sdk/client-transcribe':
@@ -587,6 +689,18 @@ importers:
       '@kos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
       '@sentry/aws-serverless':
         specifier: ^8
         version: 8.55.1
@@ -6069,6 +6183,14 @@ snapshots:
   '@langfuse/core@5.2.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
+
+  '@langfuse/otel@5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))':
+    dependencies:
+      '@langfuse/core': 5.2.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/exporter-trace-otlp-http': 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
 
   '@langfuse/otel@5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))':
     dependencies:

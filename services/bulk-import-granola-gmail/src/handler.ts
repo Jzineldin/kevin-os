@@ -24,7 +24,8 @@
  * function core (DI-friendly for tests).
  */
 
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
+import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import { Client as NotionClient, type Client } from '@notionhq/client';
 import pg from 'pg';
 import { Signer } from '@aws-sdk/rds-signer';
@@ -49,7 +50,6 @@ import {
 } from './inbox.js';
 import type { gmail_v1 } from 'googleapis';
 
-sentryInit({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0, sampleRate: 1 });
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
 
 const { Pool } = pg;
@@ -363,6 +363,9 @@ export async function runImport(
  * delegates to runImport.
  */
 export const handler = wrapHandler(async (event: RunImportEvent = {}) => {
+  await initSentry();
+  // Synthetic capture_id per Plan 02-10 — keeps Langfuse session view tidy.
+  tagTraceWithCaptureId(`bulk-ent06-${yyyymmdd()}`);
   const { client, kosInboxId } = await getInboxClient();
   const pool = await getPool();
   const notion: Client = client as unknown as NotionClient;

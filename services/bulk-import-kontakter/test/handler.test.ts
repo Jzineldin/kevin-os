@@ -13,6 +13,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// _shared mocks must be registered BEFORE the handler import (vi.mock hoisted).
+vi.mock('../../_shared/sentry.js', () => ({
+  initSentry: vi.fn(async () => {}),
+  wrapHandler: <T>(h: T): T => h,
+  Sentry: { captureMessage: vi.fn(), captureException: vi.fn() },
+}));
+vi.mock('../../_shared/tracing.js', () => ({
+  setupOtelTracing: vi.fn(),
+  flush: vi.fn(async () => {}),
+  tagTraceWithCaptureId: vi.fn(),
+}));
+
 import { runImport, type RunImportDeps } from '../src/handler.js';
 
 type QueryCall = { text: string; values?: unknown[] };

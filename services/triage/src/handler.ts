@@ -17,14 +17,18 @@
  * The user-facing ack is emitted by voice-capture as `output.push` with
  * is_reply=true (Plan 02-06 push-telegram consumer).
  */
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import {
   CaptureReceivedTextSchema,
   CaptureVoiceTranscribedSchema,
   TriageRoutedSchema,
 } from '@kos/contracts';
-import { setupOtelTracing, flush as langfuseFlush } from '../../_shared/tracing.js';
+import {
+  setupOtelTracing,
+  flush as langfuseFlush,
+  tagTraceWithCaptureId,
+} from '../../_shared/tracing.js';
 import { runTriageAgent } from './agent.js';
 import {
   findPriorOkRun,
@@ -33,7 +37,6 @@ import {
   loadKevinContextBlock,
 } from './persist.js';
 
-sentryInit({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0, sampleRate: 1 });
 setupOtelTracing();
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -47,6 +50,7 @@ interface EBEvent {
 }
 
 export const handler = wrapHandler(async (event: EBEvent) => {
+  await initSentry();
   const ownerId = process.env.KEVIN_OWNER_ID;
   if (!ownerId) throw new Error('KEVIN_OWNER_ID not set');
 
@@ -86,6 +90,10 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     if (await findPriorOkRun(captureId, 'triage', ownerId)) {
       return { idempotent: captureId };
     }
+
+    // Tag the active OTel span so all downstream Bedrock calls + child spans
+    // share this capture_id as Langfuse session.id (cross-agent correlation).
+    tagTraceWithCaptureId(captureId);
 
     const runId = await insertAgentRun({
       ownerId,

@@ -15,3 +15,18 @@
 - **Source:** `pnpm install` emits `unmet peer zod@^4.0.0: found 3.23.8` for `@anthropic-ai/claude-agent-sdk@0.2.117` and its transitive `@modelcontextprotocol/sdk`
 - **Scope:** Monorepo-wide pinning — Phase 01 locked zod at 3.23.8 across all services
 - **Action:** Plan a dedicated zod upgrade (3.x → 4.x) before Plan 02-04 (triage agent) runs real Claude Agent SDK calls, or pin the SDK to an older compatible release. Not blocking for Wave 0 — typecheck passes, unit-test scaffolds pass.
+
+## From Plan 02-10 (Observability)
+
+### Pre-existing typecheck failure: telegram-bot test/handler.test.ts
+
+- **Source:** `services/telegram-bot/test/handler.test.ts` line 2: `Cannot find module '@kos/test-fixtures' or its corresponding type declarations.`
+- **Scope:** Reproducible on the Wave-3 base commit (4bf7c16) BEFORE any Plan 02-10 edits — verified via `git stash` then re-typecheck
+- **Action:** Owner of telegram-bot test setup should add the workspace symlink or reinstall deps. Out of scope for Plan 02-10 — observability changes do not touch test-fixtures wiring.
+
+### Pre-existing typecheck failure: notion-indexer test/entities-embedding.test.ts
+
+- **Source:** `services/notion-indexer/test/entities-embedding.test.ts` lines 78-79: `Object is possibly 'undefined'.`
+- **Scope:** Reproducible on the Wave-3 base commit (4bf7c16) BEFORE any Plan 02-10 edits — verified via `git stash` then re-typecheck
+- **Action:** Owner of notion-indexer should add `?.` or non-null assertion in the test. Out of scope for Plan 02-10.
+

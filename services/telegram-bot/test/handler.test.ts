@@ -25,6 +25,16 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
 }));
 
 // Sentry wrap is a pass-through in tests so we don't need a real DSN.
+vi.mock('../../_shared/sentry.js', () => ({
+  initSentry: vi.fn(async () => {}),
+  wrapHandler: <T>(h: T): T => h,
+  Sentry: { captureMessage: vi.fn(), captureException: vi.fn() },
+}));
+vi.mock('../../_shared/tracing.js', () => ({
+  setupOtelTracing: vi.fn(),
+  flush: vi.fn(async () => {}),
+  tagTraceWithCaptureId: vi.fn(),
+}));
 vi.mock('@sentry/aws-serverless', () => ({
   init: vi.fn(),
   wrapHandler: <T>(h: T): T => h,

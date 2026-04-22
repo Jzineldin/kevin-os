@@ -118,13 +118,15 @@ vi.mock('../src/disambig.js', () => ({
   runDisambigWithRetry: vi.fn(async () => disambigState.result),
 }));
 
-vi.mock('@sentry/aws-serverless', () => ({
-  init: vi.fn(),
+vi.mock('../../_shared/sentry.js', () => ({
+  initSentry: vi.fn(async () => {}),
   wrapHandler: (h: unknown) => h,
+  Sentry: { captureMessage: vi.fn(), captureException: vi.fn() },
 }));
 vi.mock('../../_shared/tracing.js', () => ({
   setupOtelTracing: vi.fn(),
   flush: vi.fn(async () => {}),
+  tagTraceWithCaptureId: vi.fn(),
 }));
 
 // --- Helpers -------------------------------------------------------------

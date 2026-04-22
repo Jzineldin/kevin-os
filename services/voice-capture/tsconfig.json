@@ -8,7 +8,9 @@
     "paths": {
       "@opentelemetry/*": ["./node_modules/@opentelemetry/*"],
       "@langfuse/*": ["./node_modules/@langfuse/*"],
-      "@arizeai/*": ["./node_modules/@arizeai/*"]
+      "@arizeai/*": ["./node_modules/@arizeai/*"],
+      "@sentry/*": ["./node_modules/@sentry/*"],
+      "@aws-sdk/*": ["./node_modules/@aws-sdk/*"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "../_shared/**/*.ts"]

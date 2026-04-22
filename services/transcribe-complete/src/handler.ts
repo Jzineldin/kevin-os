@@ -28,14 +28,9 @@ import {
   EventBridgeClient,
   PutEventsCommand,
 } from '@aws-sdk/client-eventbridge';
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
+import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import type { EventBridgeEvent } from 'aws-lambda';
-
-sentryInit({
-  dsn: process.env.SENTRY_DSN,
-  tracesSampleRate: 0,
-  sampleRate: 1,
-});
 
 const transcribe = new TranscribeClient({ region: 'eu-north-1' });
 const s3 = new S3Client({ region: 'eu-north-1' });
@@ -103,11 +98,13 @@ export const handler = wrapHandler(
   async (
     event: EventBridgeEvent<'Transcribe Job State Change', TranscribeStateChangeDetail>,
   ): Promise<{ published?: string; failed?: string; skipped?: string }> => {
+    await initSentry();
     const detail = event.detail;
     const jobName = detail.TranscriptionJobName;
     if (!jobName.startsWith('kos-')) return { skipped: 'not-a-kos-job' };
 
     const capture_id = jobName.slice('kos-'.length);
+    tagTraceWithCaptureId(capture_id);
 
     if (detail.TranscriptionJobStatus === 'FAILED') {
       // Publish failure to kos.system so Plan 10 observability surfaces it.

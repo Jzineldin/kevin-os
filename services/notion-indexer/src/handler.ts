@@ -27,6 +27,8 @@ import {
   type PutEventsRequestEntry,
 } from '@aws-sdk/client-eventbridge';
 import { ulid } from 'ulid';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
+import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import {
   upsertEntity,
   upsertProject,
@@ -451,6 +453,12 @@ async function runKosInboxIndexer(args: {
   }
 }
 
-export const handler = async (event: IndexerEvent): Promise<IndexerResult> => {
+export const handler = wrapHandler(async (event: IndexerEvent): Promise<IndexerResult> => {
+  await initSentry();
+  // Synthetic capture_id keyed on dbName/dbKind + UTC minute so each run
+  // shows up as its own session in Langfuse without exploding cardinality.
+  const dbLabel = event.dbName ?? event.dbKind;
+  const utcMinute = new Date().toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+  tagTraceWithCaptureId(`indexer-${dbLabel}-${utcMinute}`);
   return runIndexer(event);
-};
+});

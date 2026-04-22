@@ -23,17 +23,12 @@ import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
 } from 'aws-lambda';
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
+import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import { CaptureReceivedSchema } from '@kos/contracts';
 import { getTelegramSecrets } from './secrets.js';
 import { putVoiceAudio, putVoiceMeta } from './s3.js';
 import { publishCaptureReceived } from './events.js';
-
-sentryInit({
-  dsn: process.env.SENTRY_DSN,
-  tracesSampleRate: 0,
-  sampleRate: 1,
-});
 
 /** Access-control: only Kevin's Telegram user ID may produce events (ASVS V4). */
 function kevinTelegramUserId(): number {
@@ -61,6 +56,9 @@ async function getBot(): Promise<Bot> {
     bot.on('message:text', async (ctx) => {
       if (ctx.from?.id !== kevinId) return; // silent drop — access control
       const capture_id = ulid();
+      // Plan 02-10: tag this OTel span so the capture_id is queryable as
+      // Langfuse session.id across triage → voice-capture → resolver.
+      tagTraceWithCaptureId(capture_id);
       const detail = {
         capture_id,
         channel: 'telegram' as const,
@@ -88,6 +86,7 @@ async function getBot(): Promise<Bot> {
     bot.on('message:voice', async (ctx) => {
       if (ctx.from?.id !== kevinId) return;
       const capture_id = ulid();
+      tagTraceWithCaptureId(capture_id);
       const file = await ctx.getFile();
       if (!file.file_path) {
         throw new Error('telegram getFile returned no file_path');
@@ -152,6 +151,7 @@ export const handler = wrapHandler(
   async (
     event: APIGatewayProxyEventV2,
   ): Promise<APIGatewayProxyResultV2> => {
+    await initSentry();
     const { webhookSecret } = await getTelegramSecrets();
     const hdr = event.headers?.['x-telegram-bot-api-secret-token'];
     if (hdr !== webhookSecret) {

@@ -6,6 +6,16 @@ vi.mock('@aws-sdk/client-transcribe', () => ({
   StartTranscriptionJobCommand: vi.fn().mockImplementation((x: unknown) => ({ input: x })),
 }));
 
+vi.mock('../../_shared/sentry.js', () => ({
+  initSentry: vi.fn(async () => {}),
+  wrapHandler: <T>(h: T): T => h,
+  Sentry: { captureMessage: vi.fn(), captureException: vi.fn() },
+}));
+vi.mock('../../_shared/tracing.js', () => ({
+  setupOtelTracing: vi.fn(),
+  flush: vi.fn(async () => {}),
+  tagTraceWithCaptureId: vi.fn(),
+}));
 vi.mock('@sentry/aws-serverless', () => ({
   init: vi.fn(),
   wrapHandler: <T>(h: T): T => h,

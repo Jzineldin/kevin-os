@@ -22,7 +22,7 @@
  * Multiple mentions per capture map to multiple agent_runs rows; each is
  * independently idempotent.
  */
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import {
   EntityMentionDetectedSchema,
@@ -34,7 +34,11 @@ import {
   hasProjectCooccurrence,
   type Candidate,
 } from '@kos/resolver';
-import { setupOtelTracing, flush as langfuseFlush } from '../../_shared/tracing.js';
+import {
+  setupOtelTracing,
+  flush as langfuseFlush,
+  tagTraceWithCaptureId,
+} from '../../_shared/tracing.js';
 import {
   findPriorOkRun,
   insertAgentRun,
@@ -51,7 +55,6 @@ import {
 } from './inbox.js';
 import { runDisambigWithRetry } from './disambig.js';
 
-sentryInit({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0, sampleRate: 1 });
 setupOtelTracing();
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -165,6 +168,7 @@ async function completeDisambigOrInbox(
 }
 
 export const handler = wrapHandler(async (event: EBEvent) => {
+  await initSentry();
   const ownerId = process.env.KEVIN_OWNER_ID;
   if (!ownerId) throw new Error('KEVIN_OWNER_ID not set');
 
@@ -175,6 +179,9 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     if (await findPriorOkRun(d.capture_id, agentKey, ownerId)) {
       return { idempotent: d.mention_text };
     }
+
+    // Cross-agent correlation: capture_id → Langfuse session.id (D-25).
+    tagTraceWithCaptureId(d.capture_id);
 
     const runId = await insertAgentRun({
       ownerId,

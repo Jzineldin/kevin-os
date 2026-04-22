@@ -18,15 +18,10 @@ import {
   TranscribeClient,
   StartTranscriptionJobCommand,
 } from '@aws-sdk/client-transcribe';
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
+import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import { CaptureReceivedVoiceSchema } from '@kos/contracts';
 import type { EventBridgeEvent } from 'aws-lambda';
-
-sentryInit({
-  dsn: process.env.SENTRY_DSN,
-  tracesSampleRate: 0,
-  sampleRate: 1,
-});
 
 // Pitfall 13: pin region explicitly; never env.AWS_REGION fallback — vocab is eu-north-1.
 const client = new TranscribeClient({ region: 'eu-north-1' });
@@ -42,8 +37,10 @@ export const handler = wrapHandler(
   async (
     event: EventBridgeEvent<'capture.received', unknown>,
   ): Promise<{ started: string; idempotentHit?: boolean } | { skipped: true }> => {
+    await initSentry();
     const detail = CaptureReceivedVoiceSchema.parse(event.detail);
     if (detail.kind !== 'voice') return { skipped: true }; // safety: rule filter already narrows this
+    tagTraceWithCaptureId(detail.capture_id);
     const jobName = `kos-${detail.capture_id}`; // ULID makes this idempotent (Transcribe rejects duplicate names)
     try {
       await client.send(

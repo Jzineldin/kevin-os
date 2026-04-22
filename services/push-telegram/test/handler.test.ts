@@ -60,6 +60,16 @@ vi.mock('drizzle-orm/node-postgres', () => ({
 vi.mock('pg', () => ({ default: { Pool: vi.fn().mockImplementation(() => ({})) } }));
 
 // Sentry wrapHandler is identity for tests; init is a no-op.
+vi.mock('../../_shared/sentry.js', () => ({
+  initSentry: vi.fn(async () => {}),
+  wrapHandler: <T>(h: T): T => h,
+  Sentry: { captureMessage: vi.fn(), captureException: vi.fn() },
+}));
+vi.mock('../../_shared/tracing.js', () => ({
+  setupOtelTracing: vi.fn(),
+  flush: vi.fn(async () => {}),
+  tagTraceWithCaptureId: vi.fn(),
+}));
 vi.mock('@sentry/aws-serverless', () => ({
   init: vi.fn(),
   wrapHandler: (h: unknown) => h,

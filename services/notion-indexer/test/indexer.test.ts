@@ -10,6 +10,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../../_shared/sentry.js', () => ({
+  initSentry: vi.fn(async () => {}),
+  wrapHandler: <T>(h: T): T => h,
+  Sentry: { captureMessage: vi.fn(), captureException: vi.fn() },
+}));
+vi.mock('../../_shared/tracing.js', () => ({
+  setupOtelTracing: vi.fn(),
+  flush: vi.fn(async () => {}),
+  tagTraceWithCaptureId: vi.fn(),
+}));
+
 import { runIndexer, type IndexerEvent } from '../src/handler';
 import { upsertEntity, handleArchivedOrMissing, type DbExec } from '../src/upsert';
 

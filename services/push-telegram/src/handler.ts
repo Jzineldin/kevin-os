@@ -42,15 +42,10 @@ import {
   GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager';
 import { telegramInboxQueue } from '@kos/db';
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
+import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import { enforceAndIncrement, type CapDenialReason } from './cap.js';
 import { sendTelegramMessage } from './telegram.js';
-
-sentryInit({
-  dsn: process.env.SENTRY_DSN,
-  tracesSampleRate: 0,
-  sampleRate: 1,
-});
 
 const { Pool } = pg;
 type PgPool = InstanceType<typeof Pool>;
@@ -126,7 +121,12 @@ function unwrapEvent(raw: unknown): PushTelegramEvent {
 
 export const handler = wrapHandler(
   async (rawEvent: unknown): Promise<PushTelegramResult> => {
+    await initSentry();
     const event = unwrapEvent(rawEvent);
+
+    // Carry the upstream capture_id through to Langfuse if the event has one
+    // (voice-capture sets it on output.push). Tag is no-op when no active span.
+    if (event.capture_id) tagTraceWithCaptureId(event.capture_id);
 
     const capTableName = process.env.CAP_TABLE_NAME;
     if (!capTableName) {

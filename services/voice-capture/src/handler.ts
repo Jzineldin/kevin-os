@@ -17,13 +17,17 @@
  *   8. UPDATE agent_runs status='ok' (or 'error').
  *   9. Always `await langfuseFlush()` in finally.
  */
-import { init as sentryInit, wrapHandler } from '@sentry/aws-serverless';
+import { initSentry, wrapHandler } from '../../_shared/sentry.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import {
   TriageRoutedSchema,
   EntityMentionDetectedSchema,
 } from '@kos/contracts';
-import { setupOtelTracing, flush as langfuseFlush } from '../../_shared/tracing.js';
+import {
+  setupOtelTracing,
+  flush as langfuseFlush,
+  tagTraceWithCaptureId,
+} from '../../_shared/tracing.js';
 import { runVoiceCaptureAgent } from './agent.js';
 import {
   findPriorOkRun,
@@ -33,7 +37,6 @@ import {
 } from './persist.js';
 import { writeCommandCenterRow } from './notion.js';
 
-sentryInit({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0, sampleRate: 1 });
 setupOtelTracing();
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -45,6 +48,7 @@ interface EBEvent {
 }
 
 export const handler = wrapHandler(async (event: EBEvent) => {
+  await initSentry();
   const ownerId = process.env.KEVIN_OWNER_ID;
   if (!ownerId) throw new Error('KEVIN_OWNER_ID not set');
 
@@ -55,6 +59,9 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     if (await findPriorOkRun(d.capture_id, 'voice-capture', ownerId)) {
       return { idempotent: d.capture_id };
     }
+
+    // Cross-agent correlation: Langfuse session.id = capture_id (D-25).
+    tagTraceWithCaptureId(d.capture_id);
 
     const runId = await insertAgentRun({
       ownerId,

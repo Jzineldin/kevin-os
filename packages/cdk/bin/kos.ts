@@ -16,6 +16,7 @@ import { SafetyStack } from '../lib/stacks/safety-stack.js';
 import { CaptureStack } from '../lib/stacks/capture-stack.js';
 import { AgentsStack } from '../lib/stacks/agents-stack.js';
 import { ObservabilityStack } from '../lib/stacks/observability-stack.js';
+import { DashboardStack } from '../lib/stacks/dashboard-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const transcribeRegion = (() => {
@@ -146,6 +147,43 @@ const observability = new ObservabilityStack(app, 'KosObservability', {
 observability.addDependency(capture);
 observability.addDependency(agents);
 void observability;
+
+// DashboardStack — Plan 03-04 (Phase 3 dashboard backend compose).
+// Composes dashboard-api + dashboard-notify Lambdas + Fargate relay +
+// relay-proxy Function URL (Option B ingress, RESEARCH §13) + IAM users +
+// Secrets Manager placeholders + EventBridge rule on kos.output.
+//
+// Notion page IDs are sourced from env vars or CDK context; empty defaults
+// are accepted at synth time so the stack composes before the bootstrap
+// ran. The dashboard-api runtime surfaces actionable errors on first use if
+// either env var is still empty (same pattern as NOTION_KOS_INBOX_DB_ID in
+// Plan 02-07).
+const dashboard = new DashboardStack(app, 'KosDashboard', {
+  env,
+  vpc: network.vpc,
+  outputBus: events.buses.output,
+  cluster: data.ecsCluster,
+  rdsProxyEndpoint: data.rdsProxyEndpoint,
+  rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
+  rdsProxySecurityGroup: data.rdsSecurityGroup,
+  notionTokenSecret: data.notionTokenSecret,
+  notionTodayPageId:
+    process.env.NOTION_TODAY_PAGE_ID ??
+    (app.node.tryGetContext('notionTodayPageId') as string | undefined) ??
+    '',
+  notionCommandCenterDbId:
+    process.env.NOTION_COMMAND_CENTER_DB_ID ??
+    (app.node.tryGetContext('notionCommandCenterDbId') as string | undefined) ??
+    '',
+  vercelOriginUrl:
+    process.env.VERCEL_ORIGIN_URL ??
+    (app.node.tryGetContext('vercelOriginUrl') as string | undefined) ??
+    'https://kos-dashboard-kevin-elzarka.vercel.app',
+});
+dashboard.addDependency(network);
+dashboard.addDependency(data);
+dashboard.addDependency(events);
+void dashboard;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

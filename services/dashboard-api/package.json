@@ -9,6 +9,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/rds-signer": "3.691.0",
     "@kos/contracts": "workspace:*",
     "@kos/db": "workspace:*",
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@types/aws-lambda": "8.10.145",
     "@types/pg": "8.11.10",
+    "aws-sdk-client-mock": "4.1.0",
     "typescript": "5.6.3",
     "vitest": "2.1.4"
   }

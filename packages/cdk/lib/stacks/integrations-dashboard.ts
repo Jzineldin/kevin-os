@@ -166,7 +166,7 @@ export function buildRelayStack(
   relaySg.addIngressRule(
     relaySg,
     Port.tcp(8080),
-    'relay-proxy Lambda -> Fargate task (self-referencing)',
+    'relay-proxy Lambda to Fargate task (self-referencing)',
   );
   // Fargate relay -> RDS Proxy :5432 is allowed by DataStack's
   // `allowFromAnyIpv4(5432)` on the RDS Proxy SG — IAM auth is the gate
@@ -184,7 +184,7 @@ export function buildRelayStack(
     desiredCount: 1,
     maxHealthyPercent: 100,
     minHealthyPercent: 0,
-    vpcSubnets: { subnetType: SubnetType.PRIVATE_ISOLATED },
+    vpcSubnets: { subnetType: SubnetType.PRIVATE_WITH_EGRESS },
     securityGroups: [relaySg],
     assignPublicIp: false,
     platformVersion: undefined, // accept default LATEST (1.4.0 effectively)

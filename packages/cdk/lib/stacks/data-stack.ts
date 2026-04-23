@@ -109,9 +109,56 @@ export class DataStack extends Stack {
     });
     this.rdsCredentialsSecret.grantRead(proxyRole);
 
+    // Phase 3 dashboard roles — RDS Proxy needs one secret per Postgres role
+    // it AS-authenticates. The migration 0011_dashboard_roles.sql consumes
+    // the password from each secret to set the matching CREATE ROLE password.
+    // removalPolicy: DESTROY is fine — passwords are auto-regenerated on
+    // recreate and the migration's ALTER ROLE branch handles re-set.
+    const dashboardRelayDbSecret = new Secret(this, 'DashboardRelayDbSecret', {
+      secretName: 'kos/db/dashboard_relay',
+      description: 'Postgres credentials for dashboard_relay role (RDS Proxy AS-auth).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'dashboard_relay' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    const dashboardApiDbSecret = new Secret(this, 'DashboardApiDbSecret', {
+      secretName: 'kos/db/dashboard_api',
+      description: 'Postgres credentials for dashboard_api role (RDS Proxy AS-auth).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'dashboard_api' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    const dashboardNotifyDbSecret = new Secret(this, 'DashboardNotifyDbSecret', {
+      secretName: 'kos/db/dashboard_notify',
+      description: 'Postgres credentials for dashboard_notify role (RDS Proxy AS-auth).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'dashboard_notify' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    dashboardRelayDbSecret.grantRead(proxyRole);
+    dashboardApiDbSecret.grantRead(proxyRole);
+    dashboardNotifyDbSecret.grantRead(proxyRole);
+
     this.rdsProxy = new DatabaseProxy(this, 'RdsProxy', {
       proxyTarget: ProxyTarget.fromInstance(rds.instance),
-      secrets: [this.rdsCredentialsSecret],
+      secrets: [
+        this.rdsCredentialsSecret,
+        dashboardRelayDbSecret,
+        dashboardApiDbSecret,
+        dashboardNotifyDbSecret,
+      ],
       vpc: props.vpc,
       // Pin proxy to PRIVATE_ISOLATED only so adding new subnet types
       // (e.g. the PRIVATE_WITH_EGRESS 'lambda' subnets in 2026-04-22's

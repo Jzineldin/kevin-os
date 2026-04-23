@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* Port from TFOS-ui.html :root block, 1:1 — see 03-RESEARCH.md §2. */
+@theme {
+  /* Surfaces */
+  --color-bg: #0a0c11;
+  --color-surface-1: #11141b;
+  --color-surface-2: #161a23;
+  --color-surface-3: #1c2029;
+  --color-surface-hover: #1f2430;
+
+  /* Borders */
+  --color-border: #232732;
+  --color-border-hover: #2d3340;
+  --color-border-strong: #383e4d;
+
+  /* Text */
+  --color-text: #e7eaf0;
+  --color-text-2: #b1b6c2;
+  --color-text-3: #71768a;
+  --color-text-4: #4d5263;
+
+  /* Accent — restrained violet */
+  --color-accent: #7c5bff;
+  --color-accent-2: #9d80ff;
+
+  /* Status (desaturated per mockup) */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #38bdf8;
+  --color-pink: #f472b6;
+
+  /* Bolag tints — data-attribute driven at runtime */
+  --color-tale-forge: #38bdf8;
+  --color-outbehaving: #fb923c;
+  --color-personal: #a78bfa;
+
+  /* Motion */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: 120ms;
+  --transition-base: 180ms;
+  --transition-slow: 280ms;
+
+  /* Type scale */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  /* Fonts — names only; actual family injected via next/font */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Accent with alpha — not a theme token but a utility var */
+:root {
+  --accent-bg: rgba(124, 91, 255, 0.10);
+  --accent-border: rgba(124, 91, 255, 0.25);
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background: var(--accent-bg);
+  color: var(--color-accent-2);
+}
+
+/* Mockup motion primitive — single pulsing dot replaces all skeletons (D-12). */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  animation: pulse-dot 1.4s var(--ease) infinite;
+}

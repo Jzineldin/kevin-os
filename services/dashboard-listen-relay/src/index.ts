@@ -34,18 +34,16 @@ export interface BuiltApp {
 export async function buildApp(): Promise<BuiltApp> {
   const app = Fastify({ logger: { level: 'info' }, disableRequestLogging: true });
   const buffer = new RingBuffer(256);
-  let subscriberHealthy = false;
 
-  const subscriber = await startSubscriber(buffer);
-  subscriber.events.on('connected', () => {
-    subscriberHealthy = true;
-  });
-  subscriber.events.on('error', () => {
-    subscriberHealthy = false;
-  });
+  // Health flag is owned by startSubscriber — its listeners are registered
+  // BEFORE the awaited connect(), which is required because pg-listen emits
+  // 'connected' synchronously from inside connect(). Attaching health
+  // listeners here (after await) was the bug that kept /healthz returning
+  // 500 for the entire task lifetime.
+  const { subscriber, isHealthy } = await startSubscriber(buffer);
 
   app.get('/healthz', async (_req, reply) => {
-    if (!subscriberHealthy) {
+    if (!isHealthy()) {
       return reply.code(500).send({ ok: false, reason: 'subscriber not connected' });
     }
     return { ok: true, buffered: buffer.size, max_seq: buffer.maxSeq };
@@ -80,7 +78,7 @@ export async function buildApp(): Promise<BuiltApp> {
     }
   });
 
-  return { app, buffer, subscriber, subscriberHealthy: () => subscriberHealthy };
+  return { app, buffer, subscriber, subscriberHealthy: isHealthy };
 }
 
 // Entrypoint guard — only run the listen server when invoked directly.

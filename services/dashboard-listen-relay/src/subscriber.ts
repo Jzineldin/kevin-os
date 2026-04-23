@@ -30,7 +30,13 @@ import type { RingBuffer } from './buffer.js';
 
 type Notifications = { kos_output: unknown };
 
-export async function startSubscriber(buffer: RingBuffer): Promise<Subscriber<Notifications>> {
+export interface StartedSubscriber {
+  subscriber: Subscriber<Notifications>;
+  /** True once pg-listen emits `connected`; flipped false on `error`. */
+  isHealthy: () => boolean;
+}
+
+export async function startSubscriber(buffer: RingBuffer): Promise<StartedSubscriber> {
   const endpoint = process.env.RDS_PROXY_ENDPOINT;
   const region = process.env.AWS_REGION;
   if (!endpoint) throw new Error('RDS_PROXY_ENDPOINT env var is required');
@@ -61,6 +67,15 @@ export async function startSubscriber(buffer: RingBuffer): Promise<Subscriber<No
     },
   );
 
+  // Health flag — flipped by the 'connected' listener. MUST be registered
+  // BEFORE `await subscriber.connect()` because pg-listen emits 'connected'
+  // synchronously inside connect() (see node_modules/pg-listen line ~286:
+  // `emit('connected')` fires before the promise resolves). Attaching the
+  // listener after the await races with a done-deal event and never fires
+  // for the initial connect — that was the bug that made /healthz return 500
+  // for the whole task lifetime and kill ECS service stabilization.
+  let healthy = false;
+
   subscriber.notifications.on('kos_output', (raw: unknown) => {
     try {
       const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -72,16 +87,21 @@ export async function startSubscriber(buffer: RingBuffer): Promise<Subscriber<No
   });
 
   subscriber.events.on('error', (err: Error) => {
+    healthy = false;
     console.error('[relay] subscriber error, exiting for ECS restart', err);
     process.exit(1);
   });
 
-  subscriber.events.on('connected', () => console.log('[relay] LISTEN connected'));
-  subscriber.events.on('reconnect', (attempt: number) =>
-    console.log('[relay] reconnect attempt', attempt),
-  );
+  subscriber.events.on('connected', () => {
+    healthy = true;
+    console.log('[relay] LISTEN connected');
+  });
+  subscriber.events.on('reconnect', (attempt: number) => {
+    healthy = false;
+    console.log('[relay] reconnect attempt', attempt);
+  });
 
   await subscriber.connect();
   await subscriber.listenTo('kos_output');
-  return subscriber;
+  return { subscriber, isHealthy: () => healthy };
 }

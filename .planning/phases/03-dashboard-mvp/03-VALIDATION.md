@@ -3,7 +3,7 @@ phase: 3
 slug: dashboard-mvp
 status: draft
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-04-23
 ---
 
@@ -41,7 +41,9 @@ Populated by the planner. Every task MUST be mapped here with either an automate
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| *(populated by planner)* | | | | | | | | | |
+| T-03-W0-A | 03-00 | 0 | UI-01..06, ENT-07, ENT-08, INF-12 (scaffold umbrella) | T-3-00-03 | apps/dashboard workspace exists; tokens resolve; Geist loads | scaffold | `pnpm --filter @kos/dashboard typecheck && pnpm --filter @kos/dashboard build` | `apps/dashboard/package.json`, `apps/dashboard/src/app/globals.css`, `apps/dashboard/src/app/layout.tsx` | complete |
+| T-03-W0-B | 03-00 | 0 | UI-01..06, ENT-07, ENT-08, INF-12 (contract) | T-3-00-02 | single-source zod schemas for every dashboard-api route | contract | `pnpm --filter @kos/contracts typecheck && pnpm --filter @kos/test-fixtures typecheck` | `packages/contracts/src/dashboard.ts`, `packages/test-fixtures/src/dashboard/index.ts` | complete |
+| T-03-W0-C | 03-00 | 0 | UI-01..06, ENT-07, ENT-08, INF-12 (test infra) | T-3-00-01 | CI secrets referenced via `${{ secrets.* }}`; never echoed | scaffold | `pnpm --filter @kos/dashboard test --run && pnpm --filter @kos/dashboard exec playwright test --list && pnpm --filter @kos/dashboard-api test --run && pnpm --filter @kos/dashboard-listen-relay test --run && pnpm --filter @kos/dashboard-notify test --run` | 18 Wave-0 files listed under "Wave 0 Requirements" below | complete |
 
 ---
 
@@ -49,24 +51,24 @@ Populated by the planner. Every task MUST be mapped here with either an automate
 
 From RESEARCH.md §15.1 "Nyquist-compliant test strategy — Wave 0 gaps". These must all be addressed in Wave 0 before any view/SSE/merge plan runs:
 
-- [ ] `apps/dashboard/package.json` — new workspace with Next 15.5.x + React 19.2.5 + Tailwind 4.2.4
-- [ ] `apps/dashboard/vitest.config.ts` — Vitest 2.x config with jsdom env + path aliases matching `tsconfig.base.json`
-- [ ] `apps/dashboard/playwright.config.ts` — Playwright with Chromium + mobile-android project + deployed-preview target + baseURL env var
-- [ ] `apps/dashboard/lighthouserc.json` — Lighthouse CI config with performance budgets (TTI < 1.5s Today, TBT < 300ms, CLS < 0.1)
-- [ ] `apps/dashboard/tests/unit/` — directory + shared test setup file (`apps/dashboard/tests/unit/setup.ts`)
-- [ ] `apps/dashboard/tests/e2e/` — directory + `apps/dashboard/tests/e2e/fixtures.ts` (auth cookie fixture, seed data fixture)
-- [ ] `apps/dashboard/tests/integration/api-layer.test.ts` — stub file for SigV4 signing + dashboard-api round-trip tests
-- [ ] CI job in `.github/workflows/dashboard-ci.yml` (or equivalent) — runs quick suite on PR, full suite on main
-- [ ] `packages/test-fixtures/src/dashboard/` — shared fixtures for entity rows, inbox items, Today-view shape (reuse pattern from Phase 2)
-- [ ] `apps/dashboard/tests/e2e/pwa-install.spec.ts` — stub for manifest + service-worker registration + Android install criteria
-- [ ] `apps/dashboard/tests/e2e/sse-reconnect.spec.ts` — stub for SSE open → kill stream → auto-reconnect ≤ 1s
-- [ ] `apps/dashboard/tests/e2e/merge-audit.spec.ts` — stub asserting `entity_merge_audit` row written per merge + Resume card on partial failure
-- [ ] `apps/dashboard/tests/e2e/inbox-keyboard.spec.ts` — stub for J/K/Enter/E/S keyboard flow
-- [ ] `apps/dashboard/tests/e2e/auth-middleware.spec.ts` — stub for unauth redirect + cookie set + logout
-- [ ] `services/dashboard-listen-relay/tests/listen-reconnect.test.ts` — stub for pg-listen auto-reconnect on Postgres restart
-- [ ] `services/dashboard-api/tests/merge-transactional.test.ts` — stub for transactional merge + rollback on partial failure
-- [ ] `services/dashboard-notify/tests/notify-payload.test.ts` — stub for pointer-only NOTIFY payload (< 8KB)
-- [ ] `packages/contracts/src/dashboard.ts` — zod schemas for all dashboard-api routes (shared between client + server)
+- [x] `apps/dashboard/package.json` — new workspace with Next 15.5.x + React 19.2.5 + Tailwind 4.2.4
+- [x] `apps/dashboard/vitest.config.ts` — Vitest 2.x config with jsdom env + path aliases matching `tsconfig.base.json`
+- [x] `apps/dashboard/playwright.config.ts` — Playwright with Chromium + mobile-android project + deployed-preview target + baseURL env var
+- [x] `apps/dashboard/lighthouserc.json` — Lighthouse CI config with performance budgets (TTI < 1.5s Today, TBT < 300ms, CLS < 0.1)
+- [x] `apps/dashboard/tests/unit/` — directory + shared test setup file (`apps/dashboard/tests/unit/setup.ts`)
+- [x] `apps/dashboard/tests/e2e/` — directory + `apps/dashboard/tests/e2e/fixtures.ts` (auth cookie fixture, seed data fixture)
+- [x] `apps/dashboard/tests/integration/api-layer.test.ts` — stub file for SigV4 signing + dashboard-api round-trip tests
+- [x] CI job in `.github/workflows/dashboard-ci.yml` (or equivalent) — runs quick suite on PR, full suite on main
+- [x] `packages/test-fixtures/src/dashboard/` — shared fixtures for entity rows, inbox items, Today-view shape (reuse pattern from Phase 2)
+- [x] `apps/dashboard/tests/e2e/pwa-install.spec.ts` — stub for manifest + service-worker registration + Android install criteria
+- [x] `apps/dashboard/tests/e2e/sse-reconnect.spec.ts` — stub for SSE open → kill stream → auto-reconnect ≤ 1s
+- [x] `apps/dashboard/tests/e2e/merge-audit.spec.ts` — stub asserting `entity_merge_audit` row written per merge + Resume card on partial failure
+- [x] `apps/dashboard/tests/e2e/inbox-keyboard.spec.ts` — stub for J/K/Enter/E/S keyboard flow
+- [x] `apps/dashboard/tests/e2e/auth-middleware.spec.ts` — stub for unauth redirect + cookie set + logout
+- [x] `services/dashboard-listen-relay/tests/listen-reconnect.test.ts` — stub for pg-listen auto-reconnect on Postgres restart
+- [x] `services/dashboard-api/tests/merge-transactional.test.ts` — stub for transactional merge + rollback on partial failure
+- [x] `services/dashboard-notify/tests/notify-payload.test.ts` — stub for pointer-only NOTIFY payload (< 8KB)
+- [x] `packages/contracts/src/dashboard.ts` — zod schemas for all dashboard-api routes (shared between client + server)
 
 Per §15.2 of RESEARCH.md, these 18 gaps are the Wave 0 scope. They block all Wave 1+ work.
 

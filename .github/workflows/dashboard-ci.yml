@@ -1,0 +1,60 @@
+name: dashboard-ci
+
+on:
+  pull_request:
+    paths:
+      - 'apps/dashboard/**'
+      - 'services/dashboard-*/**'
+      - 'packages/contracts/**'
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'apps/dashboard/**'
+      - 'services/dashboard-*/**'
+      - 'packages/contracts/**'
+
+jobs:
+  quick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kos/contracts typecheck
+      - run: pnpm --filter @kos/dashboard typecheck
+      - run: pnpm --filter @kos/dashboard test --run
+      - run: pnpm --filter @kos/dashboard-api typecheck
+      - run: pnpm --filter @kos/dashboard-api test --run
+      - run: pnpm --filter @kos/dashboard-listen-relay typecheck
+      - run: pnpm --filter @kos/dashboard-listen-relay test --run
+      - run: pnpm --filter @kos/dashboard-notify typecheck
+      - run: pnpm --filter @kos/dashboard-notify test --run
+
+  full:
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [quick]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kos/dashboard exec playwright install --with-deps chromium
+      - run: pnpm --filter @kos/dashboard build
+      - run: pnpm --filter @kos/dashboard e2e
+        env:
+          KOS_TEST_BEARER_TOKEN: ${{ secrets.KOS_TEST_BEARER_TOKEN }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.VERCEL_PREVIEW_URL }}

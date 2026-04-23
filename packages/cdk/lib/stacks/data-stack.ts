@@ -2,13 +2,15 @@ import { Stack, type StackProps, RemovalPolicy, Duration, Fn } from 'aws-cdk-lib
 import type { Construct } from 'constructs';
 import { Bucket, BucketEncryption, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
 import { PolicyStatement, Effect, AnyPrincipal, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Port, SubnetType, type IVpc, type IGatewayVpcEndpoint, type SecurityGroup } from 'aws-cdk-lib/aws-ec2';
-import { Secret, type ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import {
-  DatabaseProxy,
-  ProxyTarget,
-  type DatabaseInstance,
-} from 'aws-cdk-lib/aws-rds';
+  Port,
+  SubnetType,
+  type IVpc,
+  type IGatewayVpcEndpoint,
+  type SecurityGroup,
+} from 'aws-cdk-lib/aws-ec2';
+import { Secret, type ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import { DatabaseProxy, ProxyTarget, type DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 import type { Cluster } from 'aws-cdk-lib/aws-ecs';
 import { KosRds } from '../constructs/kos-rds.js';
 import { KosBastion } from '../constructs/kos-bastion.js';
@@ -40,6 +42,21 @@ export interface DataStackProps extends StackProps {
  * it (threat T-01-BASTION-01 mitigation).
  */
 export class DataStack extends Stack {
+  /**
+   * Glob patterns (role-name portion of the IAM ARN) for Lambdas that live
+   * OUTSIDE the VPC and are exempted from the `DenyAllExceptVpce` bucket
+   * policy on `blobsBucket`. Exposed as a static so a CDK test can assert
+   * each pattern matches a live role when all stacks synth together.
+   *
+   * Each entry is a `{StackName}-{LogicalId}*` CFN-generated role-name
+   * pattern. See the inline comment in the constructor for rationale per
+   * Lambda.
+   */
+  public static readonly VPCE_BYPASS_ROLE_PATTERNS: readonly string[] = [
+    'KosCapture-TelegramBot*',
+    'KosCapture-TranscribeStarter*',
+    'KosCapture-TranscribeComplete*',
+  ];
   public readonly rds: DatabaseInstance;
   public readonly rdsCredentialsSecret: ISecret;
   public readonly rdsSecurityGroup: SecurityGroup;
@@ -138,6 +155,28 @@ export class DataStack extends Stack {
     // Pitfall 2 mitigation: deny everything *except* traffic through the
     // S3 Gateway Endpoint. `aws:ViaAWSService=false` lets CloudFormation/AWS-
     // internal paths through during stack operations.
+    //
+    // Narrow exceptions (2026-04-23) — Lambdas that live OUTSIDE the VPC
+    // but need to read/write specific prefixes of this bucket:
+    //   (a) telegram-bot (D-05: intentionally outside VPC) — uploads user
+    //       voice memos to `audio/*`.
+    //   (b) transcribe-starter / transcribe-complete — start/finalise
+    //       Amazon Transcribe jobs. Transcribe validates S3 access using
+    //       the caller's identity at StartTranscriptionJob time, so the
+    //       starter role needs bucket reach even though the actual read
+    //       happens inside AWS. Both live outside the VPC.
+    //
+    // Each scope is narrow: the bot's grant is `audio/*` only; transcribe
+    // roles are only granted read on audio/transcripts prefixes at the
+    // resource-policy layer in integrations-transcribe-pipeline.ts.
+    //
+    // DRIFT RISK: These patterns use CloudFormation-generated role names
+    // (`{StackName}-{LogicalId}*`). If a role is renamed, moved to a
+    // different stack, or the stack prefix changes, the bypass silently
+    // breaks. Guarded by a CDK test in test/data-stack-vpce-bypass.test.ts
+    // that synthesises all stacks and asserts each bypass pattern matches
+    // a live role.
+    const vpceBypassRolePatterns = DataStack.VPCE_BYPASS_ROLE_PATTERNS;
     this.blobsBucket.addToResourcePolicy(
       new PolicyStatement({
         sid: 'DenyAllExceptVpce',
@@ -148,6 +187,11 @@ export class DataStack extends Stack {
         conditions: {
           StringNotEquals: { 'aws:SourceVpce': props.s3Endpoint.vpcEndpointId },
           Bool: { 'aws:ViaAWSService': 'false' },
+          ArnNotLike: {
+            'aws:PrincipalArn': vpceBypassRolePatterns.map(
+              (pattern) => `arn:aws:iam::${this.account}:role/${pattern}`,
+            ),
+          },
         },
       }),
     );

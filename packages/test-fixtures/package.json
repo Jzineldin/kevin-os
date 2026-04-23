@@ -3,17 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
-    ".": {
-      "types": "./dist/src/index.d.ts",
-      "default": "./dist/src/index.js"
-    },
-    "./dashboard": {
-      "types": "./dist/src/dashboard/index.d.ts",
-      "default": "./dist/src/dashboard/index.js"
-    }
+    ".": "./src/index.ts",
+    "./dashboard": "./src/dashboard/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

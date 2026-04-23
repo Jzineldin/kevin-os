@@ -117,14 +117,12 @@ export interface AgentsWiring {
   bulkImportKontakterFn: KosLambda;
   bulkImportGranolaGmailFn: KosLambda;
   triageRule: Rule;
+  triageVoiceRule: Rule;
   voiceCaptureRule: Rule;
   resolverRule: Rule;
 }
 
-export function wireTriageAndVoiceCapture(
-  scope: Construct,
-  p: AgentsWiringProps,
-): AgentsWiring {
+export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps): AgentsWiring {
   const stack = Stack.of(scope);
   const commandCenterId = loadCommandCenterId();
   const kosInboxId = loadKosInboxIdOrEmpty();
@@ -193,11 +191,35 @@ export function wireTriageAndVoiceCapture(
   p.langfuseSecretSecret.grantRead(triageFn);
   p.triageBus.grantPutEventsTo(triageFn);
 
+  // Triage consumes:
+  //   - capture.received kind=text  (direct from telegram-bot)
+  //   - capture.voice.transcribed   (from transcribe-complete after Transcribe job)
+  // Voice captures MUST NOT hit triage on capture.received — they have no
+  // `text` field yet and triage's schema would reject them (discovered
+  // 2026-04-23). They hit transcribe-starter first, then triage after the
+  // Transcribe job completes. Two rules because CDK's EventPattern has no
+  // top-level `$or`; both target the same triage Lambda.
   const triageRule = new Rule(scope, 'TriageFromCaptureRule', {
     eventBus: p.captureBus,
     eventPattern: {
       source: ['kos.capture'],
-      detailType: ['capture.received', 'capture.voice.transcribed'],
+      detailType: ['capture.received'],
+      detail: { kind: ['text'] },
+    },
+    targets: [
+      new LambdaTarget(triageFn, {
+        deadLetterQueue: triageDlq,
+        maxEventAge: Duration.hours(1),
+        retryAttempts: 2,
+      }),
+    ],
+  });
+
+  const triageVoiceRule = new Rule(scope, 'TriageFromVoiceTranscribedRule', {
+    eventBus: p.captureBus,
+    eventPattern: {
+      source: ['kos.capture'],
+      detailType: ['capture.voice.transcribed'],
     },
     targets: [
       new LambdaTarget(triageFn, {
@@ -458,6 +480,7 @@ export function wireTriageAndVoiceCapture(
     bulkImportKontakterFn,
     bulkImportGranolaGmailFn,
     triageRule,
+    triageVoiceRule,
     voiceCaptureRule,
     resolverRule,
   };

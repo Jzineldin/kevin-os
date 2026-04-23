@@ -73,7 +73,17 @@ export class KosLambda extends NodejsFunction {
           // Shim node-fetch → native fetch (grammY v1.42 hard-requires
           // node-fetch@2 which doesn't support native AbortSignal on Node 22).
           "const require=(id)=>id==='node-fetch'?Object.assign(globalThis.fetch,{default:globalThis.fetch}):id==='abort-controller'?{AbortController:globalThis.AbortController}:_origReq(id);",
-        ...(props.bundlingOverrides?.alias ? { alias: props.bundlingOverrides.alias } : {}),
+        // Pass esbuild `--alias:<from>=<to>` pairs for each override. NOTE:
+        // aws-lambda-nodejs bundling does NOT have a top-level `alias` prop —
+        // the supported escape hatch is `esbuildArgs`. A previous iteration
+        // passed `alias` directly and was silently ignored.
+        ...(props.bundlingOverrides?.alias
+          ? {
+              esbuildArgs: Object.fromEntries(
+                Object.entries(props.bundlingOverrides.alias).map(([k, v]) => [`--alias:${k}`, v]),
+              ),
+            }
+          : {}),
       },
       logRetention: RetentionDays.ONE_MONTH,
       vpc: props.vpc,

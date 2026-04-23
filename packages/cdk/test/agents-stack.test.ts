@@ -50,22 +50,42 @@ describe('AgentsStack', () => {
   });
   const tpl = Template.fromStack(agents);
 
-  it('TriageFromCaptureRule matches both capture.received + capture.voice.transcribed with DLQ', () => {
+  it('TriageFromCaptureRule + TriageFromVoiceTranscribedRule together match text + voice-transcribed with DLQ', () => {
     const rules = tpl.findResources('AWS::Events::Rule');
-    const rule = Object.values(rules).find((r) => {
+    const values = Object.values(rules);
+
+    // Text path: capture.received + detail.kind=text only
+    const textRule = values.find((r) => {
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
+        | { source?: string[]; 'detail-type'?: string[]; detail?: { kind?: string[] } }
+        | undefined;
+      return (
+        ep?.source?.includes('kos.capture') === true &&
+        ep?.['detail-type']?.includes('capture.received') === true &&
+        ep?.detail?.kind?.includes('text') === true
+      );
+    });
+    expect(textRule).toBeDefined();
+    expect(
+      (textRule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } }).Properties
+        .Targets[0]?.DeadLetterConfig,
+    ).toBeDefined();
+
+    // Voice-transcribed path: capture.voice.transcribed (post-Transcribe)
+    const voiceRule = values.find((r) => {
       const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
         | { source?: string[]; 'detail-type'?: string[] }
         | undefined;
       return (
         ep?.source?.includes('kos.capture') === true &&
-        ep?.['detail-type']?.includes('capture.received') === true &&
         ep?.['detail-type']?.includes('capture.voice.transcribed') === true
       );
     });
-    expect(rule).toBeDefined();
-    const targets = (rule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } })
-      .Properties.Targets;
-    expect(targets[0]?.DeadLetterConfig).toBeDefined();
+    expect(voiceRule).toBeDefined();
+    expect(
+      (voiceRule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } }).Properties
+        .Targets[0]?.DeadLetterConfig,
+    ).toBeDefined();
   });
 
   it('VoiceCaptureFromTriageRule filters detail.route=voice-capture with DLQ', () => {

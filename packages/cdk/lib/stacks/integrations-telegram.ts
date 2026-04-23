@@ -51,6 +51,18 @@ export function wireTelegramIngress(scope: Construct, props: WireTelegramProps):
     entry: svcEntry('telegram-bot'),
     timeout: Duration.seconds(15),
     memory: 512,
+    bundlingOverrides: {
+      // grammY v1.42 shim.node.js hard-requires node-fetch@2 which crashes
+      // on Node 22 with "Expected signal to be an instanceof AbortSignal".
+      // Alias node-fetch → our local shim that re-exports globalThis.fetch.
+      //
+      // Uses a path relative to the workspace root (esbuild's cwd at synth
+      // time) so the resulting asset hash is stable across dev machines and
+      // CI — an absolute path would bake the host filesystem into the hash.
+      alias: {
+        'node-fetch': './services/telegram-bot/src/node-fetch-shim.ts',
+      },
+    },
     environment: {
       TELEGRAM_BOT_TOKEN_SECRET_ARN: props.telegramBotTokenSecret.secretArn,
       TELEGRAM_WEBHOOK_SECRET_ARN: props.telegramWebhookSecret.secretArn,

@@ -110,11 +110,11 @@ export function buildRelayStack(
       // Build for linux/arm64 even from x86_64 dev machines (Docker buildx).
       platform: Platform.LINUX_ARM64,
       exclude: [
-        'node_modules',
+        '**/node_modules',
         '.next',
         'apps',
-        'cdk.out',
-        'cdk.out.dashboard',
+        '**/cdk.out',
+        '**/cdk.out.dashboard',
         '.claude',
         '.planning',
         '.git',
@@ -134,10 +134,7 @@ export function buildRelayStack(
     },
     portMappings: [{ containerPort: 8080 }],
     healthCheck: {
-      command: [
-        'CMD-SHELL',
-        'wget -qO- http://127.0.0.1:8080/healthz || exit 1',
-      ],
+      command: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8080/healthz || exit 1'],
       interval: Duration.seconds(30),
       retries: 3,
       timeout: Duration.seconds(3),
@@ -162,8 +159,7 @@ export function buildRelayStack(
   // --- Security groups ---------------------------------------------------
   const relaySg = new SecurityGroup(scope, 'RelaySG', {
     vpc: props.vpc,
-    description:
-      'dashboard-listen-relay Fargate task + relay-proxy Lambda egress SG',
+    description: 'dashboard-listen-relay Fargate task + relay-proxy Lambda egress SG',
     allowAllOutbound: true,
   });
   // Ingress: relay-proxy Lambda -> NLB -> Fargate task on :8080.
@@ -234,13 +230,7 @@ export function buildRelayStack(
   // private DNS name. Reuses the same SigV4 library (service=lambda) on the
   // Vercel side as dashboard-api.
   const proxyFn = new KosLambda(scope, 'RelayProxy', {
-    entry: path.join(
-      REPO_ROOT,
-      'services',
-      'dashboard-listen-relay',
-      'src',
-      'proxy.ts',
-    ),
+    entry: path.join(REPO_ROOT, 'services', 'dashboard-listen-relay', 'src', 'proxy.ts'),
     timeout: Duration.seconds(30),
     memory: 256,
     vpc: props.vpc,
@@ -263,4 +253,3 @@ export function buildRelayStack(
     nlb,
   };
 }
-

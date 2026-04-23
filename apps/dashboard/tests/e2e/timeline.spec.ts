@@ -1,10 +1,18 @@
-import { test } from './fixtures';
+import { test, expect } from './fixtures';
 
-// Maps to ENT-08 (03-VALIDATION.md Wave 0).
-// Wave 0 stub — wired in plan 03-05 (timeline + react-window pagination).
+// Plan 03-10 Task 2 — react-window v2 virtualization + cursor pagination.
+const SEEDED = process.env.KOS_TEST_ENTITY_ID;
+
 test.describe('timeline', () => {
-  test.fixme('first 50 rows SSR + cursor-paginated scroll loads next page', async () => {
-    // Scroll to the 40th row, assert fetch('/entities/:id/timeline?cursor=…')
-    // fires once, rows append without layout reflow.
+  test.skip(!process.env.PLAYWRIGHT_BASE_URL, 'needs deployed preview');
+  test.skip(!SEEDED, 'KOS_TEST_ENTITY_ID must point at a seeded Person');
+
+  test('initial rows render from SSR', async ({ page }) => {
+    await page.goto(`/entities/${SEEDED}`);
+    const list = page.getByTestId('timeline-list');
+    await expect(list).toBeVisible();
+    const rows = page.getByTestId('timeline-row');
+    // At least one row — the seeded entity must have some mention_events.
+    await expect(rows.first()).toBeVisible();
   });
 });

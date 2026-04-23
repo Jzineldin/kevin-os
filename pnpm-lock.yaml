@@ -211,6 +211,9 @@ importers:
 
   packages/test-fixtures:
     dependencies:
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@notionhq/client':
         specifier: 2.3.0
         version: 2.3.0

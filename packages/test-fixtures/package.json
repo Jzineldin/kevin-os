@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/src/index.d.ts",
       "default": "./dist/src/index.js"
+    },
+    "./dashboard": {
+      "types": "./dist/src/dashboard/index.d.ts",
+      "default": "./dist/src/dashboard/index.js"
     }
   },
   "scripts": {
@@ -17,6 +21,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@kos/contracts": "workspace:*",
     "@notionhq/client": "2.3.0"
   },
   "devDependencies": {

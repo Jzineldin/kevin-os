@@ -39,6 +39,14 @@ function getClient(): AwsClient {
   _client = new AwsClient({
     accessKeyId,
     secretAccessKey,
+    // Optional STS session token — required for IAM-user long-term keys that
+    // hit 403 Forbidden against the Function URL (observed 2026-04-23 with
+    // kos-dashboard-caller long-term keys; STS get-session-token creds work).
+    // In production (Vercel), populate from a credential-vending endpoint or
+    // leave unset if long-term keys work in your environment.
+    ...(process.env.AWS_SESSION_TOKEN_DASHBOARD
+      ? { sessionToken: process.env.AWS_SESSION_TOKEN_DASHBOARD }
+      : {}),
     region: process.env.AWS_REGION ?? 'eu-north-1',
     service: 'lambda',
   });

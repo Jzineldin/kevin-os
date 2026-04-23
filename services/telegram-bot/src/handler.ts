@@ -150,16 +150,40 @@ export function __resetBotForTests(): void {
 export const handler = wrapHandler(
   async (
     event: APIGatewayProxyEventV2,
+    context?: unknown,
   ): Promise<APIGatewayProxyResultV2> => {
+    console.log('[tg] handler start');
     await initSentry();
+    console.log('[tg] sentry ok');
     const { webhookSecret } = await getTelegramSecrets();
+    console.log('[tg] secrets ok');
     const hdr = event.headers?.['x-telegram-bot-api-secret-token'];
     if (hdr !== webhookSecret) {
+      console.log('[tg] secret mismatch');
       return { statusCode: 401, body: 'invalid secret' };
     }
+    console.log('[tg] secret valid, getting bot');
     const bot = await getBot();
-    const cb = webhookCallback(bot, 'aws-lambda-async');
-    const res = await cb(event, {});
+    console.log('[tg] bot ready, invoking callback');
+    // Switched from 'aws-lambda-async' to 'aws-lambda' (2026-04-22, Wave 5
+    // Gap D follow-on). The async adapter returns immediately and processes
+    // updates in the background, but Lambda suspends execution after handler
+    // return — so the actual update never gets processed. Sync adapter
+    // returns 200 only after the full message handler completes (S3 put +
+    // PutEvents + ack). That's ~1-2s for text, ~5s for voice — well within
+    // the 30s Lambda timeout and Telegram's 60s webhook timeout.
+    const cb = webhookCallback(bot, 'aws-lambda');
+    // grammy's 'aws-lambda' adapter requires the classic 3-arg signature
+    // (event, context, callback). We're in Function URL / HTTP API style
+    // (2-arg promise return), so provide a minimal callback that resolves.
+    const noopCallback = (_err: unknown, result: Record<string, unknown>) =>
+      Promise.resolve(result);
+    const res = await cb(
+      event as unknown as { body?: string; headers: Record<string, string | undefined> },
+      context,
+      noopCallback,
+    );
+    console.log('[tg] callback done', JSON.stringify(res).slice(0, 200));
     return res as unknown as APIGatewayProxyResultV2;
   },
 );

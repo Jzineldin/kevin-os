@@ -32,7 +32,7 @@ export const handler: LambdaFunctionURLHandler = async (event) => {
   if (!target) {
     return {
       statusCode: 500,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
       body: JSON.stringify({ error: 'RELAY_INTERNAL_URL not configured' }),
     };
   }
@@ -79,7 +79,7 @@ export const handler: LambdaFunctionURLHandler = async (event) => {
       (err.name === 'AbortError' || err.name === 'TimeoutError');
     return {
       statusCode: isAbort ? 504 : 502,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
       body: JSON.stringify({
         error: isAbort ? 'upstream_timeout' : 'upstream_unreachable',
         message: err instanceof Error ? err.message : String(err),

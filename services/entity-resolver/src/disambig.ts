@@ -77,7 +77,7 @@ export async function runDisambig(args: RunDisambigInput): Promise<DisambigOutpu
       max_tokens: 100,
     });
     raw = resp.content
-      .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+      .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
       .map((b) => b.text)
       .join('');
     return 'ok';

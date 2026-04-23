@@ -31,6 +31,8 @@ describe('AgentsStack', () => {
   });
   const agents = new AgentsStack(app, 'A', {
     env,
+    vpc: net.vpc,
+    rdsSecurityGroup: data.rdsSecurityGroup,
     captureBus: events.buses.capture,
     triageBus: events.buses.triage,
     agentBus: events.buses.agent,

@@ -75,8 +75,8 @@ describe('embedEntityIfNeeded — Plan 02-08 Task 2', () => {
 
     // embedBatch called once with the D-08 text
     expect(embedBatch).toHaveBeenCalledTimes(1);
-    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual([EXPECTED_TEXT]);
-    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0][1]).toBe('search_document');
+    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toEqual([EXPECTED_TEXT]);
+    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toBe('search_document');
 
     // UPDATE issued with the right model + hash
     const updates = db.calls.filter((c) => /UPDATE entity_index/i.test(c.text));

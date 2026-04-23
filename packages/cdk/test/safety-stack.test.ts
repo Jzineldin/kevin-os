@@ -29,6 +29,9 @@ describe('SafetyStack', () => {
   const events = new EventsStack(app, 'E', { env });
   const safety = new SafetyStack(app, 'S', {
     env,
+    vpc: net.vpc,
+    rdsSecurityGroup: data.rdsSecurityGroup,
+    rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
     rdsSecret: data.rdsCredentialsSecret,
     rdsProxyEndpoint: data.rdsProxyEndpoint,
     telegramBotTokenSecret: data.telegramBotTokenSecret,

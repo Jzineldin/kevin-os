@@ -64,6 +64,23 @@ if [ -z "$RELAY_PWD" ] || [ -z "$API_PWD" ] || [ -z "$NOTIFY_PWD" ]; then
   exit 1
 fi
 
+# --- Idempotency: drop any pre-existing dashboard_* roles -------------------
+# Migration 0011 uses plain CREATE ROLE (not CREATE OR REPLACE — doesn't exist
+# for roles), and psql `:'var'` substitution doesn't work inside DO blocks, so
+# we handle "already exists" here in the wrapper. REVOKE first to drop grants,
+# then DROP. Each DROP IF EXISTS is silent if the role isn't there.
+echo "Cleaning up any pre-existing dashboard_* roles for idempotent rerun..."
+psql "$DATABASE_URL" -v ON_ERROR_STOP=0 <<'SQL' >/dev/null 2>&1 || true
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM dashboard_relay, dashboard_api, dashboard_notify;
+SQL
+psql "$DATABASE_URL" -v ON_ERROR_STOP=0 <<'SQL' >/dev/null 2>&1 || true
+REVOKE rds_iam FROM dashboard_relay, dashboard_api, dashboard_notify;
+SQL
+for ROLE in dashboard_relay dashboard_api dashboard_notify; do
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=0 -c "DROP OWNED BY $ROLE CASCADE;" >/dev/null 2>&1 || true
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP ROLE IF EXISTS $ROLE;"
+done
+
 # --- Apply migration --------------------------------------------------------
 cd packages/db
 test -f drizzle/0011_dashboard_roles.sql

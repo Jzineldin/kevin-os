@@ -32,9 +32,6 @@ import { constantTimeEqual } from '@/lib/constant-time';
 
 export const runtime = 'nodejs';
 
-const INVALID = NextResponse.json({ error: 'invalid' as const }, { status: 401 });
-const MALFORMED = NextResponse.json({ error: 'invalid' as const }, { status: 400 });
-
 export async function POST(req: Request): Promise<Response> {
   // Body parse — accept empty / non-JSON without throwing; zod will reject it.
   const raw = await req.text();
@@ -66,7 +63,3 @@ export async function POST(req: Request): Promise<Response> {
 
   return NextResponse.json(LoginResponseSchema.parse({ ok: true }));
 }
-
-// Keep MALFORMED + INVALID referenced to prevent unused-export lints in
-// stricter configs. Re-export has no runtime cost and clarifies intent.
-export const _responses = { INVALID, MALFORMED } as const;

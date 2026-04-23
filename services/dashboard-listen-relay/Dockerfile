@@ -47,6 +47,10 @@ COPY --from=build --chown=kos:kos /repo/services/dashboard-listen-relay/dist/bun
 USER kos
 ENV NODE_ENV=production TZ=UTC PORT=8080
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
+# Use Node for HEALTHCHECK — wget isn't reliably available in node:22-alpine
+# minimal images. start-period=20s gives the relay time to establish its
+# LISTEN connection before the first probe (subscriberHealthy stays false
+# until the connection lands; /healthz returns 500 until then).
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" || exit 1
 CMD ["node", "dist/bundle.mjs"]

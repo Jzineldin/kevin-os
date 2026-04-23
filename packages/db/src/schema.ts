@@ -188,3 +188,69 @@ export const kevinContext = pgTable(
     byOwnerHeading: index('kevin_context_by_owner_heading').on(t.ownerId, t.sectionHeading),
   }),
 );
+
+// ENT-07: entity merge audit + resume state machine (Phase 3 Plan 01 migration 0007).
+// Every Notion→RDS manual merge writes one row per state transition. The
+// merge-resume Lambda reads (state, merge_id) to pick up partial merges
+// exactly where they failed without replaying side-effects.
+//
+// `state` is CHECK-constrained at the SQL layer to the 11 values in 0007;
+// Drizzle type is plain `text` (no enum column — matches existing repo
+// convention for CHECK-constrained text columns like agent_runs.status).
+export const entityMergeAudit = pgTable(
+  'entity_merge_audit',
+  {
+    mergeId: text('merge_id').primaryKey(), // ULID string
+    ownerId: ownerId(),
+    sourceEntityId: uuid('source_entity_id')
+      .notNull()
+      .references(() => entityIndex.id),
+    targetEntityId: uuid('target_entity_id')
+      .notNull()
+      .references(() => entityIndex.id),
+    initiatedBy: text('initiated_by').notNull().default('kevin'),
+    state: text('state').notNull(),
+    diff: jsonb('diff').notNull(),
+    errorMessage: text('error_message'),
+    notionArchivedAt: timestamp('notion_archived_at', { withTimezone: true }),
+    rdsUpdatedAt: timestamp('rds_updated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => ({
+    byState: index('entity_merge_audit_by_state').on(t.state, t.createdAt),
+    bySource: index('entity_merge_audit_by_source').on(t.sourceEntityId),
+    byOwner: index('entity_merge_audit_by_owner').on(t.ownerId, t.createdAt),
+  }),
+);
+
+// UI-04 data source: inbox_index mirrors the KOS Inbox Notion DB (Phase 3
+// Plan 01 migration 0008). The notion-indexer upserts rows here; the
+// dashboard-api reads them; the 0009 trigger emits pg_notify('kos_output',
+// { kind: 'inbox_item', id, ts }) on INSERT for SSE fan-out.
+//
+// `id` matches the Notion page id verbatim so upsert-on-notion-edit is
+// idempotent via INSERT ... ON CONFLICT (id) DO UPDATE.
+export const inboxIndex = pgTable(
+  'inbox_index',
+  {
+    id: text('id').primaryKey(), // Notion page id
+    ownerId: ownerId(),
+    kind: text('kind').notNull(), // 'draft_reply' | 'entity_routing' | 'new_entity' | 'merge_resume'
+    title: text('title').notNull(),
+    preview: text('preview').notNull(),
+    bolag: text('bolag'), // 'tale-forge' | 'outbehaving' | 'personal' | null
+    entityId: uuid('entity_id').references(() => entityIndex.id),
+    mergeId: text('merge_id').references(() => entityMergeAudit.mergeId),
+    payload: jsonb('payload').notNull().default(sql`'{}'::jsonb`),
+    status: text('status').notNull().default('pending'), // 'pending'|'approved'|'skipped'|'rejected'|'archived'
+    notionLastEditedAt: timestamp('notion_last_edited_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pending: index('inbox_index_pending').on(t.ownerId, t.createdAt),
+    byEntity: index('inbox_index_by_entity').on(t.entityId),
+    byMerge: index('inbox_index_by_merge').on(t.mergeId),
+  }),
+);

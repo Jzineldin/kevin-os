@@ -22,7 +22,7 @@ export async function publishCapture(detail: object): Promise<void> {
     new PutEventsCommand({
       Entries: [
         {
-          Source: 'kos.dashboard',
+          Source: 'kos.capture',
           DetailType: 'capture.received',
           Detail: JSON.stringify(detail),
           EventBusName: 'kos.capture',

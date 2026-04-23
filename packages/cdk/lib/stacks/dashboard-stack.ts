@@ -127,7 +127,7 @@ export class DashboardStack extends Stack {
       secretName: 'kos/dashboard-bearer-token',
       description:
         'Bearer token for Vercel cookie auth (D-19); populated post-deploy.',
-      removalPolicy: RemovalPolicy.RETAIN,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
     void bearerSecret;
 
@@ -135,7 +135,7 @@ export class DashboardStack extends Stack {
       secretName: 'kos/sentry-dsn-dashboard',
       description:
         '@sentry/nextjs DSN for the Vercel dashboard app (D-40); populated post-deploy.',
-      removalPolicy: RemovalPolicy.RETAIN,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
     void sentrySecret;
 
@@ -144,7 +144,7 @@ export class DashboardStack extends Stack {
       description:
         'IAM access keys (AccessKeyId + SecretAccessKey) for kos-dashboard-caller; ' +
         'populated by Plan 11 rotation script — stack creates the user, not the keys.',
-      removalPolicy: RemovalPolicy.RETAIN,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
     void callerKeysSecret;
 

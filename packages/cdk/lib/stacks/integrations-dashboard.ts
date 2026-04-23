@@ -44,6 +44,7 @@ import {
   SubnetType,
   SecurityGroup,
   Port,
+  Peer,
   type IVpc,
   type ISecurityGroup,
 } from 'aws-cdk-lib/aws-ec2';
@@ -167,6 +168,18 @@ export function buildRelayStack(
     relaySg,
     Port.tcp(8080),
     'relay-proxy Lambda to Fargate task (self-referencing)',
+  );
+  // NLB health-check probes: the internal NLB has NO security group (default
+  // for older-style NLBs), so its health probes arrive at the Fargate task
+  // from NLB subnet IPs. Without this VPC-CIDR ingress on :8080 the NLB
+  // target-group check times out, ECS marks the task unhealthy, and the
+  // service never stabilizes. VPC-scoped CIDR is the minimum-safe scope
+  // (blocks internet, allows all in-VPC traffic on :8080 which is fine for
+  // this internal-only port).
+  relaySg.addIngressRule(
+    Peer.ipv4(props.vpc.vpcCidrBlock),
+    Port.tcp(8080),
+    'NLB health check probe (NLB has no SG; uses VPC subnet IPs)',
   );
   // Fargate relay -> RDS Proxy :5432 is allowed by DataStack's
   // `allowFromAnyIpv4(5432)` on the RDS Proxy SG — IAM auth is the gate

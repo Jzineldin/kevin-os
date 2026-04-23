@@ -1,22 +1,19 @@
 /**
- * /api/merge-resume — thin Vercel passthrough for the <ResumeMergeCard />
- * action (Plan 03-09 Task 2). The actual merge-resume handler ships in
- * Plan 03-11 (dashboard-api `/entities/:target_id/merge/resume` +
- * MergeAudit writes).
+ * /api/merge-resume — Vercel passthrough for ResumeMergeCard (Plan 03-09
+ * Task 2) + resume action for the merge review page (Plan 03-11 Task 2).
  *
- * Why a Vercel route at all (rather than a Server Action): the Resume card
- * is triggered from a click handler that already lives in a client
- * component, so a fetch to a Node-runtime route is the simplest surface —
- * it avoids a Server Action file within the Inbox tree for a handler that
- * is upstream-owned anyway.
+ * Accepts:
+ *   - merge_id (required, zod-validated as ULID)
+ *   - target_id (optional, UUID) — if omitted the route falls back to the
+ *     literal `-` placeholder segment; dashboard-api's resume handler looks
+ *     up source/target from the audit row itself via merge_id, so the URL
+ *     segment is informational only. Plan 03-11 added target_id forwarding
+ *     for audit-log clarity (Plan 09 handoff item #2).
+ *   - action (optional, 'resume' | 'cancel' | 'revert') — forwarded as
+ *     ?action= query param on the upstream handler.
  *
- * Upstream failures return 502 with the error body so <ResumeMergeCard />
- * can surface a sonner toast.
- *
- * NOTE: the callApi path uses `/entities/-/merge/resume` — Plan 03-11 will
- * wire the real `target_id` URL segment; for Phase 3 Plan 09 the endpoint
- * is expected to return a 501 or 502 when dashboard-api doesn't yet own
- * it, which the card surfaces as an error toast.
+ * Upstream failures return 502 with the error body so the card surfaces a
+ * sonner toast.
  */
 import { NextResponse } from 'next/server';
 
@@ -24,10 +21,13 @@ import { callApi } from '@/lib/dashboard-api';
 import {
   MergeResponseSchema,
   MergeResumeRequestSchema,
+  UuidSchema,
 } from '@kos/contracts/dashboard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const ACTIONS = new Set(['resume', 'cancel', 'revert']);
 
 export async function POST(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -35,10 +35,27 @@ export async function POST(req: Request): Promise<Response> {
   if (!merge_id) {
     return NextResponse.json({ error: 'missing merge_id' }, { status: 400 });
   }
+
+  // Parameterised target segment — Plan 11 handoff item #2. If a valid
+  // UUID is provided we use it in the path for audit clarity; otherwise
+  // fall back to the `-` placeholder (dashboard-api resume handler does
+  // not parse the segment — merge_id is authoritative).
+  const rawTarget = url.searchParams.get('target_id');
+  const target_id =
+    rawTarget && UuidSchema.safeParse(rawTarget).success ? rawTarget : '-';
+
+  const action = url.searchParams.get('action') ?? 'resume';
+  if (!ACTIONS.has(action)) {
+    return NextResponse.json({ error: 'invalid_action' }, { status: 400 });
+  }
+
   try {
     const parsed = MergeResumeRequestSchema.parse({ merge_id });
+    const upstreamPath =
+      `/entities/${target_id}/merge/resume` +
+      (action !== 'resume' ? `?action=${action}` : '');
     const res = await callApi(
-      '/entities/-/merge/resume',
+      upstreamPath,
       { method: 'POST', body: JSON.stringify(parsed) },
       MergeResponseSchema,
     );

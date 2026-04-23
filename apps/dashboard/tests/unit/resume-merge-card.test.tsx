@@ -110,18 +110,47 @@ describe('ResumeMergeCard', () => {
     expect(String(msg)).toMatch(/Resume failed/);
   });
 
-  it('Revert and Cancel toast (Plan 11 stub)', async () => {
+  it('Revert posts action=revert and toasts "Merge reverted" on success (Plan 11 real endpoint)', async () => {
     const user = userEvent.setup();
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, merge_id: MERGE_ITEM.merge_id }), {
+        status: 200,
+      }),
+    );
     render(<ResumeMergeCard item={MERGE_ITEM} />);
 
     await user.click(screen.getByRole('button', { name: 'Revert' }));
-    expect(mockPlainToast).toHaveBeenCalled();
-    const revertMsg = String(mockPlainToast.mock.calls[0]?.[0] ?? '');
-    expect(revertMsg).toMatch(/Revert/);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain('/api/merge-resume');
+    expect(String(url)).toContain('action=revert');
+    await waitFor(() => {
+      expect(mockSuccessToast).toHaveBeenCalledWith('Merge reverted');
+    });
+  });
+
+  it('Cancel posts action=cancel and toasts "Cancelled" on success (Plan 11 real endpoint)', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, merge_id: MERGE_ITEM.merge_id }), {
+        status: 200,
+      }),
+    );
+    render(<ResumeMergeCard item={MERGE_ITEM} />);
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(mockPlainToast).toHaveBeenCalledTimes(2);
-    const cancelMsg = String(mockPlainToast.mock.calls[1]?.[0] ?? '');
-    expect(cancelMsg).toBe('Cancelled');
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain('/api/merge-resume');
+    expect(String(url)).toContain('action=cancel');
+    await waitFor(() => {
+      expect(mockSuccessToast).toHaveBeenCalledWith('Cancelled');
+    });
   });
 });

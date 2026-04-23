@@ -9,11 +9,11 @@
  * on `/inbox?focus=resume-{merge_id}` and this card surfaces three
  * actions: Resume · Revert · Cancel.
  *
- * The actual merge resume endpoint ships in Plan 03-11 (dashboard-api merge
- * handler + MergeAudit writes). This card wires:
- *   - "Resume"  → POST /api/merge-resume?merge_id=…   (thin Vercel passthrough)
- *   - "Revert"  → toast stub until Plan 11 ships the revert endpoint
- *   - "Cancel"  → toast acknowledgement
+ * As of Plan 03-11 all three actions route through /api/merge-resume with
+ * an ?action= query param that the dashboard-api resume handler consumes:
+ *   - "Resume"  → POST /api/merge-resume?merge_id=…&action=resume
+ *   - "Revert"  → POST /api/merge-resume?merge_id=…&action=revert
+ *   - "Cancel"  → POST /api/merge-resume?merge_id=…&action=cancel
  *
  * No state is retained client-side — the SSE `entity_merge` event re-drives
  * the card's surfacing via the Inbox RSC refresh loop.
@@ -27,33 +27,49 @@ import { Button } from '@/components/ui/button';
 export function ResumeMergeCard({ item }: { item: InboxItem }) {
   const [pending, startTransition] = useTransition();
 
-  async function onResume() {
+  async function dispatch(
+    action: 'resume' | 'revert' | 'cancel',
+    successMsg: string,
+  ) {
     if (!item.merge_id) {
-      toast.error('merge_id missing — cannot resume.');
+      toast.error('merge_id missing — cannot ' + action + '.');
       return;
     }
-    startTransition(async () => {
-      try {
-        const r = await fetch(
-          `/api/merge-resume?merge_id=${encodeURIComponent(item.merge_id as string)}`,
-          { method: 'POST' },
-        );
-        if (!r.ok) {
-          throw new Error(`${r.status}: ${await r.text().catch(() => '')}`);
-        }
-        toast.success('Merge resumed');
-      } catch (err) {
-        toast.error(`Resume failed: ${String(err)}`);
+    try {
+      const qs = new URLSearchParams({
+        merge_id: item.merge_id,
+        action,
+      });
+      const r = await fetch(`/api/merge-resume?${qs.toString()}`, {
+        method: 'POST',
+      });
+      if (!r.ok) {
+        throw new Error(`${r.status}: ${await r.text().catch(() => '')}`);
       }
-    });
+      toast.success(successMsg);
+    } catch (err) {
+      toast.error(
+        (action === 'resume'
+          ? 'Resume failed'
+          : action === 'revert'
+            ? 'Revert failed'
+            : 'Cancel failed') +
+          ': ' +
+          String(err),
+      );
+    }
+  }
+
+  function onResume() {
+    startTransition(() => dispatch('resume', 'Merge resumed'));
   }
 
   function onRevert() {
-    toast('Revert lands with Plan 03-11 (merge handler + audit).');
+    startTransition(() => dispatch('revert', 'Merge reverted'));
   }
 
   function onCancel() {
-    toast('Cancelled');
+    startTransition(() => dispatch('cancel', 'Cancelled'));
   }
 
   return (

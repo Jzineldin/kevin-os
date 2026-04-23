@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kevin OS (KOS) — Visual Overview</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-2: #11161e;
+    --bg-3: #161c26;
+    --line: #1f2632;
+    --line-2: #2a3342;
+    --text: #e6e9ef;
+    --text-dim: #9aa3b2;
+    --text-muted: #6c7585;
+    --accent: #f97316;
+    --accent-dim: #c2410c;
+    --green: #22c55e;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --cyan: #06b6d4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+    line-height: 1.55;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; font-size: 13px; }
+  .container { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+
+  /* HERO */
+  .hero {
+    padding: 96px 0 80px;
+    border-bottom: 1px solid var(--line);
+    background: radial-gradient(ellipse at top, rgba(249, 115, 22, 0.08), transparent 60%);
+  }
+  .hero-eyebrow { color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+  .hero h1 { font-size: 56px; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 24px; }
+  .hero h1 .accent { color: var(--accent); }
+  .hero p.lead { font-size: 20px; color: var(--text-dim); max-width: 780px; line-height: 1.5; }
+  .hero-stats { display: flex; gap: 48px; margin-top: 48px; flex-wrap: wrap; }
+  .stat { }
+  .stat-num { font-size: 32px; font-weight: 700; color: var(--text); }
+  .stat-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+  /* SECTION */
+  section { padding: 80px 0; border-bottom: 1px solid var(--line); }
+  .section-eyebrow { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+  .section-title { font-size: 36px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 12px; }
+  .section-sub { font-size: 17px; color: var(--text-dim); max-width: 780px; margin-bottom: 48px; }
+
+  /* CORE VALUE */
+  .core-value {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.06), rgba(168, 85, 247, 0.04));
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    padding: 40px;
+    margin-top: 32px;
+  }
+  .core-value-label { font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; }
+  .core-value-text { font-size: 22px; font-weight: 500; line-height: 1.4; color: var(--text); }
+  .core-value-text strong { color: var(--accent); font-weight: 700; }
+
+  /* ARCHITECTURE DIAGRAM */
+  .arch-diagram {
+    background: var(--bg-2);
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    padding: 48px;
+    margin-top: 32px;
+  }
+  .arch-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: stretch; }
+  .arch-row.center { justify-content: center; }
+  .arch-block {
+    flex: 1;
+    min-width: 180px;
+    background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    border-radius: 10px;
+    padding: 16px 18px;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .arch-block:hover { transform: translateY(-2px); border-color: var(--accent-dim); }
+  .arch-block-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+  .arch-block-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .arch-block-desc { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+  .arch-block.capture { border-left: 3px solid var(--blue); }
+  .arch-block.brain { border-left: 3px solid var(--accent); }
+  .arch-block.memory { border-left: 3px solid var(--purple); }
+  .arch-block.output { border-left: 3px solid var(--green); }
+  .arch-arrow { display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 24px; margin: 8px 0; }
+  .arch-bus {
+    background: linear-gradient(90deg, rgba(249, 115, 22, 0.15), rgba(249, 115, 22, 0.05) 50%, rgba(249, 115, 22, 0.15));
+    border: 1px solid var(--accent-dim);
+    border-radius: 10px;
+    padding: 14px 20px;
+    text-align: center;
+    margin: 16px 0;
+  }
+  .arch-bus-label { font-size: 11px; color: var(--accent); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; }
+  .arch-bus-title { font-size: 14px; font-weight: 600; color: var(--text); }
+
+  /* CARDS GRID */
+  .grid { display: grid; gap: 20px; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) {
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 36px; }
+  }
+  @media (max-width: 600px) {
+    .grid-3, .grid-4, .grid-2 { grid-template-columns: 1fr; }
+    .container { padding: 0 20px; }
+  }
+  .card {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .card:hover { border-color: var(--line-2); }
+  .card-icon { width: 36px; height: 36px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 14px; background: var(--bg-3); }
+  .card-icon.blue { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+  .card-icon.orange { background: rgba(249, 115, 22, 0.15); color: var(--accent); }
+  .card-icon.purple { background: rgba(168, 85, 247, 0.15); color: var(--purple); }
+  .card-icon.green { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .card-icon.cyan { background: rgba(6, 182, 212, 0.15); color: var(--cyan); }
+  .card-icon.yellow { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+  .card-icon.red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+  .card-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .card-meta { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+  .card-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+  .card-tag { display: inline-block; background: var(--bg-3); border: 1px solid var(--line-2); padding: 3px 8px; border-radius: 4px; font-size: 11px; color: var(--text-dim); margin-top: 10px; margin-right: 4px; }
+
+  /* WALKTHROUGH */
+  .walkthrough {
+    background: var(--bg-2);
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    padding: 0;
+    margin-top: 32px;
+    overflow: hidden;
+  }
+  .walk-step { display: grid; grid-template-columns: 80px 1fr 1fr; padding: 24px 28px; border-bottom: 1px solid var(--line); align-items: center; gap: 24px; }
+  .walk-step:last-child { border-bottom: none; }
+  .walk-num { font-size: 32px; font-weight: 700; color: var(--accent); font-family: "JetBrains Mono", monospace; }
+  .walk-event { }
+  .walk-event-label { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; }
+  .walk-event-text { font-size: 14px; color: var(--text); font-weight: 500; }
+  .walk-event-text.user { color: #facc15; }
+  .walk-action { }
+  .walk-action-label { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; }
+  .walk-action-text { font-size: 13px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; line-height: 1.5; }
+  @media (max-width: 700px) { .walk-step { grid-template-columns: 1fr; } .walk-num { font-size: 24px; } }
+
+  /* TIMELINE */
+  .timeline {
+    margin-top: 32px;
+    background: var(--bg-2);
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    padding: 32px;
+  }
+  .time-row { display: grid; grid-template-columns: 100px 1fr; gap: 24px; padding: 16px 0; border-bottom: 1px dashed var(--line); align-items: start; }
+  .time-row:last-child { border-bottom: none; }
+  .time-clock { font-family: "JetBrains Mono", monospace; font-size: 18px; font-weight: 700; color: var(--accent); }
+  .time-event { }
+  .time-event-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .time-event-desc { font-size: 13px; color: var(--text-dim); }
+
+  /* PHASES */
+  .phases { margin-top: 32px; }
+  .phase {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 20px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: start;
+  }
+  .phase-num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    width: 60px;
+    height: 60px;
+    background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .phase-blocked .phase-num { color: var(--red); border-color: rgba(239, 68, 68, 0.3); }
+  .phase-content { }
+  .phase-title { font-size: 17px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .phase-goal { font-size: 14px; color: var(--text-dim); margin-bottom: 8px; }
+  .phase-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
+  .phase-meta .pill { background: var(--bg-3); border: 1px solid var(--line-2); padding: 3px 8px; border-radius: 4px; letter-spacing: 0.05em; }
+  .phase-meta .pill.gate { color: var(--yellow); border-color: rgba(234, 179, 8, 0.3); }
+  .phase-meta .pill.ui { color: var(--cyan); border-color: rgba(6, 182, 212, 0.3); }
+  .phase-meta .pill.parallel { color: var(--green); border-color: rgba(34, 197, 94, 0.3); }
+  .phase-meta .pill.blocked { color: var(--red); border-color: rgba(239, 68, 68, 0.3); }
+
+  /* GATE */
+  .gate {
+    background: var(--bg-2);
+    border: 1px solid var(--line-2);
+    border-left: 4px solid var(--yellow);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+  }
+  .gate.hard { border-left-color: var(--red); }
+  .gate-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .gate-tag { font-size: 10px; padding: 3px 7px; border-radius: 4px; background: rgba(234, 179, 8, 0.15); color: var(--yellow); font-weight: 700; letter-spacing: 0.1em; }
+  .gate-tag.hard { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+  .gate-criteria { list-style: none; padding: 0; }
+  .gate-criteria li { font-size: 13px; color: var(--text-dim); padding: 4px 0 4px 22px; position: relative; line-height: 1.5; }
+  .gate-criteria li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+
+  /* DOSSIER */
+  .dossier {
+    background: var(--bg-2);
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    padding: 32px;
+    margin-top: 32px;
+  }
+  .dossier-header { display: flex; align-items: center; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  .dossier-avatar { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--purple)); display: flex; align-items: center; justify-content: center; color: white; font-size: 22px; font-weight: 700; }
+  .dossier-name { font-size: 22px; font-weight: 700; }
+  .dossier-meta { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+  .dossier-section { margin-bottom: 24px; }
+  .dossier-section-label { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+  .dossier-ai { background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); border-left: 3px solid var(--purple); padding: 16px 18px; border-radius: 8px; font-size: 14px; line-height: 1.6; color: var(--text); }
+  .dossier-ai-tag { font-size: 10px; color: var(--purple); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+  .dossier-timeline-item { display: grid; grid-template-columns: 70px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line); align-items: start; font-size: 13px; }
+  .dossier-timeline-date { color: var(--text-muted); font-family: "JetBrains Mono", monospace; font-size: 12px; }
+  .dossier-timeline-event { color: var(--text-dim); }
+  .dossier-timeline-icon { font-size: 11px; margin-right: 4px; }
+  .dossier-tag { display: inline-block; background: var(--bg-3); border: 1px solid var(--line-2); padding: 3px 8px; border-radius: 4px; font-size: 11px; color: var(--text-dim); margin-right: 6px; margin-top: 4px; }
+
+  /* COSTS */
+  .cost-table { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; margin-top: 32px; }
+  .cost-row { display: grid; grid-template-columns: 1fr 140px 100px; padding: 14px 24px; border-bottom: 1px solid var(--line); align-items: center; }
+  .cost-row.head { background: var(--bg-3); font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; }
+  .cost-row:last-child { border-bottom: none; background: rgba(249, 115, 22, 0.05); font-weight: 700; }
+  .cost-label { font-size: 13px; color: var(--text); }
+  .cost-amount { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--accent); text-align: right; }
+  .cost-note { font-size: 11px; color: var(--text-muted); text-align: right; }
+
+  /* LOCKS */
+  .locks { display: grid; gap: 12px; margin-top: 32px; }
+  .lock { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 16px 20px; display: grid; grid-template-columns: 24px 1fr; gap: 14px; align-items: start; }
+  .lock-icon { font-size: 18px; color: var(--green); }
+  .lock-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .lock-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+  /* ANTI */
+  .anti { display: grid; gap: 12px; margin-top: 32px; }
+  .anti-item { background: var(--bg-2); border: 1px solid var(--line-2); border-left: 3px solid var(--red); border-radius: 8px; padding: 16px 20px; display: grid; grid-template-columns: 24px 1fr; gap: 14px; align-items: start; }
+  .anti-icon { font-size: 18px; color: var(--red); }
+
+  /* FOOTER */
+  footer { padding: 48px 0 64px; text-align: center; border-bottom: none; }
+  .footer-text { font-size: 13px; color: var(--text-muted); }
+  .footer-text strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="container">
+    <div class="hero-eyebrow">Kevin OS · KOS · v1 spec</div>
+    <h1>Your <span class="accent">entire life</span>,<br>routed through one brain.</h1>
+    <p class="lead">A personal operating system for one ADHD founder running two companies. Eight inputs in. One brain in the middle. Zero context re-explaining. Calm output back. Built on AWS with $20k credits, Claude Agent SDK, and Notion as the substrate.</p>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-num">8</div><div class="stat-label">Capture surfaces</div></div>
+      <div class="stat"><div class="stat-num">12</div><div class="stat-label">Specialized agents</div></div>
+      <div class="stat"><div class="stat-num">10</div><div class="stat-label">Build phases</div></div>
+      <div class="stat"><div class="stat-num">5</div><div class="stat-label">Hard quality gates</div></div>
+      <div class="stat"><div class="stat-num">54</div><div class="stat-label">v1 requirements</div></div>
+      <div class="stat"><div class="stat-num">~$200/mo</div><div class="stat-label">Steady-state cost</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- CORE VALUE -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">The one thing that matters</div>
+    <h2 class="section-title">Core value</h2>
+    <p class="section-sub">Everything else can fail. This cannot.</p>
+    <div class="core-value">
+      <div class="core-value-label">Promise</div>
+      <p class="core-value-text"><strong>Kevin never has to re-explain context.</strong> When he mentions Damien, Christina, Almi, or any entity in his world, the system has already loaded the full dossier — every email, every meeting, every doc, every decision involving that entity — before responding. Every input gets routed automatically. Every output is context-aware. The system maintains itself.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE DIAGRAM -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">How it flows</div>
+    <h2 class="section-title">System at a glance</h2>
+    <p class="section-sub">Capture → EventBridge → Triage → Specialist agents → Memory → Output. Same path for every input, regardless of source.</p>
+
+    <div class="arch-diagram">
+
+      <!-- Capture row -->
+      <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 12px;">↓ INBOUND CAPTURE (8 surfaces)</div>
+      <div class="arch-row">
+        <div class="arch-block capture"><div class="arch-block-label">Voice</div><div class="arch-block-title">Telegram bot</div><div class="arch-block-desc">Text + voice memos. Push channel too.</div></div>
+        <div class="arch-block capture"><div class="arch-block-label">Voice</div><div class="arch-block-title">iOS Action Btn</div><div class="arch-block-desc">Tap → talk → Notion in 25s.</div></div>
+        <div class="arch-block capture"><div class="arch-block-label">Email</div><div class="arch-block-title">EmailEngine</div><div class="arch-block-desc">2× Gmail IMAP IDLE push.</div></div>
+        <div class="arch-block capture"><div class="arch-block-label">Email</div><div class="arch-block-title">Forward inbox</div><div class="arch-block-desc">forward@ → SES → routing.</div></div>
+      </div>
+      <div class="arch-row">
+        <div class="arch-block capture"><div class="arch-block-label">Chat</div><div class="arch-block-title">WhatsApp (Baileys)</div><div class="arch-block-desc">All chats, read-only, voice notes too.</div></div>
+        <div class="arch-block capture"><div class="arch-block-label">DM</div><div class="arch-block-title">LinkedIn ext.</div><div class="arch-block-desc">Chrome extension, your session, ban-safe.</div></div>
+        <div class="arch-block capture"><div class="arch-block-label">Web</div><div class="arch-block-title">Highlight → KOS</div><div class="arch-block-desc">Chrome ext on any page.</div></div>
+        <div class="arch-block capture"><div class="arch-block-label">Meetings</div><div class="arch-block-title">Granola transcripts</div><div class="arch-block-desc">Polled every 15 min from Notion.</div></div>
+      </div>
+
+      <div class="arch-arrow">↓</div>
+
+      <!-- Event bus -->
+      <div class="arch-bus">
+        <div class="arch-bus-label">5× Event Bus</div>
+        <div class="arch-bus-title">AWS EventBridge — kos.capture / kos.triage / kos.agent / kos.output / kos.system</div>
+      </div>
+
+      <div class="arch-arrow">↓</div>
+
+      <!-- Triage -->
+      <div class="arch-row center">
+        <div class="arch-block brain" style="max-width: 360px;"><div class="arch-block-label">First touch · Haiku 4.5</div><div class="arch-block-title">Triage agent</div><div class="arch-block-desc">Decides which specialists to fan out to. Hard cap: 3 Telegram pushes/day.</div></div>
+      </div>
+
+      <div class="arch-arrow">↓ parallel fan-out</div>
+
+      <!-- Specialist agents v1 -->
+      <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 8px 0 12px;">v1 SPECIALIST AGENTS (always available)</div>
+      <div class="arch-row">
+        <div class="arch-block brain"><div class="arch-block-label">Sonnet 4.6</div><div class="arch-block-title">Entity Resolver</div><div class="arch-block-desc">"Javier" → Javier Soltero (Lovable). Three-stage with Inbox confirm.</div></div>
+        <div class="arch-block brain"><div class="arch-block-label">Hook</div><div class="arch-block-title">Auto-Context Loader</div><div class="arch-block-desc">Pulls dossier into prompt before any agent call.</div></div>
+        <div class="arch-block brain"><div class="arch-block-label">Haiku 4.5</div><div class="arch-block-title">Voice Capture</div><div class="arch-block-desc">Transcript → structured Notion row.</div></div>
+        <div class="arch-block brain"><div class="arch-block-label">Sonnet 4.6</div><div class="arch-block-title">Email Triage</div><div class="arch-block-desc">Classify, draft replies. Approve/Edit/Skip in chat.</div></div>
+      </div>
+      <div class="arch-row">
+        <div class="arch-block brain"><div class="arch-block-label">Sonnet 4.6</div><div class="arch-block-title">Transcript Extractor</div><div class="arch-block-desc">Granola → action items in Command Center.</div></div>
+        <div class="arch-block brain"><div class="arch-block-label">Sonnet 4.6</div><div class="arch-block-title">Content Writer</div><div class="arch-block-desc">Brand-voice drafts for IG/LI/TT/Reddit.</div></div>
+        <div class="arch-block brain"><div class="arch-block-label">Haiku 4.5</div><div class="arch-block-title">Publisher</div><div class="arch-block-desc">Postiz schedule on explicit Approve only.</div></div>
+        <div class="arch-block brain" style="opacity: 0.45; border-style: dashed;"><div class="arch-block-label">v2 — blocked behind Gate 4</div><div class="arch-block-title">+4 Specialty Agents</div><div class="arch-block-desc">Competitor / Market / Investor / Legal.</div></div>
+      </div>
+
+      <div class="arch-arrow">↓</div>
+
+      <!-- Memory -->
+      <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 8px 0 12px;">MEMORY LAYER (read + write)</div>
+      <div class="arch-row">
+        <div class="arch-block memory"><div class="arch-block-label">Source of truth</div><div class="arch-block-title">Notion</div><div class="arch-block-desc">Entities · Projects · Command Center · Kevin Context.</div></div>
+        <div class="arch-block memory"><div class="arch-block-label">Index + ops log</div><div class="arch-block-title">RDS PostgreSQL 16</div><div class="arch-block-desc">+ pgvector. Rebuildable from Notion.</div></div>
+        <div class="arch-block memory"><div class="arch-block-label">Semantic</div><div class="arch-block-title">Azure AI Search</div><div class="arch-block-desc">Hybrid BM25+vector+rerank. Binary quant.</div></div>
+        <div class="arch-block memory"><div class="arch-block-label">Long context</div><div class="arch-block-title">Vertex Gemini 2.5 Pro</div><div class="arch-block-desc">1M-token dossier loads when needed.</div></div>
+      </div>
+
+      <div class="arch-arrow">↓</div>
+
+      <!-- Output -->
+      <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 8px 0 12px;">OUTPUT (calm by default)</div>
+      <div class="arch-row">
+        <div class="arch-block output"><div class="arch-block-label">Mobile push</div><div class="arch-block-title">Telegram</div><div class="arch-block-desc">Max 3/day. Morning + urgent + evening.</div></div>
+        <div class="arch-block output"><div class="arch-block-label">Desktop UI</div><div class="arch-block-title">Next.js Dashboard</div><div class="arch-block-desc">Today + per-entity + calendar + inbox.</div></div>
+        <div class="arch-block output"><div class="arch-block-label">Real-time</div><div class="arch-block-title">SSE via Postgres NOTIFY</div><div class="arch-block-desc">Dashboard live-updates.</div></div>
+        <div class="arch-block output"><div class="arch-block-label">Send</div><div class="arch-block-title">SES + Postiz</div><div class="arch-block-desc">Only after explicit Approve tap.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WALKTHROUGH -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">A real example</div>
+    <h2 class="section-title">"Christina hörde av sig — vill bidra som volontär 6 månader inom finance"</h2>
+    <p class="section-sub">You voice-memo this into Telegram while walking. Here's exactly what happens, end to end.</p>
+
+    <div class="walkthrough">
+      <div class="walk-step">
+        <div class="walk-num">01</div>
+        <div class="walk-event">
+          <div class="walk-event-label">You say</div>
+          <div class="walk-event-text user">"Christina hörde av sig — vill bidra som volontär 6 månader inom finance. Måste boka uppföljning denna vecka och kolla med Marcus om vi behöver något formellt avtal."</div>
+        </div>
+        <div class="walk-action">
+          <div class="walk-action-label">System</div>
+          <div class="walk-action-text">Telegram bot → Lambda webhook<br>Audio → S3 → AWS Transcribe (sv-SE + custom vocab)</div>
+        </div>
+      </div>
+      <div class="walk-step">
+        <div class="walk-num">02</div>
+        <div class="walk-event">
+          <div class="walk-event-label">Triage agent</div>
+          <div class="walk-event-text">Detects: 2 entities (Christina, Marcus), 2 actions (book follow-up, check with Marcus)</div>
+        </div>
+        <div class="walk-action">
+          <div class="walk-action-label">Routes to</div>
+          <div class="walk-action-text">→ entity-resolver<br>→ voice-capture<br>→ legal-flag (v2: avtal detected)</div>
+        </div>
+      </div>
+      <div class="walk-step">
+        <div class="walk-num">03</div>
+        <div class="walk-event">
+          <div class="walk-event-label">Entity resolver</div>
+          <div class="walk-event-text">"Christina" → Christina Loh (Tale Forge advisor)<br>"Marcus" → Marcus (jurist, Outbehaving avtal)</div>
+        </div>
+        <div class="walk-action">
+          <div class="walk-action-label">Auto-context loader pulls</div>
+          <div class="walk-action-text">Christina dossier (12 emails, 3 transcripts)<br>Marcus dossier (avtal templates, vesting docs)</div>
+        </div>
+      </div>
+      <div class="walk-step">
+        <div class="walk-num">04</div>
+        <div class="walk-event">
+          <div class="walk-event-label">Writes to Notion</div>
+          <div class="walk-event-text">2 tasks in Command Center, both linked to Christina + Marcus entities, Spår = Legal & Compliance, Bolag = Tale Forge</div>
+        </div>
+        <div class="walk-action">
+          <div class="walk-action-label">Updates dossiers</div>
+          <div class="walk-action-text">Christina: last_touch += 6m volunteer offer<br>Both Christina + Marcus timelines: capture event</div>
+        </div>
+      </div>
+      <div class="walk-step">
+        <div class="walk-num">05</div>
+        <div class="walk-event">
+          <div class="walk-event-label">You see in Telegram (5s later)</div>
+          <div class="walk-event-text user">"→ 2 tasks: Boka uppföljning med Christina (denna vecka) + Kolla volontärsavtal med Marcus. Linked to Christina Loh + Marcus. Tale Forge / Legal."</div>
+        </div>
+        <div class="walk-action">
+          <div class="walk-action-label">Dashboard updates live</div>
+          <div class="walk-action-text">SSE push → Today view re-renders<br>Christina entity page: new timeline event</div>
+        </div>
+      </div>
+      <div class="walk-step">
+        <div class="walk-num">06</div>
+        <div class="walk-event">
+          <div class="walk-event-label">Tomorrow morning brief</div>
+          <div class="walk-event-text">"Christina offered 6 months volunteer yesterday — follow-up not booked yet. Marcus is your Outbehaving lawyer; you've never run a volunteer arrangement past him before. Suggested: draft email to Christina (you owe her reply since Apr 21), draft message to Marcus."</div>
+        </div>
+        <div class="walk-action">
+          <div class="walk-action-label">Drafts ready</div>
+          <div class="walk-action-text">2 drafts in Inbox awaiting Approve / Edit / Skip</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ENTITY DOSSIER -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">The entity layer</div>
+    <h2 class="section-title">Living dossiers, auto-loaded on mention</h2>
+    <p class="section-sub">Every person, project, company, or document is an entity. Each has a dossier that grows itself from emails, transcripts, voice memos. When you mention someone, the dossier loads into the agent's context before it responds.</p>
+
+    <div class="dossier">
+      <div class="dossier-header">
+        <div class="dossier-avatar">CL</div>
+        <div>
+          <div class="dossier-name">Christina Loh</div>
+          <div class="dossier-meta">Person · Advisor · Tale Forge · 🌤 Warm · Last contact: 2026-04-20</div>
+        </div>
+      </div>
+
+      <div class="dossier-section">
+        <div class="dossier-section-label">AI synthesis (Gemini 2.5 Pro)</div>
+        <div class="dossier-ai">
+          <div class="dossier-ai-tag">⟢ What you need to know</div>
+          Met Christina at OpenClaw network event. Background in finance, ex-Goldman. Volunteered to advise Tale Forge on financial framework after seeing the demo. Prefers async work over meetings. Yesterday offered 6-month volunteer engagement; needs a formal arrangement to clear with her current employer's compliance. Mind Mirror app is her side project — she mentioned it in 2 conversations, possible future collab. You owe her a reply on the volunteer offer (4 days late).
+        </div>
+      </div>
+
+      <div class="dossier-section">
+        <div class="dossier-section-label">Linked projects</div>
+        <span class="dossier-tag">Tale Forge</span>
+        <span class="dossier-tag">Christina volunteer engagement</span>
+        <span class="dossier-tag">Mind Mirror (potential)</span>
+      </div>
+
+      <div class="dossier-section">
+        <div class="dossier-section-label">Timeline (auto-aggregated, last 5 events)</div>
+        <div class="dossier-timeline-item">
+          <div class="dossier-timeline-date">Apr 20</div>
+          <div class="dossier-timeline-event"><span class="dossier-timeline-icon">🎤</span>Voice memo: "Christina hörde av sig — vill bidra som volontär 6 månader"</div>
+        </div>
+        <div class="dossier-timeline-item">
+          <div class="dossier-timeline-date">Apr 19</div>
+          <div class="dossier-timeline-event"><span class="dossier-timeline-icon">🎙</span>Granola: "Tale Forge × Christina — Finance Framework Exploration" (52 min)</div>
+        </div>
+        <div class="dossier-timeline-item">
+          <div class="dossier-timeline-date">Apr 17</div>
+          <div class="dossier-timeline-event"><span class="dossier-timeline-icon">📧</span>Email: "Re: demo of finance story prototype" — she liked the dissociativ-känsla approach</div>
+        </div>
+        <div class="dossier-timeline-item">
+          <div class="dossier-timeline-date">Apr 12</div>
+          <div class="dossier-timeline-event"><span class="dossier-timeline-icon">📧</span>Email: shared finansiell-litteratur app link (Mind Mirror)</div>
+        </div>
+        <div class="dossier-timeline-item">
+          <div class="dossier-timeline-date">Apr 08</div>
+          <div class="dossier-timeline-event"><span class="dossier-timeline-icon">🎙</span>Granola: "Christina Loh — intro call" (38 min)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DAILY LIFECYCLE -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">Calm, automated, daily</div>
+    <h2 class="section-title">Your day with KOS</h2>
+    <p class="section-sub">The system runs on its own schedule. You only see what's worth seeing.</p>
+
+    <div class="timeline">
+      <div class="time-row">
+        <div class="time-clock">07:00</div>
+        <div class="time-event">
+          <div class="time-event-title">📨 Morning brief — Telegram + Dashboard</div>
+          <div class="time-event-desc">3-5 sentence prose: state of the day. Top 3 priorities. Calendar. Drafts ready. Dropped threads (Hot/Warm contacts &gt;10 days quiet). Already written when you wake up.</div>
+        </div>
+      </div>
+      <div class="time-row">
+        <div class="time-clock">08:00<br>10:00<br>12:00<br>14:00<br>16:00</div>
+        <div class="time-event">
+          <div class="time-event-title">📧 Email triage — silent if quiet</div>
+          <div class="time-event-desc">Both Gmails scanned. Urgent → drafts ready in Inbox. Important → Command Center task. Junk → ignored. Push only if drafts are waiting.</div>
+        </div>
+      </div>
+      <div class="time-row">
+        <div class="time-clock">All day</div>
+        <div class="time-event">
+          <div class="time-event-title">🎤 You dump anything</div>
+          <div class="time-event-desc">Voice into Telegram, tap Action Button, paste a chunk, forward an email, highlight a webpage. System routes it. You don't categorize.</div>
+        </div>
+      </div>
+      <div class="time-row">
+        <div class="time-clock">Every<br>15 min</div>
+        <div class="time-event">
+          <div class="time-event-title">🎙 Granola transcripts processed</div>
+          <div class="time-event-desc">Meeting ends → transcript appears in Notion → extractor pulls Kevin-action items → Command Center. Entity dossiers updated for everyone mentioned.</div>
+        </div>
+      </div>
+      <div class="time-row">
+        <div class="time-clock">18:00</div>
+        <div class="time-event">
+          <div class="time-event-title">🌙 Day close — Telegram</div>
+          <div class="time-event-desc">"Today: 4 shipped, 2 slipped, 3 transcripts processed. Tomorrow's focus: Almi signing, Christina reply." Updates Kevin Context "Recent decisions" automatically.</div>
+        </div>
+      </div>
+      <div class="time-row">
+        <div class="time-clock">Sun 19:00</div>
+        <div class="time-event">
+          <div class="time-event-title">📊 Weekly review</div>
+          <div class="time-event-desc">Week recap. Who you neglected. What stalled. Next week's candidate focus. Monday morning brief opens with this context.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CAPTURE SURFACES -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">8 ways in</div>
+    <h2 class="section-title">Capture surfaces</h2>
+    <p class="section-sub">All inputs become a typed <span class="mono" style="color: var(--accent)">capture.received</span> event. Same triage path. No matter where it came from, it ends up in the right place.</p>
+
+    <div class="grid grid-4">
+      <div class="card">
+        <div class="card-icon blue">💬</div>
+        <div class="card-meta">Primary mobile</div>
+        <div class="card-title">Telegram bot</div>
+        <div class="card-desc">Text + voice. Push notifications. Phone-native. grammY on Lambda webhook.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">🎙</div>
+        <div class="card-meta">Voice capture</div>
+        <div class="card-title">iOS Action Button</div>
+        <div class="card-desc">Tap → talk → Notion in 25s. Fastest voice path. HMAC-signed webhook.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon cyan">📥</div>
+        <div class="card-meta">Email push</div>
+        <div class="card-title">EmailEngine (Gmail × 2)</div>
+        <div class="card-desc">IMAP IDLE on both accounts. No polling. Self-hosted on Fargate.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon cyan">📤</div>
+        <div class="card-meta">Email forward</div>
+        <div class="card-title">forward@ inbox</div>
+        <div class="card-desc">Forward any email to a personal address. SES receiving rule routes it in.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">📱</div>
+        <div class="card-meta">Chat (read-only)</div>
+        <div class="card-title">WhatsApp (Baileys)</div>
+        <div class="card-desc">All chats, including team groups. Voice notes too. Self-hosted on Fargate, session in RDS.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">💼</div>
+        <div class="card-meta">DM ingestion</div>
+        <div class="card-title">LinkedIn (Chrome ext)</div>
+        <div class="card-desc">Reads from your logged-in session. Voyager API. Polls when tab focused. Ban-safe.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon yellow">✏️</div>
+        <div class="card-meta">Web</div>
+        <div class="card-title">Highlight → KOS</div>
+        <div class="card-desc">Chrome extension on any page. Highlight, send. Article paragraphs, tweets, anything.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🎙</div>
+        <div class="card-meta">Meetings</div>
+        <div class="card-title">Granola transcripts</div>
+        <div class="card-desc">Polled every 15 min from Notion Transkripten DB. Auto-extracts your action items.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AGENTS -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">12 specialists</div>
+    <h2 class="section-title">The agent roster</h2>
+    <p class="section-sub">Each agent is a markdown file in <span class="mono" style="color: var(--accent)">.claude/agents/</span>. Triage routes inputs to specialists. Specialists share the entity graph as common memory. v2 agents are blocked behind 4-week acceptance criteria.</p>
+
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="card-icon orange">⚡</div>
+        <div class="card-meta">Haiku 4.5 · v1</div>
+        <div class="card-title">Triage</div>
+        <div class="card-desc">First touch. Decides which specialist(s) to fan out to. Enforces 3-msg/day cap.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">🔍</div>
+        <div class="card-meta">Sonnet 4.6 · v1</div>
+        <div class="card-title">Entity Resolver</div>
+        <div class="card-desc">Names → dossier IDs. Three-stage: fuzzy → LLM disambig → Inbox confirm.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">📥</div>
+        <div class="card-meta">Hook · v1</div>
+        <div class="card-title">Auto-Context Loader</div>
+        <div class="card-desc">Pre-call hook. Pulls dossiers + Kevin Context into prompt before agent runs.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">🎤</div>
+        <div class="card-meta">Haiku 4.5 · v1</div>
+        <div class="card-title">Voice Capture</div>
+        <div class="card-desc">Transcript → structured Notion row with entities, project, urgency.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">📧</div>
+        <div class="card-meta">Sonnet 4.6 · v1</div>
+        <div class="card-title">Email Triage</div>
+        <div class="card-desc">Classify + draft replies. Idempotency. Prompt-injection guards.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">🎙</div>
+        <div class="card-meta">Sonnet 4.6 · v1</div>
+        <div class="card-title">Transcript Extractor</div>
+        <div class="card-desc">Granola → Kevin-action items. Updates entity dossiers from meetings.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">✍️</div>
+        <div class="card-meta">Sonnet 4.6 · v1</div>
+        <div class="card-title">Content Writer</div>
+        <div class="card-desc">Multi-channel drafts. BRAND_VOICE.md + few-shot. IG / LinkedIn / TikTok / Reddit / newsletter.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">📤</div>
+        <div class="card-meta">Haiku 4.5 · v1</div>
+        <div class="card-title">Publisher</div>
+        <div class="card-desc">Postiz schedule on explicit Approve. AI labeling baked in.</div>
+      </div>
+      <div class="card" style="opacity: 0.5; border-style: dashed;">
+        <div class="card-icon red">🎯</div>
+        <div class="card-meta">v2 — gate-blocked</div>
+        <div class="card-title">Competitor Watch</div>
+        <div class="card-desc">Daily scan: App Store / Play / Reddit / PH / Meta Ad Library. Default-to-silence.</div>
+      </div>
+      <div class="card" style="opacity: 0.5; border-style: dashed;">
+        <div class="card-icon red">📊</div>
+        <div class="card-meta">v2 — gate-blocked</div>
+        <div class="card-title">Market Analyst</div>
+        <div class="card-desc">Weekly parent-trend sweep → 3 post angles for Monika.</div>
+      </div>
+      <div class="card" style="opacity: 0.5; border-style: dashed;">
+        <div class="card-icon red">💰</div>
+        <div class="card-meta">v2 — gate + DPIA</div>
+        <div class="card-title">Investor Relations</div>
+        <div class="card-desc">Cap table + Almi/Speed/Marcus context. EU AI Act DPIA before deploy.</div>
+      </div>
+      <div class="card" style="opacity: 0.5; border-style: dashed;">
+        <div class="card-icon red">⚖️</div>
+        <div class="card-meta">v2 — gate-blocked</div>
+        <div class="card-title">Legal Flag</div>
+        <div class="card-desc">avtal / aktie / ESOP / GDPR / AI Act detection. Loads Marcus dossier.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 PHASES -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">8+ weekends</div>
+    <h2 class="section-title">The 10-phase build</h2>
+    <p class="section-sub">Infrastructure first, not features first. The minimum viable loop ships in Phase 2. Specialty agents only after 4 weeks of daily proven use.</p>
+
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-num">1</div>
+        <div class="phase-content">
+          <div class="phase-title">Infrastructure Foundation</div>
+          <div class="phase-goal">AWS substrate + entity graph + safety rails — before any agent. CDK + RDS + 5 EventBridge buses + Notion DBs + custom vocab + cost alarms + VPS freeze.</div>
+          <div class="phase-meta">
+            <span class="pill">14 reqs</span>
+            <span class="pill gate">Gate 1 → Phase 2</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">2</div>
+        <div class="phase-content">
+          <div class="phase-title">Minimum Viable Loop</div>
+          <div class="phase-goal">First moment KOS exists. Telegram voice → Transcribe → triage → entity-resolver → Notion → Telegram ack &lt; 25s. Bulk import seed + voice onboarding.</div>
+          <div class="phase-meta">
+            <span class="pill">10 reqs</span>
+            <span class="pill gate">Gate 2 — WER &lt; 10%</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">3</div>
+        <div class="phase-content">
+          <div class="phase-title">Dashboard MVP</div>
+          <div class="phase-goal">Calm desktop UI. Today + per-entity timeline + calendar + Inbox. SSE via Postgres NOTIFY. PWA on Android+desktop, Safari shortcut on iOS.</div>
+          <div class="phase-meta">
+            <span class="pill">9 reqs</span>
+            <span class="pill ui">UI phase</span>
+            <span class="pill parallel">‖ Phase 4</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">4</div>
+        <div class="phase-content">
+          <div class="phase-title">Email + iOS Capture</div>
+          <div class="phase-goal">EmailEngine on Fargate (both Gmails IMAP IDLE). iOS Action Button webhook. Email-triage agent with idempotency + injection guards proven.</div>
+          <div class="phase-meta">
+            <span class="pill">6 reqs</span>
+            <span class="pill gate">Gate 3 — internal</span>
+            <span class="pill parallel">‖ Phase 3</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">5</div>
+        <div class="phase-content">
+          <div class="phase-title">Messaging Channels</div>
+          <div class="phase-goal">Baileys WhatsApp (read-only, all chats). Chrome extension (highlight + LinkedIn DM). Discord fallback.</div>
+          <div class="phase-meta">
+            <span class="pill">4 reqs</span>
+            <span class="pill gate">Gate 5 — Baileys 7d zero writes</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">6</div>
+        <div class="phase-content">
+          <div class="phase-title">Granola + Semantic Memory</div>
+          <div class="phase-goal">Quality multiplier. Granola poller. Transcript extractor. Azure AI Search hybrid index. Auto-context loader. Per-entity timeline materialized view.</div>
+          <div class="phase-meta">
+            <span class="pill">7 reqs</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">7</div>
+        <div class="phase-content">
+          <div class="phase-title">Lifecycle Automation</div>
+          <div class="phase-goal">Morning brief 07:00 / email triage 2h tick / day close 18:00 / Sunday weekly review. EventBridge Scheduler timezone-aware.</div>
+          <div class="phase-meta">
+            <span class="pill">4 reqs</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">8</div>
+        <div class="phase-content">
+          <div class="phase-title">Outbound Content + Calendar</div>
+          <div class="phase-goal">Content-writer + Publisher (Postiz on explicit Approve). Google Calendar read. Per-document version diff tracker.</div>
+          <div class="phase-meta">
+            <span class="pill">4 reqs</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase phase-blocked">
+        <div class="phase-num">9</div>
+        <div class="phase-content">
+          <div class="phase-title">v2 Specialty Agents — BLOCKED</div>
+          <div class="phase-goal">Competitor / Market / Investor / Legal. Cannot start until 4 wks daily use + brief acted 5d/wk + entity resolver &gt; 90% + email approval+edit &gt; 70% + dashboard &gt; 3 sessions/wk. AGT-11 needs DPIA.</div>
+          <div class="phase-meta">
+            <span class="pill">4 reqs</span>
+            <span class="pill blocked">HARD GATE 4</span>
+          </div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">10</div>
+        <div class="phase-content">
+          <div class="phase-title">Migration & Decommission</div>
+          <div class="phase-goal">Migrate VPS scripts to Lambda. Kill n8n (port 5678 unauthenticated security risk). Archive 5 Brain DBs. Decommission Hetzner.</div>
+          <div class="phase-meta">
+            <span class="pill">5 reqs</span>
+            <span class="pill parallel">‖ Phases 6-8</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HARD GATES -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">5 hard gates</div>
+    <h2 class="section-title">Quality gates between phases</h2>
+    <p class="section-sub">Each gate is a list of must-be-true statements. No phase ships unless its gate passes. Gate 4 is a hard block — v2 agents cannot exist as code until v1 is daily-driven for 4 weeks.</p>
+
+    <div class="gate">
+      <div class="gate-title"><span class="gate-tag">GATE 1</span> Infrastructure ready (Phase 1 → 2)</div>
+      <ul class="gate-criteria">
+        <li>CDK deploys clean: VPC, RDS Postgres 16+pgvector, 5 EventBridge buses, S3 with VPC Gateway Endpoint (zero NAT charges)</li>
+        <li>Notion Entities + Projects DBs with full schema; notion-indexer Lambda upserts to Postgres</li>
+        <li>Azure AI Search index created with binary quantization at creation time (92.5% cost reduction)</li>
+        <li>Custom vocabulary file deployed for AWS Transcribe (entity names, company names, Swedish + English tech terms)</li>
+        <li>Safety rails: cost alarms at $50/$100, archive-not-delete enforced, notification cap (3 Telegram/day) enforced at infra level, VPS scripts frozen</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="gate-title"><span class="gate-tag">GATE 2</span> Minimum loop working (Phase 2 → 3)</div>
+      <ul class="gate-criteria">
+        <li>Swedish ASR WER &lt; 10% on 20 real Kevin voice samples (else escalate to KB-Whisper Fargate fallback)</li>
+        <li>Code-switched voice memo end-to-end &lt; 25s, known entity matched, unknown queued in Inbox (no silent auto-merge)</li>
+        <li>Three-stage entity resolver working with audit trail on every merge</li>
+        <li>50+ candidate dossiers from bulk import waiting in Inbox for batch review</li>
+        <li>DLQs on every EventBridge → Lambda rule; idempotency keys preventing double-process</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="gate-title"><span class="gate-tag">GATE 3</span> Email triage safe to ship (Phase 4 internal)</div>
+      <ul class="gate-criteria">
+        <li>Same email processed twice → exactly one draft created (idempotency)</li>
+        <li>Adversarial prompt-injection test email classified as data, no unauthorized action taken</li>
+        <li>EmailEngine runs 7 consecutive days without IMAP auth failure</li>
+        <li>Approve / Edit / Skip flow end-to-end — never sends without explicit input</li>
+      </ul>
+    </div>
+
+    <div class="gate hard">
+      <div class="gate-title"><span class="gate-tag hard">HARD GATE 4</span> v2 agents unlock (Phase 8 → 9)</div>
+      <ul class="gate-criteria">
+        <li>4 continuous weeks of daily use (not reverted to VPS scripts or manual Notion)</li>
+        <li>Morning brief read and acted on at least 5 days/week</li>
+        <li>Entity resolver accuracy &gt; 90% on voice inputs (measured over previous 2 weeks)</li>
+        <li>Email triage approval + edit rate &gt; 70% (not skipped, over previous 2 weeks)</li>
+        <li>Dashboard opened &gt; 3 sessions/week (Vercel analytics)</li>
+        <li>AGT-11 (investor-relations) additionally requires DPIA before deployment per EU AI Act</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="gate-title"><span class="gate-tag">GATE 5</span> Baileys WhatsApp production label (within Phase 5)</div>
+      <ul class="gate-criteria">
+        <li>7 consecutive days with zero write operations in logs</li>
+        <li>Session auth in RDS — kill Fargate task, verify reconnection without QR scan</li>
+        <li>4-hour minimum backoff on any session rejection verified</li>
+        <li>Zero mutation method calls in any Baileys log line</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- LOCKED DECISIONS -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">Settled — won't relitigate</div>
+    <h2 class="section-title">Locked architectural decisions</h2>
+    <p class="section-sub">Cross-document research synthesis. These are decisions that shape everything downstream.</p>
+
+    <div class="locks">
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">EventBridge-only event routing — n8n removed entirely</div>
+          <div class="lock-desc">EventBridge + Lambda do in 20 lines what n8n needs 300+ lines of visual workflow for. Current VPS n8n (port 5678, no auth) is a live security risk. Frozen Phase 1, decommissioned Phase 10.</div>
+        </div>
+      </div>
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">Claude Agent SDK + Bedrock, not LangGraph / CrewAI</div>
+          <div class="lock-desc">Subagents as markdown files in <span class="mono">.claude/agents/</span>. Bedrock-native via <span class="mono">CLAUDE_CODE_USE_BEDROCK=1</span>. LangGraph adds 2-4 weeks of graph code for problems we don't have.</div>
+        </div>
+      </div>
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">RDS PostgreSQL 16 (db.t4g.medium) — NOT Aurora Serverless v2</div>
+          <div class="lock-desc">17% cheaper, no HNSW pgvector degradation. Reserved 1-year ~$31/mo. Source of truth lives in Notion; Postgres is a rebuildable index.</div>
+        </div>
+      </div>
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">Notion = source of truth, Postgres = derived index</div>
+          <div class="lock-desc">Agents write Notion first → confirm event → Postgres upsert. Human edits in Notion UI are canonical. Postgres rebuildable from Notion + S3.</div>
+        </div>
+      </div>
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">Telegram = mobile push, Dashboard = desktop primary</div>
+          <div class="lock-desc">iOS 17.4 removed standalone PWA push in EU under DMA — cannot engineer around. All mobile push goes through Telegram. Web Push is desktop-only.</div>
+        </div>
+      </div>
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">SSE via Postgres LISTEN/NOTIFY — not AppSync, not Pusher</div>
+          <div class="lock-desc">Single-user dashboard. SSE from Next.js Edge backed by Postgres NOTIFY. Native, free, instant.</div>
+        </div>
+      </div>
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">Static Bearer token in Secrets Manager — no Cognito, no Clerk</div>
+          <div class="lock-desc">Single user. 256-bit random token. Auth infrastructure is over-engineering at this scale.</div>
+        </div>
+      </div>
+      <div class="lock">
+        <div class="lock-icon">🔒</div>
+        <div>
+          <div class="lock-title">Custom Chrome extension for LinkedIn — NOT Unipile</div>
+          <div class="lock-desc">Runs in your normal browser session. Ban-safe. Unipile costs €49/mo + holds your cookie + LinkedIn Q1 2026 ban escalation made the third-party path lethal (HeyReach company page deleted).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ANTI-FEATURES -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">Deliberate exclusions</div>
+    <h2 class="section-title">What KOS will never do</h2>
+    <p class="section-sub">As important as what it does. These are explicitly out of scope.</p>
+
+    <div class="anti">
+      <div class="anti-item">
+        <div class="anti-icon">✕</div>
+        <div>
+          <div class="lock-title">Auto-send emails or auto-publish content</div>
+          <div class="lock-desc">SES sends only after explicit Approve tap. Postiz schedules only after explicit Approve tap. Approval queue is a safety gate, not a bottleneck.</div>
+        </div>
+      </div>
+      <div class="anti-item">
+        <div class="anti-icon">✕</div>
+        <div>
+          <div class="lock-title">Auto-accept calendar invites or book on your behalf</div>
+          <div class="lock-desc">Reads, never writes. Calendar booking always requires explicit confirmation.</div>
+        </div>
+      </div>
+      <div class="anti-item">
+        <div class="anti-icon">✕</div>
+        <div>
+          <div class="lock-title">Auto-categorization on capture</div>
+          <div class="lock-desc">Categorization friction is the #1 reason second-brain systems die for ADHD users. KOS captures raw, classifies async via triage. You never see a "tag this" prompt.</div>
+        </div>
+      </div>
+      <div class="anti-item">
+        <div class="anti-icon">✕</div>
+        <div>
+          <div class="lock-title">More than 3 Telegram pushes per day</div>
+          <div class="lock-desc">Hard cap, enforced at infrastructure level in Phase 1. Morning brief + urgent-only escalation + day close. Everything else batches into Dashboard Inbox. Notification fatigue kills these systems at day 60.</div>
+        </div>
+      </div>
+      <div class="anti-item">
+        <div class="anti-icon">✕</div>
+        <div>
+          <div class="lock-title">LinkedIn outbound automation</div>
+          <div class="lock-desc">Read-only via Chrome extension. No auto-connect, no auto-DM. 23% ban rate on LinkedIn outbound automation in 2025-2026.</div>
+        </div>
+      </div>
+      <div class="anti-item">
+        <div class="anti-icon">✕</div>
+        <div>
+          <div class="lock-title">v2 specialty agents before v1 has 4 weeks of daily use</div>
+          <div class="lock-desc">Hard gate. Specifications can be written; code cannot ship until all 5 acceptance criteria are simultaneously met. Building specialists before the core works is the #2 abandonment pattern.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COSTS -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">Money</div>
+    <h2 class="section-title">Cost model</h2>
+    <p class="section-sub">Cloud credits cover roughly 12-18 months of inference + infra at production volume. Steady state ~$200/mo all-in once credits expire.</p>
+
+    <div class="cost-table">
+      <div class="cost-row head">
+        <div>Service</div>
+        <div style="text-align: right;">Monthly</div>
+        <div style="text-align: right;">Cred?</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">AWS RDS db.t4g.medium (1-yr reserved, eu-north-1)</div>
+        <div class="cost-amount">~$31</div>
+        <div class="cost-note">AWS</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">AWS Lambda + EventBridge + S3 + Transcribe</div>
+        <div class="cost-amount">~$15-30</div>
+        <div class="cost-note">AWS</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">AWS Fargate (EmailEngine, Baileys, Postiz × 3 ARM tasks)</div>
+        <div class="cost-amount">~$40-50</div>
+        <div class="cost-note">AWS</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">AWS Bedrock (Sonnet 4.6 + Haiku 4.5)</div>
+        <div class="cost-amount">~$30-80</div>
+        <div class="cost-note">AWS</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">Azure AI Search Basic (binary quant — 92.5% reduction)</div>
+        <div class="cost-amount">~$75</div>
+        <div class="cost-note">Azure</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">Vertex AI Gemini 2.5 Pro (long-context only)</div>
+        <div class="cost-amount">~$10-20</div>
+        <div class="cost-note">GCP</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">EmailEngine license</div>
+        <div class="cost-amount">~$8</div>
+        <div class="cost-note">($99/yr)</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">Vercel Hobby (or Pro $20 if SSE limit hit)</div>
+        <div class="cost-amount">$0-20</div>
+        <div class="cost-note">—</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">Langfuse + Sentry (free tiers)</div>
+        <div class="cost-amount">~$5</div>
+        <div class="cost-note">—</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">Steady-state total (after credits expire)</div>
+        <div class="cost-amount">~$215-320</div>
+        <div class="cost-note">~$3.5k/yr</div>
+      </div>
+    </div>
+    <p style="margin-top: 24px; font-size: 13px; color: var(--text-muted);">For comparison: replacing what KOS does with Crayon ($25k/yr) + Brand24 ($300/mo) + Buffer ($30/mo) + Hootsuite ($249/mo) + ChatGPT Pro ($200/mo) + ElevenLabs Pro ($99/mo) = <strong style="color: var(--text-dim);">~$30k/yr for less.</strong></p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <p class="footer-text">Generated 2026-04-21 from <strong>.planning/PROJECT.md</strong> + <strong>research/</strong> + <strong>ROADMAP.md</strong>.<br>Next step: <span class="mono" style="color: var(--accent)">/gsd-discuss-phase 1</span></p>
+  </div>
+</footer>
+
+</body>
+</html>

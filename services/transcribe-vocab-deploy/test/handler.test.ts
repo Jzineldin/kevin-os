@@ -91,7 +91,9 @@ describe('transcribe-vocab-deploy handler', () => {
       if (cmd instanceof CreateVocabularyCommand) {
         return {};
       }
-      throw new Error(`unexpected Transcribe command: ${(cmd as { constructor: { name: string } }).constructor.name}`);
+      throw new Error(
+        `unexpected Transcribe command: ${(cmd as { constructor: { name: string } }).constructor.name}`,
+      );
     });
 
     const transcribe = { send: transcribeSend } as unknown as TranscribeClient;
@@ -113,15 +115,15 @@ describe('transcribe-vocab-deploy handler', () => {
     const createInput = (createCall![0] as CreateVocabularyCommand).input;
     expect(createInput.VocabularyName).toBe('kos-sv-se-v1');
     expect(createInput.LanguageCode).toBe('sv-SE');
-    expect(createInput.VocabularyFileUri).toBe('s3://kos-blobs-bucket/vocab/sv-se-v1.txt');
+    expect(createInput.VocabularyFileUri).toBe('s3://cdk-asset-bucket/vocab-cleaned/sv-se-v1.txt');
 
     // Assert PutObject uploaded the cleaned (comment-stripped) content.
     const putCall = s3Send.mock.calls.find(([c]) => c instanceof PutObjectCommand);
     expect(putCall).toBeDefined();
     const putInput = (putCall![0] as PutObjectCommand).input;
     expect(putInput.Body).toBe('Kevin\nTale-Forge');
-    expect(putInput.Bucket).toBe('kos-blobs-bucket');
-    expect(putInput.Key).toBe('vocab/sv-se-v1.txt');
+    expect(putInput.Bucket).toBe('cdk-asset-bucket');
+    expect(putInput.Key).toBe('vocab-cleaned/sv-se-v1.txt');
   });
 
   it('on Update: detects existing vocab and calls UpdateVocabulary (not Create)', async () => {
@@ -191,10 +193,7 @@ describe('transcribe-vocab-deploy handler', () => {
     const s3 = { send: s3Send } as unknown as S3Client;
 
     await expect(
-      handler(
-        { RequestType: 'Create' },
-        { transcribe, s3, sleep: async () => {}, now: () => 0 },
-      ),
+      handler({ RequestType: 'Create' }, { transcribe, s3, sleep: async () => {}, now: () => 0 }),
     ).rejects.toThrow(/FAILED.*bad format/);
   });
 
@@ -232,10 +231,7 @@ describe('transcribe-vocab-deploy handler', () => {
     };
 
     await expect(
-      handler(
-        { RequestType: 'Create' },
-        { transcribe, s3, sleep: async () => {}, now },
-      ),
+      handler({ RequestType: 'Create' }, { transcribe, s3, sleep: async () => {}, now }),
     ).rejects.toThrow(/did not reach READY/);
   });
 });

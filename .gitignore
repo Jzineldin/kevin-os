@@ -17,3 +17,5 @@ cdk-deploy*.log
 # Drizzle migration SQL + _journal.json are source-controlled (schema history).
 # If drizzle-kit ever introduces an ignorable subdirectory, ignore that path
 # specifically — don't blanket-ignore packages/db/drizzle/.
+
+cdk.out.dashboard/

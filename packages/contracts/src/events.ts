@@ -120,8 +120,8 @@ export const TriageRoutedSchema = z.object({
   source_kind: z.enum(['text', 'voice']),
   source_text: z.string().max(8000),
   route: z.enum(['voice-capture', 'inbox-review', 'drop']),
-  detected_type: z.enum(['task', 'meeting', 'note', 'question']).optional(),
-  urgency: z.enum(['low', 'med', 'high']).optional(),
+  detected_type: z.enum(['task', 'meeting', 'note', 'question', 'other']).optional(),
+  urgency: z.enum(['low', 'med', 'high', 'none']).optional(),
   reason: z.string().max(200),
   sender: z.object({
     id: z.number().int(),

@@ -14,11 +14,7 @@
 
 import { Duration, CfnOutput } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
-import {
-  HttpApi,
-  HttpMethod,
-  CorsHttpMethod,
-} from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpApi, HttpMethod, CorsHttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type { IBucket } from 'aws-cdk-lib/aws-s3';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
@@ -50,10 +46,7 @@ export interface TelegramWiring {
   webhookUrl: string;
 }
 
-export function wireTelegramIngress(
-  scope: Construct,
-  props: WireTelegramProps,
-): TelegramWiring {
+export function wireTelegramIngress(scope: Construct, props: WireTelegramProps): TelegramWiring {
   const bot = new KosLambda(scope, 'TelegramBot', {
     entry: svcEntry('telegram-bot'),
     timeout: Duration.seconds(15),

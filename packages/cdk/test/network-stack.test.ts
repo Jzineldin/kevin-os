@@ -10,8 +10,8 @@ describe('NetworkStack', () => {
   });
   const tpl = Template.fromStack(stack);
 
-  it('creates exactly zero NAT Gateways (D-05)', () => {
-    tpl.resourceCountIs('AWS::EC2::NatGateway', 0);
+  it('creates exactly one NAT Gateway for Lambda egress subnets', () => {
+    tpl.resourceCountIs('AWS::EC2::NatGateway', 1);
   });
 
   it('creates exactly one S3 Gateway Endpoint (D-06)', () => {
@@ -24,18 +24,15 @@ describe('NetworkStack', () => {
       Match.objectLike({
         VpcEndpointType: 'Gateway',
         ServiceName: {
-          'Fn::Join': [
-            '',
-            Match.arrayWith(['com.amazonaws.', '.s3']),
-          ],
+          'Fn::Join': ['', Match.arrayWith(['com.amazonaws.', '.s3'])],
         },
       }),
     );
   });
 
-  it('spans 2 AZs (2 public + 2 private isolated = 4 subnets)', () => {
+  it('spans 2 AZs (2 public + 2 private isolated + 2 lambda egress = 6 subnets)', () => {
     const subnets = tpl.findResources('AWS::EC2::Subnet');
-    expect(Object.keys(subnets).length).toBe(4);
+    expect(Object.keys(subnets).length).toBe(6);
   });
 
   it('private subnets are isolated (no MapPublicIpOnLaunch)', () => {
@@ -54,9 +51,6 @@ describe('NetworkStack', () => {
   });
 
   it('uses the 10.40.0.0/16 CIDR block', () => {
-    tpl.hasResourceProperties(
-      'AWS::EC2::VPC',
-      Match.objectLike({ CidrBlock: '10.40.0.0/16' }),
-    );
+    tpl.hasResourceProperties('AWS::EC2::VPC', Match.objectLike({ CidrBlock: '10.40.0.0/16' }));
   });
 });

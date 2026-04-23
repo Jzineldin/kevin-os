@@ -22,6 +22,11 @@ export interface KosLambdaProps {
   vpcSubnets?: SubnetSelection;
   /** Security groups for the ENI. Required when `vpc` is set. */
   securityGroups?: ISecurityGroup[];
+  /** Extra esbuild bundling options (merged with KOS defaults). */
+  bundlingOverrides?: {
+    /** Module alias map passed to esbuild (e.g. { 'node-fetch': './src/shim.ts' }). */
+    alias?: Record<string, string>;
+  };
 }
 
 /**
@@ -63,7 +68,12 @@ export class KosLambda extends NodejsFunction {
         // grammY) crash at Lambda INIT with
         // "Error: Dynamic require of \"http\" is not supported".
         banner:
-          "import{createRequire}from'module';const require=createRequire(import.meta.url);",
+          "import{createRequire as _cr}from'module';" +
+          'const _origReq=_cr(import.meta.url);' +
+          // Shim node-fetch → native fetch (grammY v1.42 hard-requires
+          // node-fetch@2 which doesn't support native AbortSignal on Node 22).
+          "const require=(id)=>id==='node-fetch'?Object.assign(globalThis.fetch,{default:globalThis.fetch}):id==='abort-controller'?{AbortController:globalThis.AbortController}:_origReq(id);",
+        ...(props.bundlingOverrides?.alias ? { alias: props.bundlingOverrides.alias } : {}),
       },
       logRetention: RetentionDays.ONE_MONTH,
       vpc: props.vpc,

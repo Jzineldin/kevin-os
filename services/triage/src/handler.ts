@@ -104,13 +104,16 @@ export const handler = wrapHandler(async (event: EBEvent) => {
 
     try {
       const kevinContextBlock = await loadKevinContextBlock(ownerId);
-      const { output, usage } = await runTriageAgent({
+      const { output, usage, rawText } = await runTriageAgent({
         captureId,
         sourceKind,
         text,
         senderDisplay,
         kevinContextBlock,
       });
+
+      // Log raw LLM output immediately — invaluable for prompt tuning
+      console.log('[triage] raw LLM output', { captureId, rawText });
 
       const routed = TriageRoutedSchema.parse({
         capture_id: captureId,

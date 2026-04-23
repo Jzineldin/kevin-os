@@ -6,7 +6,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { App, Tags, type Environment } from 'aws-cdk-lib';
+import { App, Stack, Tags, type Environment } from 'aws-cdk-lib';
+import { Cluster } from 'aws-cdk-lib/aws-ecs';
 import { RESOLVED_ENV } from '../lib/config/env.js';
 import { NetworkStack } from '../lib/stacks/network-stack.js';
 import { EventsStack } from '../lib/stacks/events-stack.js';
@@ -158,11 +159,21 @@ void observability;
 // ran. The dashboard-api runtime surfaces actionable errors on first use if
 // either env var is still empty (same pattern as NOTION_KOS_INBOX_DB_ID in
 // Plan 02-07).
+// KosData is in UPDATE_ROLLBACK_COMPLETE and cannot be updated (RDS Proxy
+// rename conflict). The ECS cluster `kos-cluster` exists as a live resource
+// but isn't exported by the rolled-back KosData. Create a tiny scope stack
+// to host the fromClusterAttributes import (it needs a Stack scope, not App).
+const clusterImportStack = new Stack(app, 'KosClusterImport', { env });
+const existingCluster = Cluster.fromClusterAttributes(clusterImportStack, 'ExistingKosCluster', {
+  clusterName: 'kos-cluster',
+  vpc: network.vpc,
+  securityGroups: [],
+});
 const dashboard = new DashboardStack(app, 'KosDashboard', {
   env,
   vpc: network.vpc,
   outputBus: events.buses.output,
-  cluster: data.ecsCluster,
+  cluster: existingCluster,
   rdsProxyEndpoint: data.rdsProxyEndpoint,
   rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
   rdsProxySecurityGroup: data.rdsSecurityGroup,

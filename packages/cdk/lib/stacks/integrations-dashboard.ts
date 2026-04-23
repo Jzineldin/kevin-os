@@ -102,13 +102,27 @@ export function buildRelayStack(
   });
 
   taskDef.addContainer('Relay', {
-    image: ContainerImage.fromAsset(
-      path.join(REPO_ROOT, 'services', 'dashboard-listen-relay'),
-      {
-        // Build for linux/arm64 even from x86_64 dev machines (Docker buildx).
-        platform: Platform.LINUX_ARM64,
-      },
-    ),
+    image: ContainerImage.fromAsset(REPO_ROOT, {
+      // Build from repo root so the Dockerfile can COPY pnpm-workspace.yaml,
+      // packages/contracts, and services/dashboard-listen-relay during the
+      // multi-stage build.
+      file: 'services/dashboard-listen-relay/Dockerfile',
+      // Build for linux/arm64 even from x86_64 dev machines (Docker buildx).
+      platform: Platform.LINUX_ARM64,
+      exclude: [
+        'node_modules',
+        '.next',
+        'apps',
+        'cdk.out',
+        'cdk.out.dashboard',
+        '.claude',
+        '.planning',
+        '.git',
+        'dist',
+        'tmp-deploy',
+        '*.log',
+      ],
+    }),
     logging: new AwsLogDriver({ streamPrefix: 'relay', logGroup }),
     environment: {
       RDS_PROXY_ENDPOINT: props.rdsProxyEndpoint,

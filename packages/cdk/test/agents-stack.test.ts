@@ -53,8 +53,7 @@ describe('AgentsStack', () => {
   it('TriageFromCaptureRule matches both capture.received + capture.voice.transcribed with DLQ', () => {
     const rules = tpl.findResources('AWS::Events::Rule');
     const rule = Object.values(rules).find((r) => {
-      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
-        ?.EventPattern as
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
         | { source?: string[]; 'detail-type'?: string[] }
         | undefined;
       return (
@@ -72,8 +71,7 @@ describe('AgentsStack', () => {
   it('VoiceCaptureFromTriageRule filters detail.route=voice-capture with DLQ', () => {
     const rules = tpl.findResources('AWS::Events::Rule');
     const rule = Object.values(rules).find((r) => {
-      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
-        ?.EventPattern as
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
         | {
             source?: string[];
             'detail-type'?: string[];
@@ -97,9 +95,8 @@ describe('AgentsStack', () => {
   const agentFns = () => {
     const fns = tpl.findResources('AWS::Lambda::Function');
     return Object.values(fns).filter((fn) => {
-      const env = (
-        fn as { Properties?: { Environment?: { Variables?: Record<string, unknown> } } }
-      ).Properties?.Environment?.Variables;
+      const env = (fn as { Properties?: { Environment?: { Variables?: Record<string, unknown> } } })
+        .Properties?.Environment?.Variables;
       return env?.KEVIN_OWNER_ID !== undefined;
     });
   };
@@ -110,8 +107,7 @@ describe('AgentsStack', () => {
     // + bulk-import-granola-gmail (Plan 02-09)
     expect(fns.length).toBe(5);
     for (const fn of fns) {
-      const props = (fn as { Properties: { Runtime: string; Architectures: string[] } })
-        .Properties;
+      const props = (fn as { Properties: { Runtime: string; Architectures: string[] } }).Properties;
       expect(props.Runtime).toBe('nodejs22.x');
       expect(props.Architectures).toEqual(['arm64']);
     }
@@ -119,15 +115,13 @@ describe('AgentsStack', () => {
 
   it('Claude-SDK agent Lambdas have CLAUDE_CODE_USE_BEDROCK=1 env (both bulk-import lambdas excluded — no LLM calls)', () => {
     for (const fn of agentFns()) {
-      const env = (
-        fn as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (fn as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       // Plan 02-08 bulk-import-kontakter (KONTAKTER_DB_ID_OPTIONAL env) +
       // Plan 02-09 bulk-import-granola-gmail (TRANSKRIPTEN_DB_ID_OPTIONAL env)
       // do NOT call any LLM — skip the Bedrock env check for both.
       const isBulkImport =
-        env.KONTAKTER_DB_ID_OPTIONAL !== undefined ||
-        env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
+        env.KONTAKTER_DB_ID_OPTIONAL !== undefined || env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
       if (!isBulkImport) {
         expect(env.CLAUDE_CODE_USE_BEDROCK).toBe('1');
       }
@@ -147,9 +141,8 @@ describe('AgentsStack', () => {
 
   it('voice-capture Lambda has NOTION_COMMAND_CENTER_DB_ID env + agent/output bus PutEvents grants', () => {
     const vc = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       return env.NOTION_COMMAND_CENTER_DB_ID !== undefined;
     });
     expect(vc).toBeDefined();
@@ -165,7 +158,9 @@ describe('AgentsStack', () => {
   it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; both bulk-imports ≤ 900s', () => {
     for (const fn of agentFns()) {
       const props = (
-        fn as { Properties: { Timeout: number; Environment: { Variables: Record<string, unknown> } } }
+        fn as {
+          Properties: { Timeout: number; Environment: { Variables: Record<string, unknown> } };
+        }
       ).Properties;
       const env = props.Environment.Variables;
       if (
@@ -198,8 +193,7 @@ describe('AgentsStack', () => {
   it('EntityResolverFromAgentRule on kos.agent matches entity.mention.detected with per-pipeline DLQ', () => {
     const rules = tpl.findResources('AWS::Events::Rule');
     const rule = Object.values(rules).find((r) => {
-      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
-        ?.EventPattern as
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
         | { source?: string[]; 'detail-type'?: string[] }
         | undefined;
       return (
@@ -215,19 +209,21 @@ describe('AgentsStack', () => {
 
   it('entity-resolver Lambda: timeout 60s, memory ≥ 1024MB, NOTION_TOKEN + RDS env wired', () => {
     const resolver = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       // Disambiguate from bulk-import-kontakter (which also has
       // NOTION_KOS_INBOX_DB_ID) by requiring CLAUDE_CODE_USE_BEDROCK.
-      return (
-        env.NOTION_KOS_INBOX_DB_ID !== undefined &&
-        env.CLAUDE_CODE_USE_BEDROCK === '1'
-      );
+      return env.NOTION_KOS_INBOX_DB_ID !== undefined && env.CLAUDE_CODE_USE_BEDROCK === '1';
     });
     expect(resolver).toBeDefined();
     const props = (
-      resolver as { Properties: { Timeout: number; MemorySize: number; Environment: { Variables: Record<string, unknown> } } }
+      resolver as {
+        Properties: {
+          Timeout: number;
+          MemorySize: number;
+          Environment: { Variables: Record<string, unknown> };
+        };
+      }
     ).Properties;
     expect(props.Timeout).toBe(60);
     expect(props.MemorySize).toBeGreaterThanOrEqual(1024);
@@ -242,7 +238,7 @@ describe('AgentsStack', () => {
     const policies = tpl.findResources('AWS::IAM::Policy');
     const serialized = JSON.stringify(policies);
     expect(serialized).toContain('eu.anthropic.claude-sonnet-4-6');
-    expect(serialized).toContain('cohere.embed-multilingual-v3');
+    expect(serialized).toContain('cohere.embed-v4');
     // Notion token grant present (3 readers — 1 voice-capture + 1 resolver +
     // potentially others). Two `secretsmanager:GetSecretValue` resources is
     // sufficient evidence that resolver is granted alongside voice-capture.
@@ -257,9 +253,8 @@ describe('AgentsStack', () => {
 
   it('BulkImportKontakter Lambda: 15-min timeout, NOTION_TOKEN + KOS Inbox env wired, no event-source rule', () => {
     const fn = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       return env.KONTAKTER_DB_ID_OPTIONAL !== undefined;
     });
     expect(fn).toBeDefined();
@@ -299,9 +294,8 @@ describe('AgentsStack', () => {
 
   it('BulkImportGranolaGmail Lambda: 15-min timeout, GMAIL_OAUTH_SECRET_ID + KOS Inbox env wired, no event-source rule', () => {
     const fn = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       return env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
     });
     expect(fn).toBeDefined();

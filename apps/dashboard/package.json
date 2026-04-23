@@ -21,6 +21,7 @@
     "@kos/contracts": "workspace:*",
     "@kos/db": "workspace:*",
     "@sentry/nextjs": "10.49.0",
+    "@serwist/next": "9.5.7",
     "@vercel/analytics": "2.0.1",
     "@vercel/speed-insights": "2.0.0",
     "aws4fetch": "1.0.20",
@@ -36,6 +37,7 @@
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "react-window": "2.2.7",
+    "serwist": "9.5.7",
     "shadcn": "^4.4.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
@@ -47,6 +49,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@eslint/js": "^10.0.1",
+    "@lhci/cli": "0.14.0",
     "@playwright/test": "1.51.1",
     "@tailwindcss/postcss": "4.2.4",
     "@testing-library/jest-dom": "6.6.3",

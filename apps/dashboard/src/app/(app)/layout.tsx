@@ -22,6 +22,7 @@ import { Topbar } from '@/components/app-shell/Topbar';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LiveRegionProvider } from '@/components/system/LiveRegion';
+import { OfflineBanner } from '@/components/system/OfflineBanner';
 import { SseProvider } from '@/components/system/SseProvider';
 import { CommandPaletteProvider } from '@/components/palette/CommandPalette';
 import { callApi } from '@/lib/dashboard-api';
@@ -58,6 +59,10 @@ export default async function AppLayout({
       <TooltipProvider delayDuration={120}>
        <CommandPaletteProvider>
         <SseProvider>
+        {/* Plan 03-12 Task 1 — PWA offline status. Mounted inside SseProvider
+            so it survives client-side navigations and can surface above the
+            sidebar + topbar without reflowing them (fixed-top banner). */}
+        <OfflineBanner />
         <a
           href="#content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-[color:var(--color-surface-2)] focus:px-3 focus:py-2 focus:text-[13px] focus:text-[color:var(--color-text)]"

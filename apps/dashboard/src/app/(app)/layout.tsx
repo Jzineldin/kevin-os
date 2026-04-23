@@ -22,6 +22,7 @@ import { Topbar } from '@/components/app-shell/Topbar';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LiveRegionProvider } from '@/components/system/LiveRegion';
+import { SseProvider } from '@/components/system/SseProvider';
 import { CommandPaletteProvider } from '@/components/palette/CommandPalette';
 import { callApi } from '@/lib/dashboard-api';
 
@@ -56,6 +57,7 @@ export default async function AppLayout({
     <LiveRegionProvider>
       <TooltipProvider delayDuration={120}>
        <CommandPaletteProvider>
+        <SseProvider>
         <a
           href="#content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-[color:var(--color-surface-2)] focus:px-3 focus:py-2 focus:text-[13px] focus:text-[color:var(--color-text)]"
@@ -77,6 +79,7 @@ export default async function AppLayout({
         </div>
 
         <Toaster position="top-right" />
+        </SseProvider>
        </CommandPaletteProvider>
       </TooltipProvider>
     </LiveRegionProvider>

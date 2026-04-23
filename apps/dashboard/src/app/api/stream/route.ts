@@ -156,10 +156,12 @@ export function GET(req: NextRequest) {
 
   return new Response(stream, {
     headers: {
-      'content-type': 'text/event-stream; charset=utf-8',
-      'cache-control': 'no-cache, no-transform',
-      connection: 'keep-alive',
-      'x-accel-buffering': 'no',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      // Critical for Vercel + any intermediate nginx: disables buffering
+      // so our bytes land on the wire the moment we enqueue them (P-08).
+      'X-Accel-Buffering': 'no',
     },
   });
 }

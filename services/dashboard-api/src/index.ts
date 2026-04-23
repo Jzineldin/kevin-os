@@ -30,6 +30,7 @@ import './handlers/timeline.js';
 import './handlers/inbox.js';
 import './handlers/merge.js';
 import './handlers/capture.js';
+import './handlers/calendar.js';
 
 export const handler: LambdaFunctionURLHandler = async (event) => {
   try {

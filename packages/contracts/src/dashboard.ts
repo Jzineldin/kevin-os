@@ -153,6 +153,68 @@ export const TimelinePageSchema = z.object({
 });
 export type TimelinePage = z.infer<typeof TimelinePageSchema>;
 
+// -- Entity edit (POST /entities/:id) per D-29 ----------------------------
+
+/**
+ * Fields Kevin can manually edit on a Person or Project entity via the
+ * dossier's "Edit entity" Dialog. All fields optional — the handler
+ * shallow-merges into the Notion page; omitted keys are untouched.
+ *
+ * Mirrors Phase 1 ENT-01 schema (Name, Aliases, Org, Role, Relationship,
+ * Status, LinkedProjects [via array of Notion page ids], SeedContext,
+ * ManualNotes). Type is immutable in Phase 3 (would require re-indexing).
+ */
+export const EntityEditSchema = z.object({
+  name: z.string().min(1).optional(),
+  aliases: z.array(z.string()).optional(),
+  org: z.string().nullable().optional(),
+  role: z.string().nullable().optional(),
+  relationship: z.string().nullable().optional(),
+  status: z.string().optional(),
+  seed_context: z.string().nullable().optional(),
+  manual_notes: z.string().nullable().optional(),
+});
+export type EntityEditRequest = z.infer<typeof EntityEditSchema>;
+
+export const EntityEditResponseSchema = z.object({
+  ok: z.literal(true),
+  id: UuidSchema,
+});
+export type EntityEditResponse = z.infer<typeof EntityEditResponseSchema>;
+
+// -- Calendar (GET /calendar/week) per D-04 -------------------------------
+
+/**
+ * Calendar event as surfaced by the Week view. Phase 3 source is
+ * Command Center Notion DB only (Deadline + Idag date properties).
+ * Google Calendar merge is Phase 8 (CAP-09). `linked_entity_id` is
+ * populated when the Command Center row carries a LinkedEntity relation
+ * so clicking the bar deep-links to `/entities/[id]`.
+ */
+export const CalendarEventSourceSchema = z.enum([
+  'command_center_deadline',
+  'command_center_idag',
+]);
+export type CalendarEventSource = z.infer<typeof CalendarEventSourceSchema>;
+
+export const CalendarEventSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  start_at: IsoDateTimeSchema,
+  end_at: IsoDateTimeSchema,
+  linked_entity_id: UuidSchema.nullable(),
+  bolag: BolagSchema.nullable(),
+  source: CalendarEventSourceSchema,
+});
+export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
+
+export const CalendarWeekResponseSchema = z.object({
+  start: IsoDateTimeSchema,
+  end: IsoDateTimeSchema,
+  events: z.array(CalendarEventSchema),
+});
+export type CalendarWeekResponse = z.infer<typeof CalendarWeekResponseSchema>;
+
 // -- Inbox (GET /inbox, POST /inbox/:id/...) ------------------------------
 
 export const InboxItemKindSchema = z.enum([

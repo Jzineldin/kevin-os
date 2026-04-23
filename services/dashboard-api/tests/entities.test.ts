@@ -5,7 +5,11 @@
  * mention_events) lives under e2e. Here we only validate the contract.
  */
 import { describe, expect, it } from 'vitest';
-import { EntityResponseSchema } from '@kos/contracts/dashboard';
+import {
+  EntityEditResponseSchema,
+  EntityEditSchema,
+  EntityResponseSchema,
+} from '@kos/contracts/dashboard';
 
 describe('entity response schema', () => {
   it('accepts a Phase-3 seeded entity shape', () => {
@@ -73,5 +77,56 @@ describe('entity response schema', () => {
       ai_block: null,
     };
     expect(() => EntityResponseSchema.parse(e)).toThrow();
+  });
+});
+
+describe('entity edit schema (D-29)', () => {
+  it('accepts a partial edit (single field)', () => {
+    expect(() => EntityEditSchema.parse({ role: 'Lead investor' })).not.toThrow();
+  });
+
+  it('accepts an empty object (nothing to update)', () => {
+    // Valid — the handler interprets this as a no-op write.
+    expect(() => EntityEditSchema.parse({})).not.toThrow();
+  });
+
+  it('accepts all editable fields together', () => {
+    const edit = {
+      name: 'Damien Renard',
+      aliases: ['Dam', 'D.R.'],
+      org: 'Tale Forge',
+      role: 'Advisor',
+      relationship: 'investor',
+      status: 'active',
+      seed_context: 'Lead investor in the seed round.',
+      manual_notes: 'Prefers LinkedIn over email.',
+    };
+    expect(() => EntityEditSchema.parse(edit)).not.toThrow();
+  });
+
+  it('rejects an empty-string name', () => {
+    expect(() => EntityEditSchema.parse({ name: '' })).toThrow();
+  });
+
+  it('rejects aliases that are not strings', () => {
+    expect(() => EntityEditSchema.parse({ aliases: [1, 2, 3] })).toThrow();
+  });
+
+  it('allows explicit null for nullable text fields', () => {
+    expect(() =>
+      EntityEditSchema.parse({ org: null, role: null, manual_notes: null }),
+    ).not.toThrow();
+  });
+
+  it('response schema requires ok=true + uuid id', () => {
+    expect(() =>
+      EntityEditResponseSchema.parse({
+        ok: true,
+        id: '7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      EntityEditResponseSchema.parse({ ok: false, id: '7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c' }),
+    ).toThrow();
   });
 });

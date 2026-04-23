@@ -7,10 +7,15 @@
  * this with a live Gemini 2.5 Pro call.
  */
 import { desc, eq, sql } from 'drizzle-orm';
-import { EntityResponseSchema } from '@kos/contracts/dashboard';
+import {
+  EntityEditResponseSchema,
+  EntityEditSchema,
+  EntityResponseSchema,
+} from '@kos/contracts/dashboard';
 import { entityIndex, mentionEvents, projectIndex } from '@kos/db/schema';
 import { register, type Ctx, type RouteResponse } from '../router.js';
 import { getDb } from '../db.js';
+import { getNotion } from '../notion.js';
 import { ownerScoped, OWNER_ID } from '../owner-scoped.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -168,11 +173,118 @@ async function entitiesGetHandler(ctx: Ctx): Promise<RouteResponse> {
   };
 }
 
+/**
+ * POST /entities/:id — manual entity edit (D-29).
+ *
+ * Writes the submitted fields to the Notion Entities page. The
+ * notion-indexer's next 5-min cycle propagates the change back into
+ * `entity_index` (documented latency — CONTEXT D-29). We deliberately do
+ * NOT double-write into RDS from here; Notion stays the single source of
+ * truth and the indexer stays the single writer for derived rows.
+ *
+ * Request body (zod EntityEditSchema): any subset of
+ *   name, aliases, org, role, relationship, status, seed_context, manual_notes
+ * Fields absent from the payload are left untouched in Notion.
+ */
+async function entitiesEditHandler(ctx: Ctx): Promise<RouteResponse> {
+  const idParam = ctx.params['id'];
+  if (!idParam || !UUID_RE.test(idParam)) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'invalid_entity_id' }) };
+  }
+
+  let parsed;
+  try {
+    const raw: unknown = ctx.body ? JSON.parse(ctx.body) : {};
+    parsed = EntityEditSchema.parse(raw);
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: 'invalid_body' }) };
+  }
+
+  // Resolve RDS UUID → Notion page id. The indexer keeps these in sync;
+  // we look up the existing row rather than trusting the caller.
+  const db = await getDb();
+  const rows = await db
+    .select({ notionPageId: entityIndex.notionPageId })
+    .from(entityIndex)
+    .where(ownerScoped(entityIndex, eq(entityIndex.id, idParam)))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'entity_not_found' }) };
+  }
+
+  // Map parsed fields → Notion property shapes. Each field is a no-op
+  // when omitted (Notion's update API treats missing properties as
+  // "leave unchanged").
+  const properties: Record<string, unknown> = {};
+  if (parsed.name !== undefined) {
+    properties['Name'] = { title: [{ type: 'text', text: { content: parsed.name } }] };
+  }
+  if (parsed.aliases !== undefined) {
+    properties['Aliases'] = {
+      rich_text: parsed.aliases.length
+        ? [{ type: 'text', text: { content: parsed.aliases.join(', ') } }]
+        : [],
+    };
+  }
+  if (parsed.org !== undefined) {
+    properties['Org'] =
+      parsed.org === null
+        ? { rich_text: [] }
+        : { rich_text: [{ type: 'text', text: { content: parsed.org } }] };
+  }
+  if (parsed.role !== undefined) {
+    properties['Role'] =
+      parsed.role === null
+        ? { rich_text: [] }
+        : { rich_text: [{ type: 'text', text: { content: parsed.role } }] };
+  }
+  if (parsed.relationship !== undefined) {
+    properties['Relationship'] =
+      parsed.relationship === null
+        ? { rich_text: [] }
+        : { rich_text: [{ type: 'text', text: { content: parsed.relationship } }] };
+  }
+  if (parsed.status !== undefined) {
+    properties['Status'] = { select: { name: parsed.status } };
+  }
+  if (parsed.seed_context !== undefined) {
+    properties['SeedContext'] =
+      parsed.seed_context === null
+        ? { rich_text: [] }
+        : { rich_text: [{ type: 'text', text: { content: parsed.seed_context } }] };
+  }
+  if (parsed.manual_notes !== undefined) {
+    properties['ManualNotes'] =
+      parsed.manual_notes === null
+        ? { rich_text: [] }
+        : { rich_text: [{ type: 'text', text: { content: parsed.manual_notes } }] };
+  }
+
+  try {
+    await getNotion().pages.update({
+      page_id: row.notionPageId,
+      // @ts-expect-error — Notion SDK typings don't cover the generic property union cleanly
+      properties,
+    });
+  } catch (err) {
+    return {
+      statusCode: 502,
+      body: JSON.stringify({ error: 'notion_update_failed', detail: String(err) }),
+    };
+  }
+
+  const body = EntityEditResponseSchema.parse({ ok: true, id: idParam });
+  return { statusCode: 200, body: JSON.stringify(body) };
+}
+
 register('GET', '/entities/list', entitiesListHandler);
 register('GET', '/entities/:id', entitiesGetHandler);
+register('POST', '/entities/:id', entitiesEditHandler);
 
 // Silence unused-import warnings; projectIndex + mentionEvents referenced in raw sql.
 void projectIndex;
 void mentionEvents;
 
-export { entitiesListHandler, entitiesGetHandler };
+export { entitiesListHandler, entitiesGetHandler, entitiesEditHandler };

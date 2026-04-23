@@ -1,20 +1,36 @@
 /**
- * Stub page for Today — real body lands in Plan 03-07/08 (SSE-driven
- * morning brief + priority list). This stub exists so the (app) layout
- * has a landing route for the `T` keyboard shortcut + middleware smoke.
+ * Today view (Plan 03-08) — RSC entry. Fetches `/today` from the
+ * dashboard-api via the SigV4 client (Plan 03-05) and hands off to the
+ * client `<TodayView>` composition.
+ *
+ * `dynamic = 'force-dynamic'` — every request re-reads the server so SSE
+ * kinds aren't racing a stale cache. Caching happens via the Plan 10 SW
+ * against `/api/today` (mirror route handler in this plan).
  */
-import { PulseDot } from '@/components/system/PulseDot';
+import { callApi } from '@/lib/dashboard-api';
+import { TodayResponseSchema, type TodayResponse } from '@kos/contracts/dashboard';
+import { TodayView } from './TodayView';
 
-export default function TodayStub() {
-  return (
-    <div className="flex flex-col gap-3">
-      <h1 className="text-[22px] font-semibold tracking-[-0.012em] text-[color:var(--color-text)]">
-        Today
-      </h1>
-      <p className="flex items-center gap-2 text-[13px] text-[color:var(--color-text-3)]">
-        <PulseDot tone="accent" />
-        <span>View body ships with Plan 03-07 (SSE) + 03-08 (Today).</span>
-      </p>
-    </div>
-  );
+export const dynamic = 'force-dynamic';
+
+const EMPTY: TodayResponse = {
+  brief: null,
+  priorities: [],
+  drafts: [],
+  dropped: [],
+  meetings: [],
+};
+
+export default async function TodayPage() {
+  let data: TodayResponse;
+  try {
+    data = await callApi('/today', { method: 'GET' }, TodayResponseSchema);
+  } catch {
+    // Dashboard-api might not yet implement /today against fixture data in
+    // every env; render an empty shape so the layout still paints. The
+    // "Couldn't load today. Retrying…" error state is reserved for the
+    // client-side SSE refetch path in TodayView.
+    data = EMPTY;
+  }
+  return <TodayView data={data} />;
 }

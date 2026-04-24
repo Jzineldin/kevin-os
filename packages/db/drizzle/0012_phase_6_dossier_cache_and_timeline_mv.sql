@@ -6,6 +6,7 @@
 --   3. trg_entity_dossiers_cached_invalidate
 --                                 — auto-delete cache row on mention_events insert
 --   4. refresh_entity_timeline()  — SECURITY DEFINER wrapper for CONCURRENTLY refresh
+--   5. azure_indexer_cursor       — per-indexer-source incremental sync cursor
 --
 -- All tables carry owner_id UUID NOT NULL for single-user → multi-user
 -- forward-compat (Locked Decision #13).
@@ -146,5 +147,32 @@ BEGIN
     EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON entity_dossiers_cached TO kos_agent_writer';
     EXECUTE 'GRANT SELECT ON entity_timeline TO kos_agent_writer';
     EXECUTE 'GRANT EXECUTE ON FUNCTION refresh_entity_timeline() TO kos_agent_writer';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 6. Azure indexer cursor table (Phase 6 MEM-03)
+--
+-- Each azure-search-indexer-* Lambda reads + writes a row keyed by `key`
+-- ('azure-indexer-entities', 'azure-indexer-projects', etc.) to track the
+-- `updated_at` watermark of the last-processed row per source.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS azure_indexer_cursor (
+  key            text        PRIMARY KEY,
+  last_seen_at   timestamptz,
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE azure_indexer_cursor IS
+  'Phase 6 MEM-03: per-indexer-source incremental sync cursor. Each indexer '
+  'Lambda reads its cursor on cold-start, queries source table WHERE updated_at > cursor, '
+  'advances cursor to max(updated_at) of processed batch. First-run cursor is NULL '
+  '(=> fetch-all-then-advance).';
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kos_agent_writer') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE ON azure_indexer_cursor TO kos_agent_writer';
   END IF;
 END $$;

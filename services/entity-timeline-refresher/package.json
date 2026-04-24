@@ -1,0 +1,23 @@
+{
+  "name": "@kos/service-entity-timeline-refresher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/handler.ts",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@aws-sdk/rds-signer": "3.691.0",
+    "@sentry/aws-serverless": "^8",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.9.0",
+    "@types/pg": "8.11.10",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}

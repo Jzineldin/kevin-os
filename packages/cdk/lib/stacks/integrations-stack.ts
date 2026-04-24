@@ -25,6 +25,7 @@ import { wireNotionIntegrations, type NotionWiring } from './integrations-notion
 import { wireAzureSearch } from './integrations-azure.js';
 import { wireTranscribeVocab } from './integrations-transcribe.js';
 import { wireGranolaPipeline } from './integrations-granola.js';
+import { wireAzureSearchIndexers } from './integrations-azure-indexers.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -121,6 +122,23 @@ export class IntegrationsStack extends Stack {
         scheduleGroupName: props.scheduleGroupName,
         schedulerRole: notion.schedulerRole,
         kevinOwnerId: props.kevinOwnerId,
+      });
+
+      // Plan 06-03: 4 Azure Search indexer Lambdas + 4 schedulers (5 min for
+      // entities/projects/transcripts; 15 min for daily-brief). Re-uses the
+      // notion schedulerRole so all Phase 6 schedules share one trust policy.
+      wireAzureSearchIndexers(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        azureSearchAdminSecret: props.azureSearchAdminSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+        scheduleGroupName: props.scheduleGroupName,
+        ownerId: props.kevinOwnerId,
+        schedulerRole: notion.schedulerRole,
       });
     }
   }

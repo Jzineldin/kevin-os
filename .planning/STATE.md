@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-23T22:58:00.000Z"
+last_updated: "2026-04-24T00:00:00.000Z"
 progress:
   total_phases: 10
   completed_phases: 1
-  total_plans: 35
+  total_plans: 42
   completed_plans: 20
   percent: 57
 ---
@@ -137,3 +137,18 @@ Last activity: 2026-04-23 - Completed quick task 260423-vra (H1 dashboard Compos
 ---
 
 *State initialized: 2026-04-21*
+
+## Session Continuity Addendum (2026-04-24)
+
+**Phase 6 planned:** `/gsd-plan-phase 6` (run 2026-04-24, Kevin asleep — recommended defaults locked) produced:
+- 06-CONTEXT.md (28 D-XX decisions; all four gray-area defaults accepted)
+- 06-RESEARCH.md (Bedrock cache_control, Notion last_edited_time caveats, PG MV CONCURRENTLY, Vertex 32k floor, Azure semantic reranker pricing)
+- 06-VALIDATION.md (Nyquist-compliant matrix; 24 tasks across 7 plans)
+- 7 PLAN files (06-00 scaffold, 06-01 granola-poller, 06-02 transcript-extractor, 06-03 azure-search-indexers, 06-04 entity-timeline-mv-refresher, 06-05 context-loader+dossier-loader, 06-06 gate verifier)
+- 06-DISCUSSION-LOG.md + deferred-items.md
+
+**Status:** Phase 6 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 6` after reviewing 06-CONTEXT.md.
+
+**Notable architectural lock:** AGT-04 redesigned per Locked Decision #3 revision (2026-04-23) as an explicit `@kos/context-loader` library helper, NOT an Agent-SDK pre-call hook. All four consumer Lambdas (triage, voice-capture, entity-resolver, transcript-extractor) call `loadContext()` before their Bedrock invocation; Phase 4 + 7 + 8 will inherit the same pattern.
+
+**Next session:** Operator pre-deploy actions documented in deferred-items.md (GCP project, Vertex SA, Notion Transkripten DB discovery). Phase 6 execution will write to `packages/context-loader/`, `packages/azure-search/`, 8 new `services/*` directories, `packages/db/drizzle/0012_*.sql`, and `packages/cdk/lib/stacks/integrations-{granola,azure-indexers,mv-refresher,vertex}.ts`.

@@ -177,7 +177,15 @@
 5. Vertex AI Gemini 2.5 Pro (INF-10) wired in europe-west4 with context caching; called only for explicit "load full dossier" intent (not per-message); cost per call < $1.50 average.
 6. Dossier cache in ElastiCache keyed by `entity_id + last_touch_hash`, invalidated on `mention_events` insert; cache hit rate > 80% on a representative day of Kevin's traffic.
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+- [ ] 06-00-PLAN.md — Wave 0: scaffold 10 workspaces (granola-poller + transcript-extractor + 4 azure-search-indexers + entity-timeline-refresher + dossier-loader + @kos/context-loader + @kos/azure-search) + migration 0012 (entity_dossiers_cached + transcripts_indexed + entity_timeline_mv + cache invalidation trigger) + Zod context schemas + test fixtures
+- [ ] 06-01-PLAN.md — Wave 1: services/granola-poller Lambda (CAP-08 + AUTO-05) — Notion Transkripten poll every 15 min, last_edited_time filter, cursor advance, idempotent on transcript_id; CDK helper integrations-granola.ts + EventBridge Scheduler + operator runbook
+- [ ] 06-02-PLAN.md — Wave 2: services/transcript-extractor Lambda (AGT-06) — Sonnet 4.6 with Bedrock tool_use, Swedish CC schema (Uppgift/Typ/Prioritet/Anteckningar), [Granola: <title>] provenance, emits entity.mention.detected per extracted mention; AgentsStack rule on transcript.available
+- [ ] 06-03-PLAN.md — Wave 2 parallel: @kos/azure-search library (hybridQuery + upsertDocuments) + 4 indexer Lambdas (entities/projects/transcripts/daily-brief) + per-type EventBridge schedules; verify-mem-03-latency.mjs
+- [ ] 06-04-PLAN.md — Wave 3: entity-timeline-refresher Lambda + dashboard /api/entities/[id]/timeline (MV ⋃ live overlay) + migration 0012 acceptance tests (MV + trigger + cursor seed)
+- [ ] 06-05-PLAN.md — Wave 3 parallel: @kos/context-loader library (loadContext explicit helper per the 2026-04-23 redesign of Locked Decision #3) + wired into triage/voice-capture/entity-resolver/transcript-extractor; services/dossier-loader Lambda for Vertex Gemini 2.5 Pro full-dossier path with new context.full_dossier_requested EventBridge detail-type
+- [ ] 06-06-PLAN.md — Wave 4 gate: scripts/verify-phase-6-e2e.mjs + verify-phase-6-gate.mjs (mock + live) + 06-06-GATE-evidence-template.md
 
 **UI hint**: no
 
@@ -317,7 +325,7 @@
 | 3. Dashboard MVP                | 0/14           | Planned          | -         |
 | 4. Email Pipeline + iOS Capture | 0/?            | Not started      | -         |
 | 5. Messaging Channels           | 0/?            | Not started      | -         |
-| 6. Granola + Semantic Memory    | 0/?            | Not started      | -         |
+| 6. Granola + Semantic Memory    | 0/7            | Planned          | -         |
 | 7. Lifecycle Automation         | 0/?            | Not started      | -         |
 | 8. Outbound Content + Calendar  | 0/?            | Not started      | -         |
 | 9. V2 Specialty Agents          | 0/?            | BLOCKED (Gate 4) | -         |

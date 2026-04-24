@@ -74,29 +74,42 @@ EXECUTE FUNCTION invalidate_dossier_cache_on_mention();
 
 DROP MATERIALIZED VIEW IF EXISTS entity_timeline;
 CREATE MATERIALIZED VIEW entity_timeline AS
+-- Phase 1 mention_events schema (migration 0001): columns are
+-- (id, owner_id, entity_id, capture_id, source, context, occurred_at, created_at).
+-- Earlier drafts of this migration referenced m.kind / m.excerpt — those
+-- columns do not exist on mention_events; using them would make this
+-- migration fail at apply time. Mapping: source → kind, context → excerpt.
 SELECT
   m.owner_id,
   m.entity_id,
   m.capture_id,
-  m.kind,
+  m.source AS kind,
   m.occurred_at,
-  m.excerpt,
+  m.context AS excerpt,
   'mention'::text AS event_source
 FROM mention_events m
+WHERE m.entity_id IS NOT NULL
 UNION ALL
+-- Phase 1 agent_runs schema (migration 0001): the JSON column is named
+-- output_json (NOT context). agent-resolver / transcript-extractor write
+-- output_json with at minimum {entity_id, summary} when they detect a
+-- mention; we read those fields back here.
 SELECT
   ar.owner_id,
-  (ar.context->>'entity_id')::uuid AS entity_id,
+  (ar.output_json->>'entity_id')::uuid AS entity_id,
   ar.capture_id,
   ar.agent_name AS kind,
-  ar.created_at AS occurred_at,
-  (ar.context->>'summary')::text  AS excerpt,
-  'agent_run'::text               AS event_source
+  ar.started_at AS occurred_at,
+  (ar.output_json->>'summary')::text AS excerpt,
+  'agent_run'::text                  AS event_source
 FROM agent_runs ar
-WHERE ar.context ? 'entity_id'
+WHERE ar.output_json ? 'entity_id'
   AND ar.agent_name IN ('entity-resolver', 'transcript-extractor');
 
 -- CONCURRENTLY refresh requires a unique index covering ALL rows.
+-- capture_id can be null on legacy rows, so include occurred_at + kind +
+-- event_source in the unique tuple to avoid collisions on (owner_id,
+-- entity_id, NULL) under heavy entity-resolver load.
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_entity_timeline_event
   ON entity_timeline (owner_id, entity_id, capture_id, occurred_at, event_source, kind);
 
@@ -192,3 +205,19 @@ BEGIN
     EXECUTE 'GRANT SELECT, INSERT, UPDATE ON azure_indexer_cursor TO kos_agent_writer';
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Rollback (operator-only — execute manually if 0012 needs to be reverted):
+--
+-- DROP MATERIALIZED VIEW IF EXISTS entity_timeline;
+-- DROP TRIGGER IF EXISTS trg_entity_dossiers_cached_invalidate ON mention_events;
+-- DROP FUNCTION IF EXISTS invalidate_dossier_cache_on_mention();
+-- DROP FUNCTION IF EXISTS refresh_entity_timeline();
+-- DROP TABLE IF EXISTS entity_dossiers_cached;
+-- DROP TABLE IF EXISTS azure_indexer_cursor;
+--
+-- Order matters: trigger before function, MV before any base table, indexer
+-- cursor table last (no dependents). Drizzle's forward-only chain does NOT
+-- run this rollback; it lives here purely as a runbook reference per Plan
+-- 06-04 acceptance test #2 (rollback comment-block presence).
+-- ---------------------------------------------------------------------------

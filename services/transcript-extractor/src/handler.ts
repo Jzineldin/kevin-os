@@ -61,6 +61,13 @@ import {
   publishMentionsDetected,
   getPool,
 } from './persist.js';
+// Phase 6 Plan 06-05 (AGT-04): explicit loadContext() replaces the Wave-2
+// placeholder loadKevinContextBlockOnce. The full library returns a
+// ContextBundle with Kevin Context + entity dossiers + Azure semantic
+// chunks (using transcript text as the rawText for the degraded path,
+// since the resolver downstream is the one that converts attendees →
+// entity_ids). Falls back to the legacy markdown-only block on failure.
+import { loadContext } from '@kos/context-loader';
 
 // Bedrock direct SDK requires this — we DO NOT use the Claude Agent SDK
 // per Locked Decision #3 (revised 2026-04-23). The flag is harmless when
@@ -145,9 +152,34 @@ export const handler = wrapHandler(async (event: EBEvent) => {
         };
       }
 
-      // 2. Load Kevin Context (Wave-2 placeholder; Plan 06-05 swaps this
-      //    for loadContext() with full entity dossiers + semantic chunks).
-      const contextBlock = await loadKevinContextBlockOnce(ownerId);
+      // 2. Load context bundle (Plan 06-05 AGT-04). Degraded path uses
+      //    transcript text for Azure semantic search since attendees haven't
+      //    been resolved to entity_ids yet (resolver does that downstream
+      //    via entity.mention.detected). Falls back to Kevin-Context-only
+      //    on any subfetch failure (loadContext is non-throwing — it
+      //    surfaces errors via partial=true / partial_reasons).
+      let contextBlock: string;
+      try {
+        const pool = await getPool();
+        const bundle = await loadContext({
+          entityIds: [],
+          agentName: 'transcript-extractor',
+          captureId: detail.capture_id,
+          ownerId,
+          // Truncate transcript for the semantic-search degraded path. The
+          // full body is still passed to Sonnet via runExtractorAgent.
+          rawText: body.slice(0, 2000),
+          maxSemanticChunks: 8,
+          pool,
+        });
+        contextBlock = bundle.assembled_markdown;
+      } catch (err) {
+        console.warn(
+          '[transcript-extractor] loadContext failed, falling back to Kevin Context only:',
+          err,
+        );
+        contextBlock = await loadKevinContextBlockOnce(ownerId);
+      }
 
       // 3. Run Sonnet 4.6 with tool_use for structured extraction.
       const { extract, usage, rawToolInput, degraded } = await runExtractorAgent({

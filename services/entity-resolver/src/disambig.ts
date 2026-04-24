@@ -45,6 +45,12 @@ export interface RunDisambigInput {
   mention: string;
   contextSnippet: string;
   candidates: Candidate[];
+  /**
+   * Phase 6 Plan 06-05: optional dossier markdown injected as a 2nd
+   * cache_control: ephemeral system segment. Improves disambig accuracy by
+   * giving Sonnet recent mentions + linked projects for the candidates.
+   */
+  additionalContextBlock?: string;
 }
 
 export async function runDisambig(args: RunDisambigInput): Promise<DisambigOutput> {
@@ -60,19 +66,32 @@ export async function runDisambig(args: RunDisambigInput): Promise<DisambigOutpu
     `<user_content>\nMention: ${args.mention}\nContext: ${args.contextSnippet}\n</user_content>\n` +
     `Candidates: ${JSON.stringify(trimmed)}\nReturn JSON only.`;
 
+  // Build system prompt — empty segments rejected by Bedrock when
+  // cache_control is set (Phase 2 wave-5 retro). Conditional spread.
+  const systemPrompt = [
+    {
+      type: 'text' as const,
+      text: DISAMBIG_PROMPT,
+      cache_control: { type: 'ephemeral' as const },
+    },
+    ...(args.additionalContextBlock?.trim()
+      ? [
+          {
+            type: 'text' as const,
+            text: args.additionalContextBlock,
+            cache_control: { type: 'ephemeral' as const },
+          },
+        ]
+      : []),
+  ];
+
   let raw = '';
   const timeoutPromise = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 5000));
 
   const sdkPromise = (async (): Promise<'ok'> => {
     const resp = await client.messages.create({
       model: 'eu.anthropic.claude-sonnet-4-6',
-      system: [
-        {
-          type: 'text' as const,
-          text: DISAMBIG_PROMPT,
-          cache_control: { type: 'ephemeral' as const },
-        },
-      ],
+      system: systemPrompt,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 100,
     });

@@ -101,18 +101,15 @@ export async function updateAgentRun(id: string, patch: UpdateAgentRunPatch): Pr
   );
 }
 
+/**
+ * Phase 6 Plan 06-05: canonicalised in `@kos/context-loader::loadKevinContextMarkdown`.
+ * This adapter preserves the legacy `(ownerId): Promise<string>` signature for the
+ * handler's degraded-fallback path.
+ */
 export async function loadKevinContextBlock(ownerId: string): Promise<string> {
+  const { loadKevinContextMarkdown } = await import('@kos/context-loader');
   const p = await getPool();
-  const r = await p.query(
-    `SELECT section_heading, section_body
-       FROM kevin_context
-       WHERE owner_id = $1
-       ORDER BY section_heading`,
-    [ownerId],
-  );
-  return r.rows
-    .map((x) => `## ${x.section_heading}\n${x.section_body}`)
-    .join('\n\n');
+  return loadKevinContextMarkdown(ownerId, p);
 }
 
 // --- Plan 02-05: entity-resolver-specific writers ------------------------

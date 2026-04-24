@@ -18,6 +18,7 @@
     "@aws-sdk/client-secrets-manager": "3.691.0",
     "@aws-sdk/rds-signer": "3.691.0",
     "@kos/contracts": "workspace:*",
+    "@kos/context-loader": "workspace:*",
     "@kos/db": "workspace:*",
     "@kos/resolver": "workspace:*",
     "@langfuse/otel": "^5",

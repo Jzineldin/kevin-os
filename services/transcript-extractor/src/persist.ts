@@ -141,24 +141,17 @@ export async function updateAgentRun(id: string, patch: UpdateAgentRunPatch): Pr
 }
 
 // ---------------------------------------------------------------------------
-// Kevin Context loader — Wave-2 placeholder (per CONTEXT D-13). Plan 06-05
-// will replace callers with @kos/context-loader::loadContext for full
-// entity dossier wiring; the function name is suffixed `Once` to flag the
-// temporary nature.
+// Kevin Context loader — Phase 6 Plan 06-05 canonicalised in
+// `@kos/context-loader::loadKevinContextMarkdown`. The Wave-2 placeholder
+// `loadKevinContextBlockOnce` was retired; the new path goes through the
+// full `loadContext` library (handler.ts), with this thin adapter as the
+// degraded fallback when the full path fails.
 // ---------------------------------------------------------------------------
 
 export async function loadKevinContextBlockOnce(ownerId: string): Promise<string> {
+  const { loadKevinContextMarkdown } = await import('@kos/context-loader');
   const p = await getPool();
-  const r = await p.query(
-    `SELECT section_heading, section_body
-       FROM kevin_context
-       WHERE owner_id = $1
-       ORDER BY section_heading`,
-    [ownerId],
-  );
-  return r.rows
-    .map((x) => `## ${x.section_heading}\n${x.section_body}`)
-    .join('\n\n');
+  return loadKevinContextMarkdown(ownerId, p);
 }
 
 // ---------------------------------------------------------------------------

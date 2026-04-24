@@ -15,7 +15,7 @@
  * Reference: .planning/phases/06-granola-semantic-memory/06-05-PLAN.md
  */
 export { loadContext, type LoadContextInput } from './loadContext.js';
-export { loadKevinContextBlock } from './kevin.js';
+export { loadKevinContextBlock, loadKevinContextMarkdown } from './kevin.js';
 export { buildDossierMarkdown } from './markdown.js';
 export {
   readDossierCache,

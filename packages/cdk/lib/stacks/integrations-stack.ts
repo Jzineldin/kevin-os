@@ -26,6 +26,7 @@ import { wireAzureSearch } from './integrations-azure.js';
 import { wireTranscribeVocab } from './integrations-transcribe.js';
 import { wireGranolaPipeline } from './integrations-granola.js';
 import { wireAzureSearchIndexers } from './integrations-azure-indexers.js';
+import { wireMvRefresher } from './integrations-mv-refresher.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -139,6 +140,22 @@ export class IntegrationsStack extends Stack {
         scheduleGroupName: props.scheduleGroupName,
         ownerId: props.kevinOwnerId,
         schedulerRole: notion.schedulerRole,
+      });
+
+      // Plan 06-04: entity-timeline-refresher Lambda + 5-min Scheduler.
+      // Re-uses notion.schedulerRole so all Phase 6 schedules share one
+      // trust policy. Issues `REFRESH MATERIALIZED VIEW CONCURRENTLY
+      // entity_timeline` against the RDS Proxy on a 5-min cadence.
+      wireMvRefresher(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        scheduleGroupName: props.scheduleGroupName,
+        schedulerRole: notion.schedulerRole,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
     }
   }

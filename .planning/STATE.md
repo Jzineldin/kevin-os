@@ -116,8 +116,9 @@ Phase 10:[ ] Migration & Decommission        (depends on 7; ‖ with 6-8)
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260423-vra | Fix audit H1 + H2: route dashboard /capture through triage, clean up Cohere v3 test drift | 2026-04-23 | 57dc08f | [260423-vra-fix-audit-h1-h2-route-dashboard-capture-](./quick/260423-vra-fix-audit-h1-h2-route-dashboard-capture-/) |
+| 260424-pxt | Fix dashboard sidebar 404 — add /entities list RSC reusing getPaletteEntities() | 2026-04-24 | 522897c | [260424-pxt-fix-dashboard-sidebar-404-create-apps-da](./quick/260424-pxt-fix-dashboard-sidebar-404-create-apps-da/) |
 
-Last activity: 2026-04-23 - Completed quick task 260423-vra (H1 dashboard Composer dead-letter + H2 Cohere v3 test drift cleanup)
+Last activity: 2026-04-24 - Completed quick task 260424-pxt (sidebar /entities 404 → list page)
 
 ---
 

@@ -35,7 +35,13 @@ import {
   insertAgentRun,
   updateAgentRun,
   loadKevinContextBlock,
+  getPool,
 } from './persist.js';
+// Phase 6 AGT-04: explicit loadContext() replaces the abandoned Claude Agent
+// SDK pre-call hook pattern (Locked Decision #3 revised 2026-04-23). The
+// older loadKevinContextBlock() is preserved as a fallback when the
+// @kos/context-loader library fails (degraded operation).
+import { loadContext } from '@kos/context-loader';
 
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -103,13 +109,35 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     });
 
     try {
-      const kevinContextBlock = await loadKevinContextBlock(ownerId);
+      // Phase 6 AGT-04: loadContext() replaces the Claude Agent SDK pre-call
+      // hook. Returns a ContextBundle with Kevin Context + any matched entity
+      // dossiers + Azure semantic chunks + linked projects. Empty entityIds
+      // here — triage is the ROUTING step, entity resolution happens downstream.
+      let contextMarkdown: string;
+      try {
+        const pool = await getPool();
+        const bundle = await loadContext({
+          entityIds: [],
+          agentName: 'triage',
+          captureId,
+          ownerId,
+          rawText: text,
+          maxSemanticChunks: 6,
+          pool,
+        });
+        contextMarkdown = bundle.assembled_markdown;
+      } catch (err) {
+        // Degraded fallback: use the legacy Kevin-Context-only block so triage
+        // still runs if @kos/context-loader / Azure Search / pg are impaired.
+        console.warn('[triage] loadContext failed, falling back to Kevin Context only:', err);
+        contextMarkdown = await loadKevinContextBlock(ownerId);
+      }
       const { output, usage, rawText } = await runTriageAgent({
         captureId,
         sourceKind,
         text,
         senderDisplay,
-        kevinContextBlock,
+        kevinContextBlock: contextMarkdown,
       });
 
       // Log raw LLM output immediately — invaluable for prompt tuning

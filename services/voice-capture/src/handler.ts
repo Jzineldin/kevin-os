@@ -34,8 +34,12 @@ import {
   insertAgentRun,
   updateAgentRun,
   loadKevinContextBlock,
+  getPool,
 } from './persist.js';
 import { writeCommandCenterRow } from './notion.js';
+// Phase 6 AGT-04: explicit loadContext() call replaces the abandoned SDK
+// pre-call hook (Locked Decision #3 revised 2026-04-23).
+import { loadContext } from '@kos/context-loader';
 
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -71,11 +75,28 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     });
 
     try {
-      const kevinContextBlock = await loadKevinContextBlock(ownerId);
+      // Phase 6 AGT-04: loadContext() — degrades to Kevin-Context-only on failure.
+      let contextMarkdown: string;
+      try {
+        const pool = await getPool();
+        const bundle = await loadContext({
+          entityIds: [],
+          agentName: 'voice-capture',
+          captureId: d.capture_id,
+          ownerId,
+          rawText: d.source_text,
+          maxSemanticChunks: 8,
+          pool,
+        });
+        contextMarkdown = bundle.assembled_markdown;
+      } catch (err) {
+        console.warn('[voice-capture] loadContext failed, fallback to Kevin Context only:', err);
+        contextMarkdown = await loadKevinContextBlock(ownerId);
+      }
       const { output, usage } = await runVoiceCaptureAgent({
         captureId: d.capture_id,
         text: d.source_text,
-        kevinContextBlock,
+        kevinContextBlock: contextMarkdown,
         triageHint: { type: d.detected_type, urgency: d.urgency },
       });
 

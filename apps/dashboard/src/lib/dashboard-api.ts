@@ -1,62 +1,23 @@
 /**
- * Server-side SigV4 client for `services/dashboard-api` (Lambda Function
- * URL, AuthType=AWS_IAM) and `services/dashboard-listen-relay` (also
- * service=lambda). One AwsClient instance is reused across requests on a
- * warm Vercel lane; credentials come from per-Vercel-env vars that are
- * NEVER prefixed NEXT_PUBLIC_* (see eslint guard in Plan 01 +
- * 03-RESEARCH §16, T-3-05-04).
+ * Server-side Bearer-auth clients for `services/dashboard-api` (Lambda
+ * Function URL) and `services/dashboard-listen-relay`. One shared secret
+ * (`KOS_DASHBOARD_BEARER_TOKEN`) gates both — the same token Vercel
+ * middleware already uses to protect /login.
  *
  * Public surface:
  *   - callApi<T>(path, init, schema): zod-validated JSON response.
  *   - callRelay(path, init): raw Response for streaming / long-poll.
  *
- * Required env vars at runtime (documented in 03-05-SUMMARY.md):
+ * Required env vars at runtime:
  *   - KOS_DASHBOARD_API_URL       (Lambda Function URL base)
- *   - KOS_DASHBOARD_RELAY_URL     (Fargate relay Function URL base — Plan 07 uses this)
- *   - AWS_ACCESS_KEY_ID_DASHBOARD
- *   - AWS_SECRET_ACCESS_KEY_DASHBOARD
- *   - AWS_REGION (default 'eu-north-1')
+ *   - KOS_DASHBOARD_RELAY_URL     (relay Function URL base, used by SSE)
+ *   - KOS_DASHBOARD_BEARER_TOKEN  (shared secret, set on Vercel)
  *
- * Why aws4fetch not @aws-sdk/signature-v4: ~1 KB vs ~4 MB cold-start hit
- * on Vercel Node. Pure Web Crypto, no deps (03-RESEARCH §6).
+ * History: switched from SigV4 (aws4fetch) to Bearer on 2026-04-24 after
+ * the kos-dashboard-caller IAM user hit undebugable 403s against the
+ * Function URL despite matching identity + resource policies.
  */
-import { AwsClient } from 'aws4fetch';
 import type { z } from 'zod';
-
-let _client: AwsClient | null = null;
-
-function getClient(): AwsClient {
-  if (_client) return _client;
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID_DASHBOARD;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY_DASHBOARD;
-  if (!accessKeyId || !secretAccessKey) {
-    // Throw at first use rather than at import time — lets the module
-    // load inside test harnesses that stub env per-describe.
-    throw new Error(
-      'dashboard-api: AWS_ACCESS_KEY_ID_DASHBOARD / AWS_SECRET_ACCESS_KEY_DASHBOARD must be set on the Vercel runtime.',
-    );
-  }
-  _client = new AwsClient({
-    accessKeyId,
-    secretAccessKey,
-    // Optional STS session token — required for IAM-user long-term keys that
-    // hit 403 Forbidden against the Function URL (observed 2026-04-23 with
-    // kos-dashboard-caller long-term keys; STS get-session-token creds work).
-    // In production (Vercel), populate from a credential-vending endpoint or
-    // leave unset if long-term keys work in your environment.
-    ...(process.env.AWS_SESSION_TOKEN_DASHBOARD
-      ? { sessionToken: process.env.AWS_SESSION_TOKEN_DASHBOARD }
-      : {}),
-    region: process.env.AWS_REGION ?? 'eu-north-1',
-    service: 'lambda',
-  });
-  return _client;
-}
-
-// Exposed for tests that want to reset the memoised client between cases.
-export function _resetClientForTests(): void {
-  _client = null;
-}
 
 function apiBase(): string {
   const base = process.env.KOS_DASHBOARD_API_URL;
@@ -71,7 +32,7 @@ function relayBase(): string {
 }
 
 /**
- * SigV4-signed JSON fetch against dashboard-api.
+ * Bearer-auth JSON fetch against dashboard-api.
  *
  * @throws Error with shape `dashboard-api <path> → <status>: <body>` on non-2xx.
  * @throws ZodError if the response body fails schema validation.
@@ -124,5 +85,3 @@ export async function callRelay(path: string, init: RequestInit): Promise<Respon
     },
   });
 }
-
-export { AwsClient };

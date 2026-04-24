@@ -284,3 +284,35 @@ CDK tests grep synth output for forbidden actions; zero-match enforced mechanica
 **Plan path:** `.planning/phases/10-migration-decommission/10-CONTEXT.md`.
 
 **Next session:** After Phase 7 + Phase 4 execute successfully, operator runs `/gsd-execute-phase 10`. Writes to `services/{vps-classify-migration,discord-brain-dump,n8n-workflow-archiver}`, `packages/contracts/src/migration.ts`, `packages/db/drizzle/0016_phase_10_migration_audit.sql`, `packages/cdk/lib/stacks/integrations-migration.ts`, 11 verifier/operator scripts in `scripts/`, 3 operator runbooks in `.planning/phases/10-migration-decommission/`, 5 test fixtures in `packages/test-fixtures/phase-10/`.
+
+## Session Continuity Addendum (2026-04-24 — Phase 5)
+
+**Phase 5 planned:** `/gsd-plan-phase 5` (run 2026-04-24, same overnight session as Phase 6/4/7/8/10 — Kevin asleep, all 7 orchestrator-recommended defaults locked verbatim) produced:
+- 05-CONTEXT.md (25 D-XX decisions; 7 gray-area defaults accepted — esbuild+copy-plugin; unpacked-install; fazer-ai/baileys-api image; Postgres pluggable auth; chrome.alarms+visibility gate; Phase-10 Lambda reuse; defense-in-depth 5-layer read-only + dedicated risk acceptance file)
+- 05-RESEARCH.md (MV3 service_worker lifecycle, LinkedIn Voyager shape, Baileys pluggable auth interface, WhatsApp detection heuristics, Discord rate limits, 12 pitfalls including MV3 setInterval death + Voyager cookie rotation + Baileys concurrent-write corruption)
+- 05-VALIDATION.md (Nyquist-compliant matrix; 15 tasks across 8 plans; 8 operator-only manual steps with CLI companions)
+- 05-WHATSAPP-RISK-ACCEPTANCE.md (Kevin signs before Plan 05-04 executes)
+- 8 PLAN files (05-00 scaffold; 05-01 chrome-extension MV3 + highlight + options; 05-02 chrome-webhook Lambda; 05-03 LinkedIn content script + webhook Lambda + 14-day observation; 05-04 Baileys Fargate + 5-layer defense-in-depth + human_verification checkpoint; 05-05 Baileys sidecar Lambda; 05-06 Discord Scheduler + contract doc; 05-07 Gate 5 verifier + E2E verifier + 2 evidence templates)
+- 05-DISCUSSION-LOG.md
+
+**Cherry-pick structure:** Plans 05-00/01/02 (CAP-04 Chrome highlight) ship independently of 05-03 (LinkedIn), 05-04/05 (WhatsApp), 05-06 (Discord). Kevin invokes `/gsd-execute-phase 5 --plans 00,01,02` for low-risk Chrome-only subset; defers LinkedIn + WhatsApp + Discord indefinitely without blocking downstream phases.
+
+**Hard Gate 5 lives INSIDE Phase 5:** 4 criteria — 7-day zero-write soak + RDS session persistence + reconnect-without-QR + 4h backoff — all automated or CLI-verifiable via `scripts/verify-gate-5-baileys.mjs` + daily `services/verify-gate-5-baileys` Lambda. Evidence template at `05-07-GATE-5-evidence-template.md`.
+
+**WhatsApp TOS risk disclosure:** `05-WHATSAPP-RISK-ACCEPTANCE.md` is a first-class signed artifact (not inline commentary). Plan 05-04 Task 3 is a `checkpoint:human-verify` that blocks Fargate deploy until Kevin types his full name. Defense-in-depth 5-layer stack (library wrapper + SG egress lock + CloudWatch metric + IAM boundary + soak log assertion) is non-negotiable per D-10.
+
+**Migration number collision guard:** Phase 6 reserves 0012, Phase 4 reserves 0012→0013, Phase 7 reserves 0014, Phase 8 reserves 0015, Phase 10 reserves 0016, Phase 5 targets **0017** with bump-to-next-free guard at execute-time.
+
+**CAP-10 cross-phase contract:** Phase 5 Plan 05-06 ships Scheduler + contract; Phase 10 Plan 10-04 ships Lambda handler. Deploy order resilient either way (SSM parameter `/kos/discord/brain-dump-lambda-arn` bridges). Documented in `05-06-DISCORD-CONTRACT.md`.
+
+**Cost delta:** +$36-38/mo steady-state (Baileys Fargate 1 vCPU × 2GB ARM64 ~$36 + Lambdas + Scheduler ~$1-2). Covered by AWS credits 12+ months.
+
+**Status:** Phase 5 plans READY (NOT yet executing). Operator invocations:
+- CAP-04 only (lowest-risk cherry-pick): `/gsd-execute-phase 5 --plans 00,01,02`
+- + Discord contract: `--plans 00,01,02,06`
+- + LinkedIn defensive (starts 14-day observation): `--plans 00,01,02,03,06`
+- Full Phase 5 (including WhatsApp + Gate 5): `--plans 00,01,02,03,04,05,06,07` AFTER Kevin signs `05-WHATSAPP-RISK-ACCEPTANCE.md`
+
+**Deviations from recommended defaults:** None. All 7 gray-area orchestrator recommendations accepted verbatim.
+
+**Plan path:** `.planning/phases/05-messaging-channels/05-CONTEXT.md`.

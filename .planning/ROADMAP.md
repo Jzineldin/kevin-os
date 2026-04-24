@@ -162,7 +162,16 @@
 4. Discord #brain-dump fallback poller (CAP-10) running every 5 min; existing brain-dump-listener forwards to KOS webhook post-migration; messages route through the same `capture.received` event contract as every other channel.
 5. Graceful degradation verified: kill Baileys task → WhatsApp queues for processing on recovery, Kevin learns from the next daily brief ("WhatsApp sync paused 4h, 12 messages queued"), no Telegram fire-alarm. Same for LinkedIn extension breakage and Discord poll failure.
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+- [ ] 05-00-PLAN.md — Wave 0: scaffold chrome-extension + 5 services + @kos/contracts 5 schemas + migration 0017 + fixtures
+- [ ] 05-01-PLAN.md — Wave 1: apps/chrome-extension MV3 scaffold + HMAC helper + "Send to KOS" context menu + options page (CAP-04 half-A)
+- [ ] 05-02-PLAN.md — Wave 1 parallel: services/chrome-webhook Lambda — Bearer + HMAC + Zod + capture.received emit (CAP-04 half-B)
+- [ ] 05-03-PLAN.md — Wave 2: chrome-extension LinkedIn content script (visibility-gated 30-min alarm + 2-15s jitter + 401/403 silent-fail) + services/linkedin-webhook Lambda (CAP-05)
+- [ ] 05-04-PLAN.md — Wave 2 parallel: services/baileys-fargate (CAP-06) — fazer-ai/baileys-api image + read-only wrapper + Postgres pluggable auth + CDK defense-in-depth (SG + CloudWatch + IAM grep test) + human_verification checkpoint (05-WHATSAPP-RISK-ACCEPTANCE.md)
+- [ ] 05-05-PLAN.md — Wave 3: services/baileys-sidecar Lambda — envelope parse + text/voice branch + S3 audio put + transcribe-starter pipeline reuse (CAP-06 ingress)
+- [ ] 05-06-PLAN.md — Wave 3 parallel: EventBridge Scheduler kos-discord-poll + cross-phase contract doc (CAP-10 polling half; Phase 10 owns handler)
+- [ ] 05-07-PLAN.md — Wave 4 Gate: verify-gate-5-baileys daily Lambda + scripts/verify-phase-5-e2e.mjs + scripts/verify-gate-5-baileys.mjs + 2 evidence templates
 
 **UI hint**: no
 
@@ -356,7 +365,7 @@
 | 2. Minimum Viable Loop          | 0/12           | Planned          | -         |
 | 3. Dashboard MVP                | 0/14           | Planned          | -         |
 | 4. Email Pipeline + iOS Capture | 0/?            | Not started      | -         |
-| 5. Messaging Channels           | 0/?            | Not started      | -         |
+| 5. Messaging Channels           | 0/8            | Planned          | -         |
 | 6. Granola + Semantic Memory    | 0/7            | Planned          | -         |
 | 7. Lifecycle Automation         | 0/5            | Planned          | -         |
 | 8. Outbound Content + Calendar  | 0/7            | Planned          | -         |

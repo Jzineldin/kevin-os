@@ -404,3 +404,28 @@ Notes on dual-listed requirements (handled as single-phase ownership with cross-
 
 _Roadmap created: 2026-04-21_
 _Last updated: 2026-04-24 (Phase 10 planned — 8 plans enumerated; 24 D-XX locked; <30-min rollback runbook + Telegram webhook persistence re-test resolves M1 closure path; net -$49.50/mo steady-state savings)_
+
+---
+
+## Backlog
+
+### Phase 999.1: Multi-tenant productization — convert KOS from single-tenant to SaaS (BACKLOG)
+
+**Goal:** [Captured for future planning]
+
+Convert KOS from single-tenant (Kevin-only) into a SaaS where other users bring their own Notion, email accounts, WhatsApp, Telegram bot, etc. Requires: (1) real auth (Clerk/WorkOS), (2) per-user OAuth for Notion/Gmail/Microsoft 365/Granola, (3) tenant isolation in Postgres (RLS or tenant_id everywhere) + Azure Search partition keys, (4) Stripe billing with usage-based metering, (5) onboarding flow to connect integrations, (6) per-user secrets management.
+
+Hard blockers to solve: EmailEngine doesn't horizontally scale (one Fargate task per tenant or swap for Nylas), Baileys WhatsApp is per-session with TOS risk (probably paid add-on, not default), LinkedIn Chrome extension only works for self-install power users.
+
+Core agent/memory logic survives; plumbing at edges is ~full rewrite. Business math actually improves with scale since fixed infra costs (Azure Search, RDS, Fargate baseline) amortize. Only pursue after KOS v1 works end-to-end for Kevin.
+
+Cheap insurance to take during v1 build (do NOT add here, apply in active phases):
+- tenant_id column on all new Postgres tables (default 'kevin')
+- Notion DB IDs in a config table, not hardcoded constants
+- Integrations behind provider interfaces (`EmailProvider`, `CalendarProvider`)
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)

@@ -81,6 +81,8 @@ export class DataStack extends Stack {
   public readonly telegramWebhookSecret: Secret;
   public readonly granolaApiKeySecret: Secret;
   public readonly gmailOauthSecret: Secret;
+  // Phase 6 Plan 06-05: GCP Vertex AI service-account JSON for dossier-loader.
+  public readonly gcpVertexSaSecret: Secret;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -317,6 +319,17 @@ export class DataStack extends Stack {
       'GmailOauth',
       'kos/gmail-oauth-tokens',
       'Gmail OAuth client_id + client_secret + refresh_token JSON for ENT-06 (D-23).',
+    );
+
+    // Phase 6 Plan 06-05 (INF-10): GCP Vertex AI service-account JSON.
+    // Operator pre-creates the SA out-of-band in a GCP project with Vertex
+    // AI enabled in europe-west4 (roles/aiplatform.user) and seeds the JSON
+    // into this secret via `aws secretsmanager put-secret-value` before
+    // `cdk deploy`. dossier-loader Lambda fetches at cold start.
+    this.gcpVertexSaSecret = mkSecret(
+      'GcpVertexSa',
+      'kos/gcp-vertex-sa',
+      'GCP service-account JSON for Vertex AI Gemini 2.5 Pro europe-west4 (Phase 6 INF-10 dossier-loader).',
     );
 
     // --- ECS Fargate cluster (INF-06) ---------------------------------------

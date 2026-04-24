@@ -27,6 +27,7 @@ import {
   computeLastTouchHash,
   readDossierCache,
   writeDossierCache,
+  type DossierCacheRow,
 } from './cache.js';
 
 export interface LoadContextInput {
@@ -70,9 +71,9 @@ export async function loadContext(input: LoadContextInput): Promise<ContextBundl
   });
 
   // 2. Check dossier cache for requested entities.
-  let cached = new Map<string, Awaited<ReturnType<typeof readDossierCache>>[string]>();
+  let cached: Map<string, DossierCacheRow> = new Map();
   try {
-    cached = (await readDossierCache({ pool, ownerId, entityIds })) as unknown as typeof cached;
+    cached = await readDossierCache({ pool, ownerId, entityIds });
   } catch (err) {
     partialReasons.push(`dossier_cache_read: ${(err as Error).message}`);
   }

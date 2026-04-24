@@ -27,6 +27,7 @@ import { wireTranscribeVocab } from './integrations-transcribe.js';
 import { wireGranolaPipeline } from './integrations-granola.js';
 import { wireAzureSearchIndexers } from './integrations-azure-indexers.js';
 import { wireMvRefresher } from './integrations-mv-refresher.js';
+import { wireDossierLoader } from './integrations-vertex.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -54,6 +55,13 @@ export interface IntegrationsStackProps extends StackProps {
   sentryDsnSecret?: ISecret;
   langfusePublicKeySecret?: ISecret;
   langfuseSecretKeySecret?: ISecret;
+  // Phase 6 Plan 06-05 (INF-10) — Vertex AI dossier-loader. Optional so
+  // existing test fixtures synth without GCP wiring; production deploy
+  // must supply `gcpVertexSaSecret` + `gcpProjectId` + `agentBus` to
+  // activate the dossier-loader pipeline.
+  gcpVertexSaSecret?: ISecret;
+  gcpProjectId?: string;
+  agentBus?: EventBus;
 }
 
 export class IntegrationsStack extends Stack {
@@ -157,6 +165,26 @@ export class IntegrationsStack extends Stack {
         langfusePublicKeySecret: props.langfusePublicKeySecret,
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
+
+      // Plan 06-05 (INF-10): dossier-loader Lambda + EventBridge rule on
+      // kos.agent / context.full_dossier_requested. Skipped at synth time
+      // when the GCP secret/project/agentBus props are unset — production
+      // deploy must supply all three to activate the dossier pipeline.
+      if (props.gcpVertexSaSecret && props.gcpProjectId && props.agentBus) {
+        wireDossierLoader(this, {
+          vpc: props.vpc,
+          rdsSecurityGroup: props.rdsSecurityGroup,
+          rdsProxyEndpoint: props.rdsProxyEndpoint,
+          rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+          gcpSaJsonSecret: props.gcpVertexSaSecret,
+          gcpProjectId: props.gcpProjectId,
+          agentBus: props.agentBus,
+          ownerId: props.kevinOwnerId,
+          sentryDsnSecret: props.sentryDsnSecret,
+          langfusePublicKeySecret: props.langfusePublicKeySecret,
+          langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+        });
+      }
     }
   }
 }

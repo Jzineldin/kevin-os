@@ -243,8 +243,17 @@
 4. MEM-05 document version tracker: outbound SES email with attachment hashes the doc, looks up prior versions sent to the same recipient, and if SHA differs generates a Haiku-written diff_summary ("v3 adds clause 4.2 about ESOP vesting"); surfaces in the recipient's per-entity timeline.
 5. Approve gate is non-bypassable in code: no Postiz API call and no SES send fires without an `approved_by_kevin` row in RDS keyed to the draft id.
 6. **Imperative-verb mutation pathway** ("ta bort mötet kl 11", "cancel the Damien call", "delete the draft to Marcus"): voice-capture (or a sibling mutation agent) recognises imperative verbs + resolves the target against the live entity graph (Phase 6 dependency), proposes the mutation as a pending action in the dashboard Inbox, and only executes on explicit Approve. No direct deletion/cancellation from a raw capture — discovered 2026-04-23 when "ta bort mötet imorgon kl 11" was saved verbatim as a new Command Center task instead of resolving the existing meeting.
+7. **Postiz Fargate deployment**: 0.5 vCPU × 1 GB ARM64 on existing `kos-cluster` (Phase 1), EFS-mounted `/app/data` for PostgreSQL + media, MCP endpoint at `http://postiz.kos.local:3000/api/mcp/{API_KEY}` reachable from publisher Lambda only (private VPC DNS, no public IP).
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+- [ ] 08-00-PLAN.md — Wave 0: scaffold 7 services (content-writer, content-writer-platform, publisher, mutation-proposer, mutation-executor, calendar-reader, document-diff) + @kos/contracts Phase 8 schemas (content/mutation/calendar/document-version) + migration 0015 (5 tables: content_drafts + content_publish_authorizations + pending_mutations + document_versions + calendar_events_cache) + BRAND_VOICE.md seed + 4 test fixture files + CDK integrations-postiz.ts skeleton
+- [ ] 08-01-PLAN.md — Wave 1: services/calendar-reader (CAP-09) — OAuth refresh per account + Google Calendar v3 events.list + calendar_events_cache UPSERT + @kos/context-loader extension with includeCalendar flag + EventBridge Scheduler cron(0/30 * * * ? *) Europe/Stockholm + scripts/bootstrap-gcal-oauth.mjs operator flow
+- [ ] 08-02-PLAN.md — Wave 1 parallel: services/content-writer orchestrator + services/content-writer-platform Map worker (AGT-07) — Step Functions Standard state machine kos-content-writer-5platform + AnthropicBedrock Sonnet 4.6 per-platform + BRAND_VOICE.md fail-closed gate (human_verification required) + loadContext integration + content_drafts UNIQUE (topic_id, platform) idempotency
+- [ ] 08-03-PLAN.md — Wave 2: services/publisher Lambda (AGT-08) + Postiz Fargate deployment (0.5 vCPU × 1 GB ARM64 + EFS + Cloud Map DNS postiz.kos.local) + dashboard /api/content-drafts/:id/{approve,edit,skip,cancel} Route Handlers + Approve-gate enforcement (content_publish_authorizations row before emit) + cancel-before-publish via content.cancel_requested + human-action checkpoint for Postiz first-boot + per-platform OAuth
+- [ ] 08-04-PLAN.md — Wave 2 parallel: services/mutation-proposer (regex + Haiku 4.5 + Sonnet 4.6 3-stage classifier) + services/mutation-executor (archive-not-delete per mutation_type; NO DELETE grants; NO google-calendar scope) + voice-capture race-fix (hasPendingMutation suppresses CC insertion) + dashboard /api/pending-mutations/:id/{approve,skip} routes + CDK IAM safety tests (bedrock/postiz/ses/google-calendar grep = zero)
+- [ ] 08-05-PLAN.md — Wave 3: services/document-diff (MEM-05) — hooks Phase 4 kos.output/email.sent event + pdf-parse + mammoth attachment text extraction + SHA-256 on normalised text + (recipient_email, doc_name) composite key + Haiku 4.5 diff_summary in original language + document_versions INSERT + dashboard entity-timeline extension surfaces document versions
+- [ ] 08-06-PLAN.md — Wave 4: Gate verifier scripts (scripts/verify-phase-8-e2e.mjs all 7 SCs, scripts/verify-approve-gate-invariant.mjs static+live, scripts/verify-prompt-injection-content-writer.mjs, scripts/verify-mutation-rollback.mjs archive-not-delete) + 08-06-evidence-template.md operator checklist
 
 **UI hint**: no
 
@@ -341,7 +350,7 @@
 | 5. Messaging Channels           | 0/?            | Not started      | -         |
 | 6. Granola + Semantic Memory    | 0/7            | Planned          | -         |
 | 7. Lifecycle Automation         | 0/5            | Planned          | -         |
-| 8. Outbound Content + Calendar  | 0/?            | Not started      | -         |
+| 8. Outbound Content + Calendar  | 0/7            | Planned          | -         |
 | 9. V2 Specialty Agents          | 0/?            | BLOCKED (Gate 4) | -         |
 | 10. Migration & Decommission    | 0/?            | Not started      | -         |
 
@@ -376,4 +385,4 @@ Notes on dual-listed requirements (handled as single-phase ownership with cross-
 ---
 
 _Roadmap created: 2026-04-21_
-_Last updated: 2026-04-24 (Phase 7 planned — 5 plans enumerated; D-18 morning-brief 07:00→08:00 drift documented in SC1)_
+_Last updated: 2026-04-24 (Phase 7 planned — 5 plans enumerated; Phase 8 planned — 7 plans enumerated; SC 6 imperative-verb mutation pathway + SC 7 Postiz Fargate added; D-18 morning-brief 07:00→08:00 drift documented)_

@@ -206,3 +206,45 @@ Last activity: 2026-04-23 - Completed quick task 260423-vra (H1 dashboard Compos
 1. Confirm Phase 6 execution before Phase 7 (loadContext dependency).
 2. Seed Notion page/DB IDs as above.
 3. Run `/gsd-execute-phase 7` — Phase 7 writes to `services/{morning-brief,day-close,weekly-review,verify-notification-cap}`, `services/_shared/brief-renderer.ts`, `packages/contracts/src/brief.ts`, `packages/db/drizzle/0014_phase_7_top3_and_dropped_threads.sql`, `packages/cdk/lib/stacks/integrations-lifecycle.ts`, and 3 new `scripts/verify-*.mjs` verifiers.
+
+## Session Continuity Addendum (2026-04-24 — Phase 8)
+
+**Phase 8 planned:** `/gsd-plan-phase 8` (run 2026-04-24, same overnight session as Phase 6/4/7 — Kevin asleep, all 7 orchestrator-recommended defaults locked verbatim) produced:
+- 08-CONTEXT.md (33 D-XX decisions; 7 gray-area defaults accepted — BRAND_VOICE.md seed w/ human_verification gate; Step Functions Standard Map; Postiz Fargate 0.5 vCPU + EFS; OAuth per-account refresh tokens; regex→Haiku→Sonnet 3-stage; (recipient_email, doc_name) composite key; separate tables+events for mutation vs content)
+- 08-RESEARCH.md (Postiz MCP Streamable HTTP, Google Calendar v3, Step Functions Standard vs Express, pdf-parse/mammoth extraction, Swedish+English imperative linguistics, Fargate Postiz deployment, 15 pitfalls)
+- 08-VALIDATION.md (Nyquist-compliant; 21 tasks across 7 plans; 10 TDD tasks)
+- 7 PLAN files (08-00 scaffold, 08-01 calendar-reader+context-loader extension, 08-02 content-writer+Step Functions, 08-03 publisher+Postiz Fargate+dashboard routes [human-action checkpoint], 08-04 mutation-proposer+mutation-executor [SC 6], 08-05 document-diff+entity-timeline extension, 08-06 gate verifiers+evidence)
+- 08-DISCUSSION-LOG.md
+
+**SC 6 (imperative-verb mutation pathway) scope:** Two dedicated Lambdas (services/mutation-proposer + services/mutation-executor) with 3-stage classifier (regex pre-filter → Haiku classification → Sonnet target decision) + pending_mutations DB table + dashboard Approve route + archive-not-delete applier. voice-capture race-fix via hasPendingMutation check. The 2026-04-23 failure case ("ta bort mötet imorgon kl 11") is now a pending Inbox card requiring explicit Approve; no silent CC insertion.
+
+**Approve-gate structural invariants (SC 5) — 6 Lambda IAM split:**
+- content-writer: NO postiz, NO ses
+- publisher: NO bedrock, NO ses
+- mutation-proposer: NO postiz, NO ses, NO notion writes
+- mutation-executor: NO bedrock, NO postiz, NO ses, NO google-calendar, NO DELETE grants anywhere
+- document-diff: NO postiz, NO ses, NO notion writes
+- calendar-reader: NO bedrock, NO writes of any kind outside calendar_events_cache
+
+CDK tests grep synth output for forbidden actions; zero-match enforced mechanically.
+
+**Migration number collision guard:** Phase 6 reserves 0012, Phase 4 reserves 0012→0013, Phase 7 reserves 0014, Phase 8 targets 0015 with bump-to-0016 guard.
+
+**D-17 Google Calendar read-only invariant:** OAuth scope locked to `calendar.readonly`; mutation-executor cannot write to Google Calendar even if compromised; `reschedule_meeting` archives old event locally and asks Kevin to manually move in Google.
+
+**Status:** Phase 8 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 8` after:
+1. Phase 6 execution complete (loadContext is a Phase 8 dependency)
+2. Phase 4 execution complete (email-sender + email.sent event hook is MEM-05 dependency)
+3. Operator pre-deploys:
+   a. GCP project + OAuth Desktop client; `GCAL_CLIENT_ID` + `GCAL_CLIENT_SECRET` set; run `scripts/bootstrap-gcal-oauth.mjs --account kevin-elzarka` and same for kevin-taleforge
+   b. Postiz JWT secret seeded (32-byte random hex) in `kos/postiz-jwt-secret`
+   c. Fill in `.planning/brand/BRAND_VOICE.md` with real Kevin voice + flip `human_verification: true`
+4. Post-deploy manual steps (documented in 08-03-SUMMARY):
+   a. Postiz container first-boot → generate API key → seed `kos/postiz-api-key`
+   b. Postiz per-platform OAuth via Postiz UI (Instagram, LinkedIn, TikTok, Reddit, Newsletter)
+
+**Deviations from recommended defaults:** None. All 7 gray-area orchestrator recommendations accepted verbatim. v1 known limitation documented: mutation-proposer vs voice-capture race may produce duplicate artifact on fast voice-capture wins — Approving the mutation cleans up the CC row; v1.1 enhancement adds 3s delay on voice-capture CC insert.
+
+**Plan path:** `.planning/phases/08-outbound-content-calendar/08-CONTEXT.md`.
+
+**Next session:** Operator runs `/gsd-execute-phase 8`. Writes to `services/{content-writer,content-writer-platform,publisher,mutation-proposer,mutation-executor,calendar-reader,document-diff}`, `packages/contracts/src/{content,mutation,calendar,document-version}.ts`, `packages/db/drizzle/0015_phase_8_*.sql`, `packages/context-loader/src/calendar.ts`, `packages/cdk/lib/stacks/integrations-{postiz,publisher,content,calendar,mutations,document-diff}.ts`, `.planning/brand/BRAND_VOICE.md`, 6 Next.js Route Handlers in `apps/dashboard/src/app/api/{content-drafts,pending-mutations}/`, 4 verifier scripts, evidence template.

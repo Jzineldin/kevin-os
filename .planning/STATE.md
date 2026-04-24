@@ -179,3 +179,30 @@ Last activity: 2026-04-23 - Completed quick task 260423-vra (H1 dashboard Compos
 6. Run `/gsd-execute-phase 4` — Phase 4 writes to `services/{ios-webhook,ses-inbound,emailengine-webhook,emailengine-admin,email-triage,email-sender}`, `packages/contracts/src/email.ts`, `packages/db/drizzle/0012_or_0013_phase_4_*.sql`, `packages/cdk/lib/stacks/integrations-{ios-webhook,ses-inbound,emailengine,email-agents}.ts`, 3 new Next.js Route Handlers in `apps/dashboard/src/app/api/email-drafts/`, 2 verifier scripts, evidence template.
 
 **Plan path:** `.planning/phases/04-email-pipeline-ios-capture/04-CONTEXT.md`.
+
+## Session Continuity Addendum (2026-04-24 — Phase 7)
+
+**Phase 7 planned:** `/gsd-plan-phase 7` (run 2026-04-24, same session as Phase 6 + Phase 4 planning — Kevin asleep, all 7 recommended defaults locked per orchestrator brief) produced:
+- 07-CONTEXT.md (19 D-XX decisions; all 7 gray-area orchestrator defaults accepted verbatim — Sonnet 4.6 throughout; BOTH 🏠 Today + Daily Brief Log; Europe/Stockholm native cron; shared `@kos/contracts/src/brief.ts` Zod schemas; `dropped_threads_v` SQL view + `top3_membership` table; weekly cap-invariant Lambda via Scheduler; single Telegram HTML message per brief)
+- 07-RESEARCH.md (EventBridge Scheduler timezone/DST semantics, AWS cron 6-field + `?` wildcard, Bedrock tool_use + tool_choice, Notion replace-in-place 3-RPS budget, Telegram HTML parse_mode 4096-char limit, AnthropicBedrock EU inference profile)
+- 07-VALIDATION.md (Nyquist-compliant matrix; 14 tasks across 5 plans)
+- 5 PLAN files (07-00 scaffold, 07-01 morning-brief + brief-renderer + 08:00 schedule, 07-02 day-close + weekly-review, 07-03 AUTO-02 scheduler-only, 07-04 verify-notification-cap + 3 CLI verifiers + E2E gate)
+- 07-DISCUSSION-LOG.md
+
+**D-18 spec drift (documented):** AUTO-01 ROADMAP spec says 07:00 Stockholm; Phase-1 `services/push-telegram/src/quiet-hours.ts` asserts `h >= 20 || h < 8` as quiet. 07:00 falls INSIDE the quiet window. Resolution = Option A: morning-brief schedule = `cron(0 8 ? * MON-FRI *)` Europe/Stockholm. 08:00 drift documented in ROADMAP §Phase 7 SC1 and 07-01 PLAN. Restoring 07:00 is deferred to a future polish pass requiring a coordinated change to `quiet-hours.ts` (`h < 7` end).
+
+**Migration number collision (Phase 4 / 6 / 7 guard):** Phase 6 reserves 0012, Phase 4 reserves 0012 with bump-to-0013 on Phase-6-first-land, Phase 7 reserves 0014. At execution time, Phase 7 plan 07-00 Task 3 includes a next-available check — if the filesystem state doesn't match the expected chain (0012 Phase-6, 0013 Phase-4, 0014 Phase-7), executor bumps accordingly.
+
+**Status:** Phase 7 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 7` after:
+1. Confirming Phase 6 + Phase 4 plans have landed (loadContext + scan_emails_now rule must exist at runtime).
+2. Seeding `scripts/.notion-db-ids.json` with `todayPage` (🏠 Today page id) + `dailyBriefLog` (Daily Brief Log DB id).
+3. Verifying Daily Brief Log DB in Kevin's Notion workspace has `Type` (select: morning/day-close/weekly-review) + `Date` (date) properties.
+
+**Deviations from recommended defaults:** None. All 7 gray-area orchestrator recommendations accepted verbatim. The D-18 08:00 drift is a reconciliation with the Phase-1 quiet-hours invariant, not a deviation from the orchestrator brief (which explicitly flagged the invariant as load-bearing).
+
+**Plan path:** `.planning/phases/07-lifecycle-automation/07-CONTEXT.md`.
+
+**Next session:** Operator pre-deploy actions:
+1. Confirm Phase 6 execution before Phase 7 (loadContext dependency).
+2. Seed Notion page/DB IDs as above.
+3. Run `/gsd-execute-phase 7` — Phase 7 writes to `services/{morning-brief,day-close,weekly-review,verify-notification-cap}`, `services/_shared/brief-renderer.ts`, `packages/contracts/src/brief.ts`, `packages/db/drizzle/0014_phase_7_top3_and_dropped_threads.sql`, `packages/cdk/lib/stacks/integrations-lifecycle.ts`, and 3 new `scripts/verify-*.mjs` verifiers.

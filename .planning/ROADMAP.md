@@ -209,13 +209,19 @@
 
 **Success Criteria** (what must be TRUE):
 
-1. EventBridge Scheduler with `Europe/Stockholm` timezone delivers AUTO-01 at 07:00 weekdays: a 3-5 sentence prose morning brief written by AGT-04-context-loaded agent + Top 3 priorities + today/tomorrow calendar + drafts ready + dropped threads, posted to 🏠 Today Notion page AND a single Telegram message (counts as 1 of the 3-per-day cap).
+1. EventBridge Scheduler with `Europe/Stockholm` timezone delivers AUTO-01 at 07:00 weekdays: a 3-5 sentence prose morning brief written by AGT-04-context-loaded agent + Top 3 priorities + today/tomorrow calendar + drafts ready + dropped threads, posted to 🏠 Today Notion page AND a single Telegram message (counts as 1 of the 3-per-day cap). **Phase 7 D-18 spec drift:** actual schedule is 08:00 weekdays (not 07:00) to honor the Phase-1 quiet-hours invariant (20:00–08:00 Stockholm). Restoring 07:00 is a deferred polish pending coordinated change to `services/push-telegram/src/quiet-hours.ts`.
 2. AUTO-03 day close at 18:00 weekdays: writes Daily Brief Log entry, updates Kevin Context page, flags slipped items (Top 3 not actioned), posts evening summary to Telegram (counts as 1 of cap). AUTO-04 Sunday 19:00: full-week recap + next-week candidates → Kevin Context + Telegram.
 3. AUTO-02 every-2h email triage (08:00-18:00 weekdays Stockholm) batches drafts into Inbox; if no urgent items, no Telegram message fires (cap protected); urgent items aggregate to a single afternoon Telegram (1 of cap).
 4. Notification cap holds in production for 14 consecutive days: Kevin never receives more than 3 Telegram messages/day from KOS. Items above cap queue to Inbox.
 5. Quiet hours respected: Stockholm 20:00–08:00 produces zero Telegram messages from KOS regardless of urgency classification (urgent items hold until 08:00 morning brief).
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+- [ ] 07-00-PLAN.md — Wave 0: scaffold 4 service workspaces (morning-brief, day-close, weekly-review, verify-notification-cap) + `@kos/contracts/src/brief.ts` Zod schemas (MorningBriefSchema + DayCloseBriefSchema + WeeklyReviewSchema) + migration 0014 (top3_membership + dropped_threads_v + acted_on_at trigger) + CDK stub `integrations-lifecycle.ts`
+- [ ] 07-01-PLAN.md — Wave 1: services/morning-brief (AUTO-01) — Sonnet 4.6 tool_use `record_morning_brief` via AnthropicBedrock + shared `services/_shared/brief-renderer.ts` + Notion 🏠 Today replace-in-place + Daily Brief Log append + top3_membership writes + dropped_threads_v reads + EventBridge Scheduler cron(0 8 ? * MON-FRI *) Europe/Stockholm (D-18 08:00 drift)
+- [ ] 07-02-PLAN.md — Wave 1 parallel: services/day-close (AUTO-03) + services/weekly-review (AUTO-04) — reuse brief-renderer; day-close updates Kevin Context (Recent decisions + Slipped items); weekly-review overwrites Kevin Context Active Threads section; crons 0 18 MON-FRI + 0 19 SUN Europe/Stockholm
+- [ ] 07-03-PLAN.md — Wave 2: AUTO-02 scheduler-only CDK addition (cron 0 8/2 ? * MON-FRI * Europe/Stockholm) targeting Phase-4 `scan_emails_now` (zero Lambda code — Phase 4 email-triage consumes)
+- [ ] 07-04-PLAN.md — Wave 3: services/verify-notification-cap Lambda + cron(0 3 ? * SUN *) Europe/Stockholm weekly compliance + scripts/verify-notification-cap-14day.mjs + scripts/verify-quiet-hours-invariant.mjs + scripts/verify-phase-7-e2e.mjs (all 5 ROADMAP SCs)
 
 **UI hint**: no
 
@@ -334,7 +340,7 @@
 | 4. Email Pipeline + iOS Capture | 0/?            | Not started      | -         |
 | 5. Messaging Channels           | 0/?            | Not started      | -         |
 | 6. Granola + Semantic Memory    | 0/7            | Planned          | -         |
-| 7. Lifecycle Automation         | 0/?            | Not started      | -         |
+| 7. Lifecycle Automation         | 0/5            | Planned          | -         |
 | 8. Outbound Content + Calendar  | 0/?            | Not started      | -         |
 | 9. V2 Specialty Agents          | 0/?            | BLOCKED (Gate 4) | -         |
 | 10. Migration & Decommission    | 0/?            | Not started      | -         |
@@ -370,4 +376,4 @@ Notes on dual-listed requirements (handled as single-phase ownership with cross-
 ---
 
 _Roadmap created: 2026-04-21_
-_Last updated: 2026-04-21_
+_Last updated: 2026-04-24 (Phase 7 planned — 5 plans enumerated; D-18 morning-brief 07:00→08:00 drift documented in SC1)_

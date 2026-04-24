@@ -19,3 +19,4 @@ cdk-deploy*.log
 # specifically — don't blanket-ignore packages/db/drizzle/.
 
 cdk.out.dashboard/
+.vercel/

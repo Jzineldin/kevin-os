@@ -207,16 +207,24 @@ function vercelEnvRm(
 ): { ok: boolean; notFound: boolean; stderr: string } {
   // `vercel env rm <name> <target> -y` exits 0 if removed, non-zero if not
   // present. We treat "not present" as success (idempotent).
+  // Relies on .vercel/project.json (orgId + projectId) pinned by `vercel link`.
+  // The prior `--scope project` pair was a bug — scope expects a team slug,
+  // not the project name. Dropping it lets the CLI resolve via project.json.
+  void project;
   const res = spawnSync(
     'vercel',
-    ['env', 'rm', key, target, '-y', '--scope', project],
+    ['env', 'rm', key, target, '-y'],
     { encoding: 'utf-8', stdio: 'pipe' },
   );
   const stderr = String(res.stderr ?? '');
+  const stdout = String(res.stdout ?? '');
+  const combined = `${stderr}\n${stdout}`;
   const notFound =
     res.status !== 0 &&
-    /(not found|does not exist|No environment variable)/i.test(stderr);
-  return { ok: res.status === 0 || notFound, notFound, stderr };
+    /(not found|does not exist|No environment variable|env_not_found|was not found)/i.test(
+      combined,
+    );
+  return { ok: res.status === 0 || notFound, notFound, stderr: combined };
 }
 
 function vercelEnvAdd(
@@ -227,9 +235,10 @@ function vercelEnvAdd(
 ): VercelWriteResult {
   // `vercel env add <name> <target>` reads the value from stdin. We pipe it
   // via `input` so the value never appears on argv.
+  void project;
   const res = spawnSync(
     'vercel',
-    ['env', 'add', key, target, '--scope', project],
+    ['env', 'add', key, target],
     { input: `${value}\n`, encoding: 'utf-8', stdio: 'pipe' },
   );
   return {

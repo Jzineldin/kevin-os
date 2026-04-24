@@ -8,7 +8,7 @@
  *
  * Behaviour (03-05-PLAN.md Task 1 must_haves):
  *   - Public paths pass through: /login, /api/auth/*, Next internals,
- *     favicon, sw.js, manifest, /icons/*.
+ *     favicon, /serwist/sw.js (+ sourcemap), manifest, /icons/*.
  *   - Everything else requires a valid `kos_session` cookie matching
  *     KOS_DASHBOARD_BEARER_TOKEN (constant-time compare).
  *   - Missing / wrong cookie → 302 /login?return=<original-path>.
@@ -30,7 +30,7 @@ export function middleware(req: NextRequest) {
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/')) ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
-    pathname === '/sw.js' ||
+    pathname.startsWith('/serwist/') ||
     pathname === '/manifest.webmanifest' ||
     pathname.startsWith('/icons/')
   ) {
@@ -51,8 +51,10 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Matcher excludes Next static output + favicon + PWA assets so the
-  // middleware never runs on those paths at all (cheaper than an
-  // in-handler bypass, and the bypass is kept as defence-in-depth above).
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|sw.js|manifest\\.webmanifest|icons/).*)'],
+  // Matcher excludes Next static output + favicon + PWA assets (including
+  // /serwist/sw.js (+ sourcemap) served by the @serwist/turbopack Route
+  // Handler) so the middleware never runs on those paths at all (cheaper
+  // than an in-handler bypass, and the bypass is kept as defence-in-depth
+  // above).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|serwist/|manifest\\.webmanifest|icons/).*)'],
 };

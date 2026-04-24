@@ -9,10 +9,5 @@ playwright-report/
 playwright/.cache/
 .lighthouseci/
 
-# Plan 03-12 — @serwist/next build output. Source is `src/app/sw.ts`;
-# these files are regenerated on every `next build`.
-public/sw.js
-public/sw.js.map
-public/swe-worker-*.js
-public/swe-worker-*.js.map
+# Paper-cut #2 migration (quick 260424-r6s) — @serwist/turbopack streams the SW via a Route Handler at /serwist/sw.js. No files are emitted to public/.
 .vercel

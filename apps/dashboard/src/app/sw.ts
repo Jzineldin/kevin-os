@@ -1,13 +1,14 @@
 /**
  * KOS Dashboard service worker — Plan 03-12 Task 1 (UI-05 PWA).
  *
- * Built by @serwist/next 9.5.7 into `public/sw.js` at build time. Swap rule
+ * Served by the Next Route Handler at /serwist/sw.js (see
+ * src/app/serwist/[path]/route.ts) via @serwist/turbopack 9.5.7. Swap rule
  * set follows 03-CONTEXT.md D-30/D-31 + 03-RESEARCH.md §4 and §17 P-02.
  *
  * Cache strategy matrix:
  *   /today          HTML  → StaleWhileRevalidate, 24h max-age, only cache 200 (P-02)
  *   /api/today      JSON  → StaleWhileRevalidate, 24h max-age, only cache 200
- *   everything else       → @serwist/next `defaultCache` (Workbox defaults)
+ *   everything else       → @serwist/turbopack `defaultCache` (Workbox defaults)
  *
  * Hard non-goals:
  *   - NEVER cache /login, /api/auth/*, /api/stream (SSE). These either bypass
@@ -32,7 +33,7 @@
  *   cached HTML will 401; the page then redirects to /login. Acceptable
  *   single-user tradeoff per threat T-3-12-02 (accepted).
  */
-import { defaultCache } from '@serwist/next/worker';
+import { defaultCache } from '@serwist/turbopack/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { Serwist, StaleWhileRevalidate } from 'serwist';
 

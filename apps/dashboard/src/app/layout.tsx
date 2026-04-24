@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { KosSerwistProvider } from '@/components/pwa/serwist-provider';
 import './globals.css';
 
 const geistSans = Geist({
@@ -43,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        {children}
+        <KosSerwistProvider>{children}</KosSerwistProvider>
         {/* Gate 4 source of truth — weekly-active-sessions (D-40). */}
         <Analytics />
         <SpeedInsights />

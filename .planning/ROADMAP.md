@@ -132,7 +132,15 @@
 4. AGT-05 email-triage agent runs on AUTO-02 schedule (every 2h weekdays 08:00-18:00 Stockholm) classifying emails (urgent/important/informational/junk) and drafting replies for urgent only; Kevin sees drafts in dashboard Inbox with Approve / Edit / Skip — no SES send fires without explicit Approve.
 5. Tool-call resilience: every tool call from agents has a 10-second timeout, max 2 retries, on final failure writes a dead-letter row to RDS that surfaces as a single Inbox card (not a Telegram ping).
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+- [ ] 04-00-PLAN.md — Wave 0: scaffold 6 services (ios-webhook, ses-inbound, emailengine-webhook, emailengine-admin, email-triage, email-sender) + @kos/contracts email schemas + migration 0012 (email_drafts + email_send_authorizations + agent_dead_letter) + services/_shared/with-timeout-retry.ts + test fixtures (adversarial-prompt-injection, duplicate-email, forwarded-email MIME, iOS Shortcut payload)
+- [ ] 04-01-PLAN.md — Wave 1: services/ios-webhook Lambda (CAP-02) — HMAC-SHA256 + ±300s timestamp replay + DynamoDB replay cache + S3 audio put + capture.received emit; reuses transcribe-starter pipeline unchanged
+- [ ] 04-02-PLAN.md — Wave 1 parallel: services/ses-inbound Lambda (CAP-03) — cross-region S3 GetObject from eu-north-1 to eu-west-1; mailparser MIME extraction; deterministic capture_id from Message-ID; operator runbook for SES domain + bucket + receiving rule
+- [ ] 04-03-PLAN.md — Wave 2: EmailEngine Fargate single-task on kos-cluster (CAP-07 + INF-06) + ElastiCache Serverless Redis + 5 Secrets + services/emailengine-webhook (X-EE-Secret auth) + services/emailengine-admin (Cloud Map DNS) + operator runbook (license, app passwords, 7-day soak)
+- [ ] 04-04-PLAN.md — Wave 3: services/email-triage Lambda (AGT-05 + AUTO-02 agent) — Haiku classify + Sonnet draft-for-urgent; <email_content> prompt-injection guard + escapeEmailContent; composite (account_id, message_id) idempotency; @kos/context-loader with runtime fallback; withTimeoutAndRetry on all Bedrock; structural no-ses IAM
+- [ ] 04-05-PLAN.md — Wave 3 parallel: services/email-sender Lambda (structural no-bedrock IAM + SES SendRawEmail) + dashboard-api /api/email-drafts/:id/{approve,edit,skip} Route Handlers + /api/inbox merge activating Phase 3's dormant draft_reply + dead_letter item kinds + scan_emails_now operator trigger
+- [ ] 04-06-PLAN.md — Wave 4: scripts/verify-gate-3.mjs (idempotency + prompt-injection + approve-flow) + scripts/verify-phase-4-e2e.mjs (all 5 ROADMAP SCs) + 04-06-GATE-3-evidence-template.md
 
 **UI hint**: no
 

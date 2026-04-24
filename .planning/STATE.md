@@ -152,3 +152,30 @@ Last activity: 2026-04-23 - Completed quick task 260423-vra (H1 dashboard Compos
 **Notable architectural lock:** AGT-04 redesigned per Locked Decision #3 revision (2026-04-23) as an explicit `@kos/context-loader` library helper, NOT an Agent-SDK pre-call hook. All four consumer Lambdas (triage, voice-capture, entity-resolver, transcript-extractor) call `loadContext()` before their Bedrock invocation; Phase 4 + 7 + 8 will inherit the same pattern.
 
 **Next session:** Operator pre-deploy actions documented in deferred-items.md (GCP project, Vertex SA, Notion Transkripten DB discovery). Phase 6 execution will write to `packages/context-loader/`, `packages/azure-search/`, 8 new `services/*` directories, `packages/db/drizzle/0012_*.sql`, and `packages/cdk/lib/stacks/integrations-{granola,azure-indexers,mv-refresher,vertex}.ts`.
+
+## Session Continuity Addendum (2026-04-24 — Phase 4)
+
+**Phase 4 planned:** `/gsd-plan-phase 4` (run 2026-04-24, same session as Phase 6 planning — Kevin asleep, recommended defaults locked per orchestrator brief) produced:
+- 04-CONTEXT.md (30 D-XX decisions; all 7 gray-area defaults accepted — EmailEngine on Fargate + ElastiCache Serverless; HMAC-SHA256 iOS auth; SES inbound in eu-west-1 with cross-region; Haiku classify + Sonnet draft; composite (account_id, message_id) idempotency; dashboard-api Route Handlers; email-sender separated from email-triage)
+- 04-RESEARCH.md (SES region asymmetry, EmailEngine docker constraints, iOS Shortcut HMAC actions, Bedrock prompt-injection delimiters, Gmail app passwords, SES sandbox, 12 pitfalls)
+- 04-VALIDATION.md (Nyquist-compliant; 28 automated tasks + 4 operator-only manual verifications)
+- 7 PLAN files (04-00 scaffold, 04-01 ios-webhook, 04-02 ses-inbound, 04-03 emailengine Fargate, 04-04 email-triage, 04-05 email-sender + dashboard routes, 04-06 Gate 3 + E2E verifiers)
+- 04-DISCUSSION-LOG.md + 04-SES-OPERATOR-RUNBOOK.md + 04-EMAILENGINE-OPERATOR-RUNBOOK.md + 04-06-GATE-3-evidence-template.md
+
+**Cross-region SES decision:** Parked SES inbound in **eu-west-1**. Not eu-north-1 (unsupported). Not moving all of KOS to eu-west-1 (6-month replatform). Lambda ses-inbound reads S3 cross-region (~$0.01/mo data transfer). Documented in 04-SES-OPERATOR-RUNBOOK.md; bucket + receiving rule are operator-created (no CDK in eu-west-1 this phase).
+
+**Phase 4 / Phase 6 migration number collision guard:** both phases author a `0012_*.sql` migration. Plan 04-00 Task 3 includes a next-number check — if Phase 6's 0012 lands first at execution time, Phase 4 bumps to 0013. No planner-time conflict.
+
+**Status:** Phase 4 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 4` after reviewing 04-CONTEXT.md + procuring EmailEngine license + generating Gmail app passwords.
+
+**Deviations from recommended defaults:** None. All 7 gray-area orchestrator recommendations accepted verbatim.
+
+**Next session:** Operator pre-deploy actions:
+1. Procure EmailEngine $99/yr license.
+2. Generate Gmail app passwords for both accounts.
+3. Verify kos.tale-forge.app in SES eu-west-1 + publish MX record.
+4. Seed 6 Secrets Manager entries via scripts/seed-secrets.sh.
+5. Request SES production access (support case).
+6. Run `/gsd-execute-phase 4` — Phase 4 writes to `services/{ios-webhook,ses-inbound,emailengine-webhook,emailengine-admin,email-triage,email-sender}`, `packages/contracts/src/email.ts`, `packages/db/drizzle/0012_or_0013_phase_4_*.sql`, `packages/cdk/lib/stacks/integrations-{ios-webhook,ses-inbound,emailengine,email-agents}.ts`, 3 new Next.js Route Handlers in `apps/dashboard/src/app/api/email-drafts/`, 2 verifier scripts, evidence template.
+
+**Plan path:** `.planning/phases/04-email-pipeline-ios-capture/04-CONTEXT.md`.

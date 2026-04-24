@@ -1,12 +1,32 @@
 ---
 slug: telegram-webhook-auto-clear
-status: root_cause_candidates_identified
+status: resolved-false-alarm
 trigger: |
   After operator runs scripts/register-telegram-webhook.mjs the webhook URL is set and setWebhook returns ok. But ~30s later getWebhookInfo returns an empty url. getWebhookInfo.last_error stays empty throughout, so Telegram is not auto-disabling due to error. Some external process is calling either setWebhook with empty string, deleteWebhook, or getUpdates (which implicitly clears the webhook).
 
   Consequence: CAP-01 (Phase 2 core) cannot be end-to-end verified via real Telegram ingress. Wave-5 worked around by emitting capture.voice.transcribed directly to EventBridge (commit c5435b0), proving the post-ingress pipeline works but not the ingress itself.
 created: 2026-04-23
 updated: 2026-04-24
+resolved: 2026-04-24T12:50:00Z
+resolution: |
+  **FALSE ALARM.** Live verification 2026-04-24T12:49 UTC proved the webhook was never being cleared —
+  getWebhookInfo shows the webhook URL is SET and has been since wave-5 deploys on 2026-04-23T13:37 UTC.
+
+  The "~30s later the URL is empty" observation in Wave 5 was actually: Lambda was returning 500
+  Internal Server Error on incoming updates (pre-wave-5-fix state), and we misread the getWebhookInfo
+  shape — the `url` field stays populated, only `last_error_date` / `last_error_message` get updated
+  on delivery failures. The wave-5 Lambda fixes (VPC + NAT + Bedrock SDK pivot + Swedish schema
+  mapping) resolved the 500s. Every Lambda invocation since 2026-04-23T13:39 UTC has returned
+  `[tg] update processed ok`.
+
+  Live E2E verification 2026-04-24T12:49:34 UTC — Kevin sent a text message; full chain:
+    telegram-bot (12:49:34) → triage (12:49:51) → voice-capture (12:49:57) → push-telegram (12:50:01)
+    ~27 seconds total (inc. 3 cold starts); Kevin received the stage-1 Klassificerar ack on phone.
+    capture_id: 01KPZRKPJ139744Z4YMC6V1R91
+    Triage classified: route=voice-capture, type=meeting, urgency=high
+
+  Implication: Phase 2 Gate 2 can be reissued as PASS — CAP-01 real-Telegram ingress now verified.
+  Audit gap M1 closes. No n8n / Hermes involvement. No bot token rotation needed.
 ---
 
 # Debug Session: telegram-webhook-auto-clear

@@ -41,4 +41,20 @@ These are Kevin/operator actions that Phase 6 cannot perform from code:
 
 ---
 
+## Out-of-scope discoveries during Plan 06-00 execution (logged 2026-04-24)
+
+Pre-existing typecheck failures noticed while running verification, NOT
+caused by Plan 06-00 changes (out of scope per execute-plan.md scope
+boundary):
+
+| File | Issue | Owner |
+|------|-------|-------|
+| `services/_shared/tracing.ts` | Imports 5 OpenTelemetry/Langfuse modules that aren't declared as deps in azure-search-indexer-* / dossier-loader / entity-timeline-refresher service package.json files; typecheck fails with TS2307 in those workspaces. Tests still pass because vitest doesn't follow the import. | Phase 6 wave-3 sweep / Plan 06-03 |
+| `packages/azure-search/src/client.ts` lines 26 + 32 | TS2344 — `Type 'T' does not satisfy the constraint 'object'` and `Type 'unknown' does not satisfy the constraint 'object'`. Pre-existing on the branch. | Plan 06-03 / Plan 06-05 |
+| `services/azure-search-indexer-entities/src/handler.ts:51` | `Type 'Date \| null' is not assignable to type 'string \| null'` — cursor type mismatch between common.ts (returns Date) and the writeCursor/handler signatures. | Plan 06-03 |
+| `apps/dashboard/tests/unit/dashboard-api.test.ts` (4 tests) | Pre-existing failures: `KOS_DASHBOARD_BEARER_TOKEN not set on runtime`. Tests need env-var mock setup. | Phase 3 / dashboard test fixture work |
+
+These items are tracked here so the next execution wave or a quick task
+can address them in scope. Plan 06-00 deliberately did NOT touch them.
+
 *Deferred items log: 2026-04-24*

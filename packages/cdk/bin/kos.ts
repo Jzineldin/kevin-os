@@ -69,6 +69,16 @@ const integrations = new IntegrationsStack(app, 'KosIntegrations', {
   sentryDsnSecret: data.sentryDsnSecret,
   langfusePublicKeySecret: data.langfusePublicSecret,
   langfuseSecretKeySecret: data.langfuseSecretSecret,
+  // Phase 6 Plan 06-05 (INF-10): Vertex dossier-loader. Activated only when
+  // both `kevinOwnerId` and `GCP_PROJECT_ID` are supplied (env or context).
+  // The SA secret shell is created unconditionally in DataStack; the
+  // pipeline only synthesises here when GCP_PROJECT_ID is known so we don't
+  // emit a Lambda with an empty project id env var.
+  gcpVertexSaSecret: data.gcpVertexSaSecret,
+  gcpProjectId:
+    process.env.GCP_PROJECT_ID ??
+    (app.node.tryGetContext('gcpProjectId') as string | undefined),
+  agentBus: events.buses.agent,
 });
 void integrations;
 

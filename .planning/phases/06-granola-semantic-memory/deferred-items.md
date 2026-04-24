@@ -58,3 +58,13 @@ These items are tracked here so the next execution wave or a quick task
 can address them in scope. Plan 06-00 deliberately did NOT touch them.
 
 *Deferred items log: 2026-04-24*
+
+---
+
+## Out-of-scope discoveries during Plan 06-05 execution (logged 2026-04-24)
+
+| File | Issue | Owner |
+|------|-------|-------|
+| `packages/cdk/test/agents-stack.test.ts` (3 tests) | Pre-existing failures: tests assert exactly 5 agent Lambdas but Plan 06-02 (commit `fe9bf37`) added a 6th (`TranscriptExtractor`) without updating the test count. Confirmed pre-existing via `git stash && pnpm --filter @kos/cdk test` — fails with same 3 tests on the unmodified base. Plan 06-05 does NOT touch AgentsStack. | Plan 06-02 (or a Phase 6 sweep) |
+
+*Plan 06-05 deferred items: 2026-04-24*

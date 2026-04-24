@@ -1,27 +1,24 @@
 /**
- * Granola poller + transcript-extractor wiring helper (Phase 6).
+ * Granola pipeline wiring helper (Phase 6 Plan 06-01).
  *
- * Installs:
- *   - granola-poller Lambda (CAP-08 + AUTO-05)
- *   - transcript-extractor Lambda (AGT-06)
- *   - EventBridge Scheduler entry: every 15 min, Europe/Stockholm
- *   - EventBridge Rule: kos.capture / transcript.available → transcript-extractor
- *   - IAM `rds-db:connect` + Bedrock invoke grants
+ * Plan 06-01 surface: `wireGranolaPipeline` — installs the granola-poller
+ * Lambda + EventBridge Scheduler entry (rate(15 minutes) Europe/Stockholm)
+ * + IAM grants. Mirrors `integrations-notion.ts` exactly: same
+ * scheduler-role pattern (NO aws:SourceArn condition per Phase 1 Plan 02-04
+ * retro), same KosLambda construct, same VPC config helper.
  *
- * Pattern mirrors integrations-notion.ts. Reuses kos-schedules group +
- * schedulerRole from Phase 1 Plan 01-03 when available.
+ * Plan 06-02 will add `wireTranscriptExtractor` to this same file (keeping
+ * Phase 6 helpers in one place per the existing convention).
  *
  * Reference:
  *   .planning/phases/06-granola-semantic-memory/06-01-PLAN.md
- *   .planning/phases/06-granola-semantic-memory/06-02-PLAN.md
+ *   .planning/phases/06-granola-semantic-memory/06-CONTEXT.md (D-01..D-04)
  */
 import { Duration, Stack } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import { SubnetType, type IVpc, type ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
-import { Rule } from 'aws-cdk-lib/aws-events';
-import { LambdaFunction as EventsLambdaFunction } from 'aws-cdk-lib/aws-events-targets';
 import { CfnSchedule } from 'aws-cdk-lib/aws-scheduler';
 import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { KosLambda } from '../constructs/kos-lambda.js';
@@ -37,41 +34,74 @@ function svcEntry(svcDir: string): string {
   return path.join(REPO_ROOT, 'services', svcDir, 'src', 'handler.ts');
 }
 
+/**
+ * Reads the Transkripten DB id from `scripts/.notion-db-ids.json` (key
+ * `transkripten`). Returns the empty string if the file or key is missing —
+ * matches the deploy-unblock convention used for `kosInbox` in
+ * integrations-notion.ts (the runtime Lambda surfaces an actionable error
+ * on first poll, see services/granola-poller/src/notion.ts).
+ */
 function loadTranskriptenId(): string {
   const idFile = path.resolve(REPO_ROOT, 'scripts/.notion-db-ids.json');
   if (!fs.existsSync(idFile)) return '';
-  const parsed = JSON.parse(fs.readFileSync(idFile, 'utf8')) as Record<string, string>;
-  return parsed.transkripten ?? parsed.Transkripten ?? '';
+  try {
+    const parsed = JSON.parse(fs.readFileSync(idFile, 'utf8')) as Record<string, string>;
+    return parsed.transkripten ?? parsed.Transkripten ?? '';
+  } catch {
+    return '';
+  }
 }
 
-export interface WireGranolaProps {
+export interface WireGranolaPipelineProps {
   vpc: IVpc;
   rdsSecurityGroup: ISecurityGroup;
   rdsProxyEndpoint: string;
+  /** `prx-xxxxxxxx` — from DataStack.rdsProxyDbiResourceId. */
   rdsProxyDbiResourceId: string;
   notionTokenSecret: ISecret;
-  sentryDsnSecret: ISecret;
-  langfusePublicKeySecret: ISecret;
-  langfuseSecretKeySecret: ISecret;
+  /**
+   * Phase 6 D-28 instrumentation. Optional so synth still works in
+   * minimal-prop test fixtures (the runtime degrades gracefully when the
+   * env var is unset — see services/_shared/sentry.ts + tracing.ts).
+   */
+  sentryDsnSecret?: ISecret;
+  langfusePublicKeySecret?: ISecret;
+  langfuseSecretKeySecret?: ISecret;
   captureBus: EventBus;
-  agentBus: EventBus;
   scheduleGroupName: string;
-  commandCenterDbId: string;
-  ownerId: string;
+  /**
+   * Optional re-use of the EventBridge Scheduler role created by
+   * `wireNotionIntegrations`. If absent, a new role is created scoped to
+   * the granola-poller only.
+   */
+  schedulerRole?: Role;
+  /** Single-user UUID Kevin operates as (KEVIN_OWNER_ID). */
+  kevinOwnerId: string;
+  /** RDS IAM user for `rds-db:connect`. Defaults to 'kos_admin' to match Phase 2. */
+  rdsIamUser?: string;
 }
 
 export interface GranolaWiring {
   granolaPoller: KosLambda;
-  transcriptExtractor: KosLambda;
   schedulerRole: Role;
+  schedule: CfnSchedule;
 }
 
-export function wireGranolaIntegrations(
+/**
+ * Plan 06-01 wiring: granola-poller Lambda + EventBridge Scheduler entry
+ * `granola-poller-15min` (rate(15 minutes) Europe/Stockholm, mode=OFF).
+ *
+ * Granola-poller is intentionally LLM-free (D-22 / Locked Decision #3) —
+ * it only polls Notion, validates against TranscriptAvailableSchema, and
+ * publishes to kos.capture. No bedrock:InvokeModel grant.
+ */
+export function wireGranolaPipeline(
   scope: Construct,
-  props: WireGranolaProps,
+  props: WireGranolaPipelineProps,
 ): GranolaWiring {
   const stack = Stack.of(scope);
-  const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${props.rdsProxyDbiResourceId}/kos_agent_writer`;
+  const rdsIamUser = props.rdsIamUser ?? 'kos_admin';
+  const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${props.rdsProxyDbiResourceId}/${rdsIamUser}`;
 
   const vpcConfig = {
     vpc: props.vpc,
@@ -79,35 +109,38 @@ export function wireGranolaIntegrations(
     securityGroups: [props.rdsSecurityGroup],
   };
 
-  const sharedEnv = {
-    KOS_OWNER_ID: props.ownerId,
-    SENTRY_DSN_SECRET_ARN: props.sentryDsnSecret.secretArn,
-    LANGFUSE_PUBLIC_KEY_SECRET_ARN: props.langfusePublicKeySecret.secretArn,
-    LANGFUSE_SECRET_KEY_SECRET_ARN: props.langfuseSecretKeySecret.secretArn,
-    DATABASE_HOST: props.rdsProxyEndpoint,
-    DATABASE_PORT: '5432',
-    DATABASE_NAME: 'kos',
-    DATABASE_USER: 'kos_agent_writer',
-    NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
-  };
-
-  // --- granola-poller (CAP-08 + AUTO-05) ------------------------------------
+  // --- granola-poller Lambda (CAP-08 + AUTO-05) -----------------------------
   const granolaPoller = new KosLambda(scope, 'GranolaPoller', {
     entry: svcEntry('granola-poller'),
     timeout: Duration.minutes(2),
     memory: 512,
     ...vpcConfig,
     environment: {
-      ...sharedEnv,
+      KEVIN_OWNER_ID: props.kevinOwnerId,
+      RDS_PROXY_ENDPOINT: props.rdsProxyEndpoint,
+      RDS_IAM_USER: rdsIamUser,
+      DATABASE_NAME: 'kos',
+      NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
       NOTION_TRANSKRIPTEN_DB_ID: loadTranskriptenId(),
       KOS_CAPTURE_BUS_NAME: props.captureBus.eventBusName,
+      ...(props.sentryDsnSecret
+        ? { SENTRY_DSN_SECRET_ARN: props.sentryDsnSecret.secretArn }
+        : {}),
+      ...(props.langfusePublicKeySecret
+        ? { LANGFUSE_PUBLIC_KEY_SECRET_ARN: props.langfusePublicKeySecret.secretArn }
+        : {}),
+      ...(props.langfuseSecretKeySecret
+        ? { LANGFUSE_SECRET_KEY_SECRET_ARN: props.langfuseSecretKeySecret.secretArn }
+        : {}),
     },
   });
+
+  // --- IAM grants -----------------------------------------------------------
   props.notionTokenSecret.grantRead(granolaPoller);
-  props.sentryDsnSecret.grantRead(granolaPoller);
-  props.langfusePublicKeySecret.grantRead(granolaPoller);
-  props.langfuseSecretKeySecret.grantRead(granolaPoller);
   props.captureBus.grantPutEventsTo(granolaPoller);
+  props.sentryDsnSecret?.grantRead(granolaPoller);
+  props.langfusePublicKeySecret?.grantRead(granolaPoller);
+  props.langfuseSecretKeySecret?.grantRead(granolaPoller);
   granolaPoller.addToRolePolicy(
     new PolicyStatement({
       actions: ['rds-db:connect'],
@@ -115,58 +148,23 @@ export function wireGranolaIntegrations(
     }),
   );
 
-  // --- transcript-extractor (AGT-06) ----------------------------------------
-  const transcriptExtractor = new KosLambda(scope, 'TranscriptExtractor', {
-    entry: svcEntry('transcript-extractor'),
-    timeout: Duration.minutes(5),
-    memory: 1024,
-    ...vpcConfig,
-    environment: {
-      ...sharedEnv,
-      KOS_AGENT_BUS_NAME: props.agentBus.eventBusName,
-      NOTION_COMMAND_CENTER_DB_ID: props.commandCenterDbId,
-    },
-  });
-  props.notionTokenSecret.grantRead(transcriptExtractor);
-  props.sentryDsnSecret.grantRead(transcriptExtractor);
-  props.langfusePublicKeySecret.grantRead(transcriptExtractor);
-  props.langfuseSecretKeySecret.grantRead(transcriptExtractor);
-  props.agentBus.grantPutEventsTo(transcriptExtractor);
-  transcriptExtractor.addToRolePolicy(
-    new PolicyStatement({
-      actions: ['rds-db:connect'],
-      resources: [rdsDbConnectResource],
-    }),
-  );
-  transcriptExtractor.addToRolePolicy(
-    new PolicyStatement({
-      actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
-      resources: [
-        'arn:aws:bedrock:*:*:inference-profile/eu.anthropic.claude-sonnet-4-6*',
-        'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*',
-      ],
-    }),
-  );
-
-  // --- EventBridge rule: transcript.available → transcript-extractor --------
-  new Rule(scope, 'TranscriptAvailableRule', {
-    eventBus: props.captureBus,
-    eventPattern: {
-      source: ['kos.capture'],
-      detailType: ['transcript.available'],
-    },
-    targets: [new EventsLambdaFunction(transcriptExtractor)],
-  });
-
-  // --- Scheduler role (shared between all Phase 6 schedules) ---------------
-  const schedulerRole = new Role(scope, 'GranolaSchedulerRole', {
-    assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
-  });
+  // --- Scheduler role -------------------------------------------------------
+  // Trust scheduler.amazonaws.com; NO aws:SourceArn condition per the
+  // Phase 1 Plan 02-04 retro pitfall ("scheduler validates the role at
+  // schedule-creation time before the schedule ARN exists"). Blast radius
+  // narrow because grantInvoke restricts which Lambdas this role can fire.
+  const schedulerRole =
+    props.schedulerRole ??
+    new Role(scope, 'GranolaSchedulerRole', {
+      assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
+    });
   granolaPoller.grantInvoke(schedulerRole);
 
-  // --- Scheduler: granola-poller every 15 min Europe/Stockholm -------------
-  new CfnSchedule(scope, 'GranolaPollerSchedule', {
-    name: 'kos-granola-poller-15min',
+  // --- Scheduler entry: granola-poller-15min --------------------------------
+  // D-02: rate(15 minutes), Europe/Stockholm, flexibleTimeWindow OFF.
+  // Retry policy mirrors Phase 1 patterns (2 retries, 5-min event age).
+  const schedule = new CfnSchedule(scope, 'GranolaPollerSchedule', {
+    name: 'granola-poller-15min',
     groupName: props.scheduleGroupName,
     scheduleExpression: 'rate(15 minutes)',
     scheduleExpressionTimezone: 'Europe/Stockholm',
@@ -174,9 +172,11 @@ export function wireGranolaIntegrations(
     target: {
       arn: granolaPoller.functionArn,
       roleArn: schedulerRole.roleArn,
+      input: '{}',
       retryPolicy: { maximumRetryAttempts: 2, maximumEventAgeInSeconds: 300 },
     },
+    state: 'ENABLED',
   });
 
-  return { granolaPoller, transcriptExtractor, schedulerRole };
+  return { granolaPoller, schedulerRole, schedule };
 }

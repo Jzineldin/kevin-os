@@ -3,13 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-24T00:00:00.000Z"
+last_updated: "2026-04-24T21:22:58.688Z"
+last_activity: 2026-04-24
 progress:
-  total_phases: 10
-  completed_phases: 1
-  total_plans: 42
-  completed_plans: 20
-  percent: 57
+  total_phases: 11
+  completed_phases: 2
+  total_plans: 77
+  completed_plans: 34
+  percent: 44
 ---
 
 # State: Kevin OS (KOS)
@@ -23,7 +24,7 @@ progress:
 
 **Core value:** Kevin never has to re-explain context. Every input gets routed automatically. Every output is context-aware. The system maintains itself; Kevin only writes raw input and reads curated output.
 
-**Current focus:** Phase 01 — infrastructure-foundation
+**Current focus:** Phase --phase — 06
 
 **North-star user behavior (v1 acceptance, Gate 4):** 4 continuous weeks of daily KOS use, morning brief acted on 5 days/week, entity resolver > 90% accuracy on voice, email triage approval+edit rate > 70%, dashboard > 3 sessions/week.
 
@@ -31,11 +32,11 @@ progress:
 
 ## Current Position
 
-Phase: 01 (infrastructure-foundation) — EXECUTING
-Plan: 1 of 9
+Phase: --phase (06) — EXECUTING
+Plan: 1 of --name
 **Phase:** 1 — Infrastructure Foundation
 **Plan:** Not yet planned (run `/gsd-plan-phase 1`)
-**Status:** Ready to execute
+**Status:** Executing Phase --phase
 **Progress:** [░░░░░░░░░░] 0/10 phases complete
 
 ```
@@ -120,7 +121,7 @@ Phase 10:[ ] Migration & Decommission        (depends on 7; ‖ with 6-8)
 | 260424-q93 | Remove orphan aws4fetch dead code from dashboard after Bearer auth migration | 2026-04-24 | 5c5edff | [260424-q93-remove-orphan-aws4fetch-dead-code-from-d](./quick/260424-q93-remove-orphan-aws4fetch-dead-code-from-d/) |
 | 260424-r6s | Migrate dashboard PWA from @serwist/next to @serwist/turbopack for Next 16 (sw URL: `/sw.js` → `/serwist/sw.js`, Vercel preview verified 200 OK) | 2026-04-24 | 4b4c906 | [260424-r6s-migrate-dashboard-pwa-from-serwist-next-](./quick/260424-r6s-migrate-dashboard-pwa-from-serwist-next-/) |
 
-Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker fix via @serwist/turbopack)
+Last activity: 2026-04-24
 
 ---
 
@@ -144,6 +145,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 ## Session Continuity Addendum (2026-04-24)
 
 **Phase 6 planned:** `/gsd-plan-phase 6` (run 2026-04-24, Kevin asleep — recommended defaults locked) produced:
+
 - 06-CONTEXT.md (28 D-XX decisions; all four gray-area defaults accepted)
 - 06-RESEARCH.md (Bedrock cache_control, Notion last_edited_time caveats, PG MV CONCURRENTLY, Vertex 32k floor, Azure semantic reranker pricing)
 - 06-VALIDATION.md (Nyquist-compliant matrix; 24 tasks across 7 plans)
@@ -159,6 +161,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 ## Session Continuity Addendum (2026-04-24 — Phase 4)
 
 **Phase 4 planned:** `/gsd-plan-phase 4` (run 2026-04-24, same session as Phase 6 planning — Kevin asleep, recommended defaults locked per orchestrator brief) produced:
+
 - 04-CONTEXT.md (30 D-XX decisions; all 7 gray-area defaults accepted — EmailEngine on Fargate + ElastiCache Serverless; HMAC-SHA256 iOS auth; SES inbound in eu-west-1 with cross-region; Haiku classify + Sonnet draft; composite (account_id, message_id) idempotency; dashboard-api Route Handlers; email-sender separated from email-triage)
 - 04-RESEARCH.md (SES region asymmetry, EmailEngine docker constraints, iOS Shortcut HMAC actions, Bedrock prompt-injection delimiters, Gmail app passwords, SES sandbox, 12 pitfalls)
 - 04-VALIDATION.md (Nyquist-compliant; 28 automated tasks + 4 operator-only manual verifications)
@@ -174,6 +177,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 **Deviations from recommended defaults:** None. All 7 gray-area orchestrator recommendations accepted verbatim.
 
 **Next session:** Operator pre-deploy actions:
+
 1. Procure EmailEngine $99/yr license.
 2. Generate Gmail app passwords for both accounts.
 3. Verify kos.tale-forge.app in SES eu-west-1 + publish MX record.
@@ -186,6 +190,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 ## Session Continuity Addendum (2026-04-24 — Phase 7)
 
 **Phase 7 planned:** `/gsd-plan-phase 7` (run 2026-04-24, same session as Phase 6 + Phase 4 planning — Kevin asleep, all 7 recommended defaults locked per orchestrator brief) produced:
+
 - 07-CONTEXT.md (19 D-XX decisions; all 7 gray-area orchestrator defaults accepted verbatim — Sonnet 4.6 throughout; BOTH 🏠 Today + Daily Brief Log; Europe/Stockholm native cron; shared `@kos/contracts/src/brief.ts` Zod schemas; `dropped_threads_v` SQL view + `top3_membership` table; weekly cap-invariant Lambda via Scheduler; single Telegram HTML message per brief)
 - 07-RESEARCH.md (EventBridge Scheduler timezone/DST semantics, AWS cron 6-field + `?` wildcard, Bedrock tool_use + tool_choice, Notion replace-in-place 3-RPS budget, Telegram HTML parse_mode 4096-char limit, AnthropicBedrock EU inference profile)
 - 07-VALIDATION.md (Nyquist-compliant matrix; 14 tasks across 5 plans)
@@ -197,6 +202,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 **Migration number collision (Phase 4 / 6 / 7 guard):** Phase 6 reserves 0012, Phase 4 reserves 0012 with bump-to-0013 on Phase-6-first-land, Phase 7 reserves 0014. At execution time, Phase 7 plan 07-00 Task 3 includes a next-available check — if the filesystem state doesn't match the expected chain (0012 Phase-6, 0013 Phase-4, 0014 Phase-7), executor bumps accordingly.
 
 **Status:** Phase 7 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 7` after:
+
 1. Confirming Phase 6 + Phase 4 plans have landed (loadContext + scan_emails_now rule must exist at runtime).
 2. Seeding `scripts/.notion-db-ids.json` with `todayPage` (🏠 Today page id) + `dailyBriefLog` (Daily Brief Log DB id).
 3. Verifying Daily Brief Log DB in Kevin's Notion workspace has `Type` (select: morning/day-close/weekly-review) + `Date` (date) properties.
@@ -206,6 +212,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 **Plan path:** `.planning/phases/07-lifecycle-automation/07-CONTEXT.md`.
 
 **Next session:** Operator pre-deploy actions:
+
 1. Confirm Phase 6 execution before Phase 7 (loadContext dependency).
 2. Seed Notion page/DB IDs as above.
 3. Run `/gsd-execute-phase 7` — Phase 7 writes to `services/{morning-brief,day-close,weekly-review,verify-notification-cap}`, `services/_shared/brief-renderer.ts`, `packages/contracts/src/brief.ts`, `packages/db/drizzle/0014_phase_7_top3_and_dropped_threads.sql`, `packages/cdk/lib/stacks/integrations-lifecycle.ts`, and 3 new `scripts/verify-*.mjs` verifiers.
@@ -213,6 +220,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 ## Session Continuity Addendum (2026-04-24 — Phase 8)
 
 **Phase 8 planned:** `/gsd-plan-phase 8` (run 2026-04-24, same overnight session as Phase 6/4/7 — Kevin asleep, all 7 orchestrator-recommended defaults locked verbatim) produced:
+
 - 08-CONTEXT.md (33 D-XX decisions; 7 gray-area defaults accepted — BRAND_VOICE.md seed w/ human_verification gate; Step Functions Standard Map; Postiz Fargate 0.5 vCPU + EFS; OAuth per-account refresh tokens; regex→Haiku→Sonnet 3-stage; (recipient_email, doc_name) composite key; separate tables+events for mutation vs content)
 - 08-RESEARCH.md (Postiz MCP Streamable HTTP, Google Calendar v3, Step Functions Standard vs Express, pdf-parse/mammoth extraction, Swedish+English imperative linguistics, Fargate Postiz deployment, 15 pitfalls)
 - 08-VALIDATION.md (Nyquist-compliant; 21 tasks across 7 plans; 10 TDD tasks)
@@ -222,6 +230,7 @@ Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker 
 **SC 6 (imperative-verb mutation pathway) scope:** Two dedicated Lambdas (services/mutation-proposer + services/mutation-executor) with 3-stage classifier (regex pre-filter → Haiku classification → Sonnet target decision) + pending_mutations DB table + dashboard Approve route + archive-not-delete applier. voice-capture race-fix via hasPendingMutation check. The 2026-04-23 failure case ("ta bort mötet imorgon kl 11") is now a pending Inbox card requiring explicit Approve; no silent CC insertion.
 
 **Approve-gate structural invariants (SC 5) — 6 Lambda IAM split:**
+
 - content-writer: NO postiz, NO ses
 - publisher: NO bedrock, NO ses
 - mutation-proposer: NO postiz, NO ses, NO notion writes
@@ -236,12 +245,14 @@ CDK tests grep synth output for forbidden actions; zero-match enforced mechanica
 **D-17 Google Calendar read-only invariant:** OAuth scope locked to `calendar.readonly`; mutation-executor cannot write to Google Calendar even if compromised; `reschedule_meeting` archives old event locally and asks Kevin to manually move in Google.
 
 **Status:** Phase 8 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 8` after:
+
 1. Phase 6 execution complete (loadContext is a Phase 8 dependency)
 2. Phase 4 execution complete (email-sender + email.sent event hook is MEM-05 dependency)
 3. Operator pre-deploys:
    a. GCP project + OAuth Desktop client; `GCAL_CLIENT_ID` + `GCAL_CLIENT_SECRET` set; run `scripts/bootstrap-gcal-oauth.mjs --account kevin-elzarka` and same for kevin-taleforge
    b. Postiz JWT secret seeded (32-byte random hex) in `kos/postiz-jwt-secret`
    c. Fill in `.planning/brand/BRAND_VOICE.md` with real Kevin voice + flip `human_verification: true`
+
 4. Post-deploy manual steps (documented in 08-03-SUMMARY):
    a. Postiz container first-boot → generate API key → seed `kos/postiz-api-key`
    b. Postiz per-platform OAuth via Postiz UI (Instagram, LinkedIn, TikTok, Reddit, Newsletter)
@@ -255,6 +266,7 @@ CDK tests grep synth output for forbidden actions; zero-match enforced mechanica
 ## Session Continuity Addendum (2026-04-24 — Phase 10)
 
 **Phase 10 planned:** `/gsd-plan-phase 10` (run 2026-04-24, same overnight session as Phase 6/4/7/8 — Kevin asleep, all 7 orchestrator-recommended defaults locked verbatim) produced:
+
 - 10-CONTEXT.md (24 D-XX decisions; 7 gray-area defaults accepted — classify thin-adapter; gmail_classifier full-decom; Discord channel webhook; n8n JSON-export-to-S3; archive-immediately; 14-day cold-inert before power-down; 30-day snapshot retention)
 - 10-RESEARCH.md (Notion database-archive semantics, Hetzner snapshot+restore workflow, Discord channel webhook vs gateway, systemd shutdown best practices, AWS Cost Explorer egress limitations, 10+ pitfalls)
 - 10-VALIDATION.md (Nyquist-compliant matrix; 26 tasks across 8 plans; 10 operator-run tasks with script companions)
@@ -274,6 +286,7 @@ CDK tests grep synth output for forbidden actions; zero-match enforced mechanica
 **Wave 1 hard prereq:** Phase 7 AUTO-01/AUTO-03 deployed — morning_briefing + evening_checkin retirement in Plan 10-02 blocks without them.
 
 **Status:** Phase 10 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 10` after:
+
 1. Phase 7 execution complete (morning-brief + day-close Lambdas live).
 2. Phase 4 execution complete + Gate 3 PASS (email-triage verified).
 3. Plan 10-06 operator pre-deploy: `bash scripts/discover-vps-scripts.sh > .planning/phases/10-migration-decommission/vps-service-inventory.json`.
@@ -291,6 +304,7 @@ CDK tests grep synth output for forbidden actions; zero-match enforced mechanica
 ## Session Continuity Addendum (2026-04-24 — Phase 5)
 
 **Phase 5 planned:** `/gsd-plan-phase 5` (run 2026-04-24, same overnight session as Phase 6/4/7/8/10 — Kevin asleep, all 7 orchestrator-recommended defaults locked verbatim) produced:
+
 - 05-CONTEXT.md (25 D-XX decisions; 7 gray-area defaults accepted — esbuild+copy-plugin; unpacked-install; fazer-ai/baileys-api image; Postgres pluggable auth; chrome.alarms+visibility gate; Phase-10 Lambda reuse; defense-in-depth 5-layer read-only + dedicated risk acceptance file)
 - 05-RESEARCH.md (MV3 service_worker lifecycle, LinkedIn Voyager shape, Baileys pluggable auth interface, WhatsApp detection heuristics, Discord rate limits, 12 pitfalls including MV3 setInterval death + Voyager cookie rotation + Baileys concurrent-write corruption)
 - 05-VALIDATION.md (Nyquist-compliant matrix; 15 tasks across 8 plans; 8 operator-only manual steps with CLI companions)
@@ -311,6 +325,7 @@ CDK tests grep synth output for forbidden actions; zero-match enforced mechanica
 **Cost delta:** +$36-38/mo steady-state (Baileys Fargate 1 vCPU × 2GB ARM64 ~$36 + Lambdas + Scheduler ~$1-2). Covered by AWS credits 12+ months.
 
 **Status:** Phase 5 plans READY (NOT yet executing). Operator invocations:
+
 - CAP-04 only (lowest-risk cherry-pick): `/gsd-execute-phase 5 --plans 00,01,02`
 - + Discord contract: `--plans 00,01,02,06`
 - + LinkedIn defensive (starts 14-day observation): `--plans 00,01,02,03,06`

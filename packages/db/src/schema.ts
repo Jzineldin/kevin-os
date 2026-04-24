@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
   vector,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { ownerId } from './owner.js';
@@ -254,3 +255,52 @@ export const inboxIndex = pgTable(
     byMerge: index('inbox_index_by_merge').on(t.mergeId),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Phase 6 Migration 0012: dossier cache (D-17 / D-18 / D-19)
+//
+// Postgres-backed cache for assembled entity dossiers. Composite PK
+// (entity_id, owner_id) preserves the multi-user forward-compat invariant
+// from Locked Decision #13 even though v1 is single-user. Invalidation
+// is trigger-driven via `trg_entity_dossiers_cached_invalidate` on
+// mention_events INSERT (D-18); TTL belt-and-braces via expires_at column
+// read at query time. Bundle is the full ContextBundle JSON minus
+// kevin_context (which is concat'd at call time).
+//
+// The materialized view `entity_timeline` (MEM-04) is intentionally NOT
+// modeled here — Drizzle does not represent materialized views as first
+// class objects; queries against it use raw `pool.query` SQL.
+// See: packages/db/drizzle/0012_phase_6_dossier_cache_and_timeline_mv.sql
+// ---------------------------------------------------------------------------
+export const entityDossiersCached = pgTable(
+  'entity_dossiers_cached',
+  {
+    entityId: uuid('entity_id').notNull(),
+    ownerId: ownerId(),
+    lastTouchHash: text('last_touch_hash').notNull(),
+    bundle: jsonb('bundle').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.entityId, t.ownerId] }),
+    byExpires: index('idx_entity_dossiers_cached_expires').on(t.expiresAt),
+    byOwner: index('idx_entity_dossiers_cached_owner').on(t.ownerId, t.entityId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Phase 6 Migration 0012: per-Azure-indexer-source incremental sync cursor.
+//
+// Each `services/azure-search-indexer-*` Lambda reads + writes a row keyed
+// by `key` ('azure-indexer-entities', 'azure-indexer-projects',
+// 'azure-indexer-transcripts', 'azure-indexer-daily-brief') to track the
+// `updated_at` watermark of the last-processed source row. First-run cursor
+// is NULL (=> fetch-all-then-advance).
+// ---------------------------------------------------------------------------
+export const azureIndexerCursor = pgTable('azure_indexer_cursor', {
+  key: text('key').primaryKey(),
+  ownerId: ownerId(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

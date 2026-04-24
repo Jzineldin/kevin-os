@@ -158,17 +158,33 @@ END $$;
 -- `updated_at` watermark of the last-processed row per source.
 -- ---------------------------------------------------------------------------
 
+-- owner_id carried per Locked Decision #13 (every RDS table) even though
+-- the cursor key itself is globally-unique. Single-user v1 → multi-user
+-- forward-compat at zero cost.
 CREATE TABLE IF NOT EXISTS azure_indexer_cursor (
   key            text        PRIMARY KEY,
+  owner_id       uuid        NOT NULL DEFAULT '7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c'::uuid,
   last_seen_at   timestamptz,
   updated_at     timestamptz NOT NULL DEFAULT now()
 );
+
+-- Idempotent column add for forward-compat — handles environments where
+-- migration 0012 was applied before owner_id was added.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'azure_indexer_cursor' AND column_name = 'owner_id'
+  ) THEN
+    EXECUTE 'ALTER TABLE azure_indexer_cursor ADD COLUMN owner_id uuid NOT NULL DEFAULT ''7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c''::uuid';
+  END IF;
+END $$;
 
 COMMENT ON TABLE azure_indexer_cursor IS
   'Phase 6 MEM-03: per-indexer-source incremental sync cursor. Each indexer '
   'Lambda reads its cursor on cold-start, queries source table WHERE updated_at > cursor, '
   'advances cursor to max(updated_at) of processed batch. First-run cursor is NULL '
-  '(=> fetch-all-then-advance).';
+  '(=> fetch-all-then-advance). owner_id present per Locked Decision #13.';
 
 DO $$
 BEGIN

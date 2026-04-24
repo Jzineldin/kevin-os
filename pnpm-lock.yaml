@@ -80,9 +80,6 @@ importers:
       '@vercel/speed-insights':
         specifier: 2.0.0
         version: 2.0.0(next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.51.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
-      aws4fetch:
-        specifier: 1.0.20
-        version: 1.0.20
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -6437,9 +6434,6 @@ packages:
     resolution: {integrity: sha512-wJfRQdvb+FJ2cni059mYdmjhfwhMskP+PAB59BL9jhon+jYtjy8X3pbj3uzHgAOJwNhh6jGkP8xq36Cffccbbw==}
     engines: {node: '>= 18.0.0'}
     hasBin: true
-
-  aws4fetch@1.0.20:
-    resolution: {integrity: sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g==}
 
   axe-core@4.11.3:
     resolution: {integrity: sha512-zBQouZixDTbo3jMGqHKyePxYxr1e5W8UdTmBQ7sNtaA9M2bE32daxxPLS/jojhKOHxQ7LWwPjfiwf/fhaJWzlg==}
@@ -16818,8 +16812,6 @@ snapshots:
       constructs: 10.5.1
 
   aws-cdk@2.1118.4: {}
-
-  aws4fetch@1.0.20: {}
 
   axe-core@4.11.3: {}
 

@@ -1,15 +1,15 @@
 /**
  * /api/stream — Vercel-side SSE Route Handler (Plan 03-07 Task 1).
  *
- * Runtime: Node (P-01 forbids Edge here — aws4fetch + long execution need
- * Node APIs via `@/lib/dashboard-api`).
+ * Runtime: Node (P-01 forbids Edge here — long execution + Node APIs
+ * via `@/lib/dashboard-api` keep this pinned to the Node runtime).
  *
  * Lifecycle (RESEARCH §12 + CONTEXT D-23):
  *   - First bytes: `: connected at <iso>\n\n` + `retry: 500\n\n` so the
  *     browser's EventSource fires `open` immediately and picks our 500ms
  *     backoff floor instead of the spec default 3s.
  *   - Every 15s: `: heartbeat\n\n` comment to flush proxy buffers (P-08).
- *   - Loop: SigV4-call `callRelay('/events?cursor=<last>&wait=25')`. For
+ *   - Loop: Bearer-auth call `callRelay('/events?cursor=<last>&wait=25')`. For
  *     each `event` in the response, emit `id: <seq>\ndata: <json>\n\n`
  *     after validating against `SseEventSchema`; malformed events are
  *     silently dropped (T-3-07-03).

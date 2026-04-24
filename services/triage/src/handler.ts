@@ -66,20 +66,25 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     let captureId: string;
     let sourceKind: 'text' | 'voice';
     let text: string;
-    let senderId: number;
+    let channel: 'telegram' | 'dashboard' = 'telegram';
+    // Telegram-only — absent for dashboard-sourced captures. voice-capture
+    // consults these downstream to decide whether to emit an output.push
+    // Telegram reply ack (2026-04-24 widen).
+    let senderId: number | undefined;
     let senderDisplay: string | undefined;
-    let chatId: number;
-    let messageId: number;
+    let chatId: number | undefined;
+    let messageId: number | undefined;
 
     if (dt === 'capture.received') {
       const d = CaptureReceivedTextSchema.parse(event.detail);
       captureId = d.capture_id;
       sourceKind = 'text';
       text = d.text;
-      senderId = d.sender.id;
-      senderDisplay = d.sender.display;
-      chatId = d.telegram.chat_id;
-      messageId = d.telegram.message_id;
+      channel = d.channel;
+      senderId = d.sender?.id;
+      senderDisplay = d.sender?.display;
+      chatId = d.telegram?.chat_id;
+      messageId = d.telegram?.message_id;
     } else if (dt === 'capture.voice.transcribed') {
       const d = CaptureVoiceTranscribedSchema.parse(event.detail);
       captureId = d.capture_id;
@@ -147,12 +152,20 @@ export const handler = wrapHandler(async (event: EBEvent) => {
         capture_id: captureId,
         source_kind: sourceKind,
         source_text: text.slice(0, 8000),
+        channel,
         route: output.route,
         detected_type: output.detected_type,
         urgency: output.urgency,
         reason: output.reason,
-        sender: { id: senderId, display: senderDisplay },
-        telegram: { chat_id: chatId, message_id: messageId },
+        // Only forward the Telegram reply-target when it exists — dashboard
+        // captures have no chat/message to reply to (voice-capture will skip
+        // the output.push emit accordingly).
+        ...(senderId !== undefined
+          ? { sender: { id: senderId, display: senderDisplay } }
+          : {}),
+        ...(chatId !== undefined && messageId !== undefined
+          ? { telegram: { chat_id: chatId, message_id: messageId } }
+          : {}),
         routed_at: new Date().toISOString(),
       });
 

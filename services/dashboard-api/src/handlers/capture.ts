@@ -32,10 +32,12 @@ async function captureHandler(ctx: Ctx): Promise<RouteResponse> {
       // EventBridge pattern filters on detail.kind=['text'] to avoid
       // double-firing on voice captures (those have kind='voice' and go
       // through the CaptureReceivedVoiceRule → transcribe-starter path).
-      // Without this field, triage never receives the event. (Drift found
-      // 2026-04-24 after the Vercel capture box ack'd but nothing
-      // downstream fired.)
       kind: 'text' as const,
+      // `channel: 'dashboard'` tells triage (and downstream voice-capture)
+      // this is NOT a Telegram-sourced event — skip the output.push ack
+      // (there's no chat_id to reply to). CaptureReceivedTextSchema was
+      // widened 2026-04-24 to accept this channel value.
+      channel: 'dashboard' as const,
       source: 'dashboard',
       received_at,
       ...parsed,

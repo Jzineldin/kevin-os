@@ -31,6 +31,22 @@ Output STRICTLY JSON:
 {"title":"...","type":"task|meeting|note|question","urgency":"low|med|high","body":"...","project_hint":null|"...",
  "candidate_entities":[{"mention_text":"Damien","candidate_type":"Person","context_snippet":"..."}]}`;
 
+// 2026-04-24: Haiku 4.5 occasionally returns the long-form 'Organization' /
+// 'Company' despite the prompt's 'Org' example. Preprocess with a
+// case-insensitive alias map BEFORE zod so the schema stays strict for
+// downstream consumers.
+const CandidateTypeAlias = z
+  .string()
+  .transform((s) => {
+    const k = s.trim().toLowerCase();
+    if (k === 'person' || k === 'people') return 'Person';
+    if (k === 'project' || k === 'initiative') return 'Project';
+    if (k === 'org' || k === 'organization' || k === 'organisation' || k === 'company')
+      return 'Org';
+    return 'Other';
+  })
+  .pipe(z.enum(['Person', 'Project', 'Org', 'Other']));
+
 export const VoiceCaptureOutputSchema = z.object({
   title: z.string().min(1).max(200),
   type: z.enum(['task', 'meeting', 'note', 'question']),
@@ -41,7 +57,7 @@ export const VoiceCaptureOutputSchema = z.object({
     .array(
       z.object({
         mention_text: z.string().min(1).max(200),
-        candidate_type: z.enum(['Person', 'Project', 'Org', 'Other']),
+        candidate_type: CandidateTypeAlias,
         context_snippet: z.string().max(500),
       }),
     )

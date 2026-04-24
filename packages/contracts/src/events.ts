@@ -30,20 +30,32 @@ export type EventMetadata = z.infer<typeof EventMetadataSchema>;
 // ULID shape (26 chars, Crockford base32 alphabet excluding I L O U).
 const UlidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
+// 2026-04-24: widened to accept dashboard-originated captures (channel:
+// 'dashboard'). Dashboard captures don't have a Telegram message to tie
+// sender/chat/message IDs to, so those fields are optional. Telegram
+// captures continue to populate both (runtime enforcement in triage +
+// voice-capture handlers where the reply-ack path depends on them).
 export const CaptureReceivedTextSchema = z.object({
   capture_id: z.string().regex(UlidRegex),
-  channel: z.literal('telegram'),
+  channel: z.enum(['telegram', 'dashboard']),
   kind: z.literal('text'),
   text: z.string().min(1).max(8000),
-  sender: z.object({
-    id: z.number().int(),
-    display: z.string().optional(),
-  }),
+  sender: z
+    .object({
+      id: z.number().int(),
+      display: z.string().optional(),
+    })
+    .optional(),
   received_at: z.string().datetime(),
-  telegram: z.object({
-    chat_id: z.number().int(),
-    message_id: z.number().int(),
-  }),
+  telegram: z
+    .object({
+      chat_id: z.number().int(),
+      message_id: z.number().int(),
+    })
+    .optional(),
+  // Dashboard-originated captures pass through a free-form `source` tag
+  // (e.g. 'dashboard' from services/dashboard-api capture handler).
+  source: z.string().optional(),
 });
 
 export const CaptureReceivedVoiceSchema = z.object({
@@ -115,22 +127,31 @@ export type CaptureVoiceTranscribed = z.infer<typeof CaptureVoiceTranscribedSche
 // EventBridge per-event Detail limit is 256KB; this schema (worst case) is
 // well under 12KB.
 
+// 2026-04-24: `channel`, `sender`, `telegram` made optional for
+// dashboard-sourced captures (no Telegram message to reply to).
+// voice-capture conditionally emits the output.push Telegram ack only
+// when telegram.chat_id is present.
 export const TriageRoutedSchema = z.object({
   capture_id: z.string().regex(UlidRegex),
   source_kind: z.enum(['text', 'voice']),
   source_text: z.string().max(8000),
+  channel: z.enum(['telegram', 'dashboard']).optional(),
   route: z.enum(['voice-capture', 'inbox-review', 'drop']),
   detected_type: z.enum(['task', 'meeting', 'note', 'question', 'other']).optional(),
   urgency: z.enum(['low', 'med', 'high', 'none']).optional(),
   reason: z.string().max(200),
-  sender: z.object({
-    id: z.number().int(),
-    display: z.string().optional(),
-  }),
-  telegram: z.object({
-    chat_id: z.number().int(),
-    message_id: z.number().int(),
-  }),
+  sender: z
+    .object({
+      id: z.number().int(),
+      display: z.string().optional(),
+    })
+    .optional(),
+  telegram: z
+    .object({
+      chat_id: z.number().int(),
+      message_id: z.number().int(),
+    })
+    .optional(),
   routed_at: z.string().datetime(),
 });
 export type TriageRouted = z.infer<typeof TriageRoutedSchema>;
@@ -143,7 +164,7 @@ export const EntityMentionDetectedSchema = z.object({
   mention_text: z.string().min(1).max(200),
   context_snippet: z.string().max(500),
   candidate_type: z.enum(['Person', 'Project', 'Org', 'Other']),
-  source: z.enum(['telegram-text', 'telegram-voice']),
+  source: z.enum(['telegram-text', 'telegram-voice', 'dashboard-text']),
   occurred_at: z.string().datetime(),
   notion_command_center_page_id: z.string().optional(),
 });

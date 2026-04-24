@@ -5,11 +5,15 @@
  * transcripts agent_runs / daily_brief agent_runs), embeds via Cohere v4,
  * upserts into `kos-memory` Azure Search index.
  *
- * Cadence:
- *   - entities:     every 10 min
- *   - projects:     every 10 min
- *   - transcripts:  every 10 min
- *   - daily-brief:  every 30 min (lower write rate)
+ * Cadence (Plan 06-03 D-09 must_haves: per-content-type cadence so transcripts
+ * surface in dossier reads within 5 min of extraction):
+ *   - entities:     rate(5 minutes)
+ *   - projects:     rate(5 minutes)
+ *   - transcripts:  rate(5 minutes)
+ *   - daily-brief:  rate(15 minutes)  (lower write rate; Phase 7 source)
+ *
+ * All schedules: timezone Europe/Stockholm, flexibleTimeWindow OFF, retry
+ * policy 2 attempts × 600s max-event-age.
  *
  * Reference: .planning/phases/06-granola-semantic-memory/06-03-PLAN.md
  */
@@ -36,14 +40,28 @@ export interface WireAzureIndexersProps {
   rdsSecurityGroup: ISecurityGroup;
   rdsProxyEndpoint: string;
   rdsProxyDbiResourceId: string;
-  azureSearchEndpointSecret: ISecret;
+  /**
+   * `kos/azure-search-admin` JSON secret containing `{endpoint, adminKey}`
+   * (matches `services/azure-search-bootstrap` consumption shape and
+   * `scripts/provision-azure-search.sh` seeding format). The Phase 6
+   * `@kos/azure-search` client unwraps this JSON at cold start.
+   */
   azureSearchAdminSecret: ISecret;
-  sentryDsnSecret: ISecret;
-  langfusePublicKeySecret: ISecret;
-  langfuseSecretKeySecret: ISecret;
+  /**
+   * Optional secondary endpoint secret (legacy two-secret deployments).
+   * When supplied the client falls back to reading the endpoint from this
+   * secret if the admin secret is not unified-JSON. Most deployments leave
+   * this unset and use the unified admin secret only.
+   */
+  azureSearchEndpointSecret?: ISecret;
+  sentryDsnSecret?: ISecret;
+  langfusePublicKeySecret?: ISecret;
+  langfuseSecretKeySecret?: ISecret;
   scheduleGroupName: string;
   ownerId: string;
   azureIndexName?: string;
+  /** Optional re-use of an existing scheduler role (mirrors granola pattern). */
+  schedulerRole?: Role;
 }
 
 export interface AzureIndexerWiring {
@@ -68,12 +86,8 @@ export function wireAzureIndexers(
     securityGroups: [props.rdsSecurityGroup],
   };
 
-  const sharedEnv = {
+  const sharedEnv: Record<string, string> = {
     KOS_OWNER_ID: props.ownerId,
-    SENTRY_DSN_SECRET_ARN: props.sentryDsnSecret.secretArn,
-    LANGFUSE_PUBLIC_KEY_SECRET_ARN: props.langfusePublicKeySecret.secretArn,
-    LANGFUSE_SECRET_KEY_SECRET_ARN: props.langfuseSecretKeySecret.secretArn,
-    AZURE_SEARCH_ENDPOINT_SECRET_ARN: props.azureSearchEndpointSecret.secretArn,
     AZURE_SEARCH_ADMIN_SECRET_ARN: props.azureSearchAdminSecret.secretArn,
     AZURE_SEARCH_INDEX_NAME: indexName,
     DATABASE_HOST: props.rdsProxyEndpoint,
@@ -81,6 +95,18 @@ export function wireAzureIndexers(
     DATABASE_NAME: 'kos',
     DATABASE_USER: 'kos_agent_writer',
   };
+  if (props.azureSearchEndpointSecret) {
+    sharedEnv.AZURE_SEARCH_ENDPOINT_SECRET_ARN = props.azureSearchEndpointSecret.secretArn;
+  }
+  if (props.sentryDsnSecret) {
+    sharedEnv.SENTRY_DSN_SECRET_ARN = props.sentryDsnSecret.secretArn;
+  }
+  if (props.langfusePublicKeySecret) {
+    sharedEnv.LANGFUSE_PUBLIC_KEY_SECRET_ARN = props.langfusePublicKeySecret.secretArn;
+  }
+  if (props.langfuseSecretKeySecret) {
+    sharedEnv.LANGFUSE_SECRET_KEY_SECRET_ARN = props.langfuseSecretKeySecret.secretArn;
+  }
 
   function buildIndexer(name: string, svc: string, timeoutMin: number): KosLambda {
     const fn = new KosLambda(scope, name, {
@@ -90,11 +116,11 @@ export function wireAzureIndexers(
       ...vpcConfig,
       environment: sharedEnv,
     });
-    props.azureSearchEndpointSecret.grantRead(fn);
     props.azureSearchAdminSecret.grantRead(fn);
-    props.sentryDsnSecret.grantRead(fn);
-    props.langfusePublicKeySecret.grantRead(fn);
-    props.langfuseSecretKeySecret.grantRead(fn);
+    if (props.azureSearchEndpointSecret) props.azureSearchEndpointSecret.grantRead(fn);
+    if (props.sentryDsnSecret) props.sentryDsnSecret.grantRead(fn);
+    if (props.langfusePublicKeySecret) props.langfusePublicKeySecret.grantRead(fn);
+    if (props.langfuseSecretKeySecret) props.langfuseSecretKeySecret.grantRead(fn);
     fn.addToRolePolicy(
       new PolicyStatement({
         actions: ['rds-db:connect'],
@@ -126,7 +152,7 @@ export function wireAzureIndexers(
     3,
   );
 
-  const schedulerRole = new Role(scope, 'AzureIndexerSchedulerRole', {
+  const schedulerRole = props.schedulerRole ?? new Role(scope, 'AzureIndexerSchedulerRole', {
     assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
   });
   entities.grantInvoke(schedulerRole);
@@ -135,12 +161,13 @@ export function wireAzureIndexers(
   dailyBrief.grantInvoke(schedulerRole);
 
   function buildSchedule(
-    name: string,
+    constructId: string,
+    scheduleName: string,
     targetFn: KosLambda,
     expression: string,
   ): void {
-    new CfnSchedule(scope, name, {
-      name: `kos-${name.toLowerCase()}`,
+    new CfnSchedule(scope, constructId, {
+      name: scheduleName,
       groupName: props.scheduleGroupName,
       scheduleExpression: expression,
       scheduleExpressionTimezone: 'Europe/Stockholm',
@@ -153,10 +180,40 @@ export function wireAzureIndexers(
     });
   }
 
-  buildSchedule('AzureIndexerEntitiesSchedule', entities, 'rate(10 minutes)');
-  buildSchedule('AzureIndexerProjectsSchedule', projects, 'rate(10 minutes)');
-  buildSchedule('AzureIndexerTranscriptsSchedule', transcripts, 'rate(10 minutes)');
-  buildSchedule('AzureIndexerDailyBriefSchedule', dailyBrief, 'rate(30 minutes)');
+  // Plan 06-03 must_haves: per-content-type cadence — entities/projects/
+  // transcripts every 5 min, daily-brief every 15 min. Names match the
+  // <key_links> grep predicate `azure-search-indexer-(entities|projects|
+  // transcripts|daily-brief)`.
+  buildSchedule(
+    'AzureIndexerEntitiesSchedule',
+    'azure-search-indexer-entities',
+    entities,
+    'rate(5 minutes)',
+  );
+  buildSchedule(
+    'AzureIndexerProjectsSchedule',
+    'azure-search-indexer-projects',
+    projects,
+    'rate(5 minutes)',
+  );
+  buildSchedule(
+    'AzureIndexerTranscriptsSchedule',
+    'azure-search-indexer-transcripts',
+    transcripts,
+    'rate(5 minutes)',
+  );
+  buildSchedule(
+    'AzureIndexerDailyBriefSchedule',
+    'azure-search-indexer-daily-brief',
+    dailyBrief,
+    'rate(15 minutes)',
+  );
 
   return { entities, projects, transcripts, dailyBrief, schedulerRole };
 }
+
+/**
+ * Plan 06-03 spec name. Alias of `wireAzureIndexers` so callers can use
+ * either name without breaking the existing integrations-stack call site.
+ */
+export const wireAzureSearchIndexers = wireAzureIndexers;

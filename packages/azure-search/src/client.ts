@@ -34,20 +34,53 @@ export async function getAzureSearchClient<T = unknown>(
 }
 
 async function loadConfig(): Promise<{ endpoint: string; apiKey: string }> {
+  // Two supported shapes (Phase 6 reality reconciliation):
+  //   1. Unified `kos/azure-search-admin` JSON secret containing
+  //      `{endpoint, adminKey}` — the format produced by
+  //      `scripts/provision-azure-search.sh` and consumed by
+  //      `services/azure-search-bootstrap`. Pass via
+  //      AZURE_SEARCH_ADMIN_SECRET_ARN; AZURE_SEARCH_ENDPOINT_SECRET_ARN can
+  //      be unset.
+  //   2. Two-secret legacy: AZURE_SEARCH_ENDPOINT_SECRET_ARN holds plain
+  //      endpoint string; AZURE_SEARCH_ADMIN_SECRET_ARN holds plain admin
+  //      key. Backward-compatibility for any test fixture that bound them
+  //      separately.
   const endpointArn = process.env.AZURE_SEARCH_ENDPOINT_SECRET_ARN;
   const adminArn = process.env.AZURE_SEARCH_ADMIN_SECRET_ARN;
-  if (!endpointArn || !adminArn) {
-    throw new Error(
-      'AZURE_SEARCH_ENDPOINT_SECRET_ARN and AZURE_SEARCH_ADMIN_SECRET_ARN env vars required',
-    );
+  if (!adminArn) {
+    throw new Error('AZURE_SEARCH_ADMIN_SECRET_ARN env var required');
   }
   const sm = new SecretsManagerClient({});
-  const [endpointRes, adminRes] = await Promise.all([
-    sm.send(new GetSecretValueCommand({ SecretId: endpointArn })),
-    sm.send(new GetSecretValueCommand({ SecretId: adminArn })),
-  ]);
-  const endpoint = endpointRes.SecretString?.replace(/\/$/, '') ?? '';
-  const apiKey = adminRes.SecretString ?? '';
+
+  const adminRes = await sm.send(new GetSecretValueCommand({ SecretId: adminArn }));
+  const adminRaw = adminRes.SecretString ?? '';
+  if (!adminRaw) throw new Error(`Azure Search admin secret ${adminArn} empty`);
+
+  // Try shape #1 — unified JSON.
+  let endpoint = '';
+  let apiKey = '';
+  try {
+    const parsed = JSON.parse(adminRaw) as { endpoint?: string; adminKey?: string };
+    if (parsed.endpoint && parsed.adminKey) {
+      endpoint = parsed.endpoint.replace(/\/$/, '');
+      apiKey = parsed.adminKey;
+    }
+  } catch {
+    // Not JSON — fall through to shape #2.
+  }
+
+  // Shape #2 — separate secrets.
+  if (!endpoint || !apiKey) {
+    apiKey = adminRaw;
+    if (!endpointArn) {
+      throw new Error(
+        'Azure Search admin secret is not unified-JSON; AZURE_SEARCH_ENDPOINT_SECRET_ARN required',
+      );
+    }
+    const endpointRes = await sm.send(new GetSecretValueCommand({ SecretId: endpointArn }));
+    endpoint = (endpointRes.SecretString ?? '').replace(/\/$/, '');
+  }
+
   if (!endpoint || !apiKey) {
     throw new Error('Azure Search secrets empty — check Secrets Manager state');
   }

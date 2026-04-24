@@ -248,3 +248,39 @@ CDK tests grep synth output for forbidden actions; zero-match enforced mechanica
 **Plan path:** `.planning/phases/08-outbound-content-calendar/08-CONTEXT.md`.
 
 **Next session:** Operator runs `/gsd-execute-phase 8`. Writes to `services/{content-writer,content-writer-platform,publisher,mutation-proposer,mutation-executor,calendar-reader,document-diff}`, `packages/contracts/src/{content,mutation,calendar,document-version}.ts`, `packages/db/drizzle/0015_phase_8_*.sql`, `packages/context-loader/src/calendar.ts`, `packages/cdk/lib/stacks/integrations-{postiz,publisher,content,calendar,mutations,document-diff}.ts`, `.planning/brand/BRAND_VOICE.md`, 6 Next.js Route Handlers in `apps/dashboard/src/app/api/{content-drafts,pending-mutations}/`, 4 verifier scripts, evidence template.
+
+## Session Continuity Addendum (2026-04-24 — Phase 10)
+
+**Phase 10 planned:** `/gsd-plan-phase 10` (run 2026-04-24, same overnight session as Phase 6/4/7/8 — Kevin asleep, all 7 orchestrator-recommended defaults locked verbatim) produced:
+- 10-CONTEXT.md (24 D-XX decisions; 7 gray-area defaults accepted — classify thin-adapter; gmail_classifier full-decom; Discord channel webhook; n8n JSON-export-to-S3; archive-immediately; 14-day cold-inert before power-down; 30-day snapshot retention)
+- 10-RESEARCH.md (Notion database-archive semantics, Hetzner snapshot+restore workflow, Discord channel webhook vs gateway, systemd shutdown best practices, AWS Cost Explorer egress limitations, 10+ pitfalls)
+- 10-VALIDATION.md (Nyquist-compliant matrix; 26 tasks across 8 plans; 10 operator-run tasks with script companions)
+- 8 PLAN files (10-00 scaffold, 10-01 classify-adapter + same-substance, 10-02 morning/evening retirement, 10-03 Brain DB archive, 10-04 Discord Lambda CAP-10, 10-05 n8n decom MIG-02, 10-06 unfrozen VPS scripts retirement, 10-07 Hetzner power-down + rollback + E2E gate)
+- 10-ROLLBACK-RUNBOOK.md (<30 min VPS re-spin from Hetzner snapshot + DRY_RUN_EVIDENCE slot)
+- 10-07-POWER-DOWN-RUNBOOK.md (Wave 4 operator sequence: snapshot → poweroff → webhook re-test → 14-day probe → T+30 hard-delete)
+- 10-07-GATE-evidence-template.md (SC 1-5 + Telegram bonus evidence collection)
+- 10-DISCUSSION-LOG.md
+
+**Side-effect closure (Telegram webhook auto-clear / M1):** Phase 10 MIG-02 (n8n kill) + INF-11 (VPS power-off) are the two highest-likelihood remediations per `.planning/debug/telegram-webhook-auto-clear.md`. Plan 10-07 Task 1 includes `scripts/verify-telegram-webhook-persistence.mjs` — a 60-second observation window post-decom with distinct exit codes: exit 0 (PASS — M1 RESOLVED) or exit 2 (ESCALATE — bot token rotation per debug doc Test 3). Either outcome advances the phase.
+
+**Reversibility invariants preserved:** Archive-not-delete applies to all 5 Brain DBs (Status=Archived + title prefix [MIGRERAD-YYYY-MM-DD] + database lock; 90-day Notion trash window; NO page deletion). Hetzner VPS is powered off (not deleted); snapshot `kos-vps-final-YYYYMMDD` labelled `kos-retention=30days`. Rollback runbook rehearsed in dry-run BEFORE real power-down; DRY_RUN_EVIDENCE slot in runbook is a verifier grep target (Plan 10-07 SC 5 blocks until populated).
+
+**Migration number collision guard:** Phase 8 reserves 0015, Phase 10 targets 0016 with bump-to-0017 fallback if any phase lands a later 0016 before Phase 10 executes.
+
+**Wave 3 hard prereq:** Phase 4 Gate 3 PASS (email-triage proven) — gmail_classifier retirement in Plan 10-06 blocks without it.
+**Wave 1 hard prereq:** Phase 7 AUTO-01/AUTO-03 deployed — morning_briefing + evening_checkin retirement in Plan 10-02 blocks without them.
+
+**Status:** Phase 10 plans READY (NOT yet executing). Operator can run `/gsd-execute-phase 10` after:
+1. Phase 7 execution complete (morning-brief + day-close Lambdas live).
+2. Phase 4 execution complete + Gate 3 PASS (email-triage verified).
+3. Plan 10-06 operator pre-deploy: `bash scripts/discover-vps-scripts.sh > .planning/phases/10-migration-decommission/vps-service-inventory.json`.
+4. Plan 10-07 operator pre-deploy: install `hcloud` CLI + authenticate + rehearse 10-ROLLBACK-RUNBOOK.md in dry-run + paste transcript into DRY_RUN_EVIDENCE section.
+5. 14 days of cold-inert VPS observation (Wave 1 + 2 + 3 all landed and stable) before Wave 4 power-down.
+
+**Cost delta:** -$50/mo (Hetzner VPS) + $0.50/mo (30-day snapshot retention) + $0/mo (Discord Lambda at KOS volume) = net **-$49.50/mo** steady-state savings.
+
+**Deviations from recommended defaults:** None. All 7 gray-area orchestrator recommendations accepted verbatim.
+
+**Plan path:** `.planning/phases/10-migration-decommission/10-CONTEXT.md`.
+
+**Next session:** After Phase 7 + Phase 4 execute successfully, operator runs `/gsd-execute-phase 10`. Writes to `services/{vps-classify-migration,discord-brain-dump,n8n-workflow-archiver}`, `packages/contracts/src/migration.ts`, `packages/db/drizzle/0016_phase_10_migration_audit.sql`, `packages/cdk/lib/stacks/integrations-migration.ts`, 11 verifier/operator scripts in `scripts/`, 3 operator runbooks in `.planning/phases/10-migration-decommission/`, 5 test fixtures in `packages/test-fixtures/phase-10/`.

@@ -304,7 +304,16 @@
 4. INF-11: Hetzner VPS at 98.91.6.66 powered down; AWS Cost Explorer shows no Hetzner egress; CAP-10 Discord brain-dump-listener confirmed running on Lambda (post-migration), forwarding to KOS webhook.
 5. Rollback plan exists and was rehearsed: a documented procedure to re-spin the VPS from a Hetzner snapshot in < 30 min if any KOS replacement function fails in week 1 of decommissioning. After 14 days of clean KOS operation post-decommission, the snapshot may be deleted.
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+- [ ] 10-00-PLAN.md — Wave 0: scaffold 3 service workspaces (vps-classify-migration, discord-brain-dump, n8n-workflow-archiver) + migration 0016 event_log + CDK integrations-migration.ts + 5 test fixtures
+- [ ] 10-01-PLAN.md — Wave 1: MIG-01 classify-adapter Lambda + HMAC auth + Gemini 2.5 Pro same-substance verifier + cutover runbook
+- [ ] 10-02-PLAN.md — Wave 1 parallel: MIG-01 morning_briefing + evening_checkin retirement via Phase 7 AUTO-01/AUTO-03 handoff + Legacy Inbox silence check
+- [ ] 10-03-PLAN.md — Wave 2: MIG-03 5 Brain DB archival (write-ahead event_log audit + dry-run + [MIGRERAD-YYYY-MM-DD] prefix + database lock) + MIG-04 archive-marker closure
+- [ ] 10-04-PLAN.md — Wave 2 parallel: CAP-10 Discord brain-dump Lambda (channel webhook, cursor-based idempotency) + 7-day same-substance verifier
+- [ ] 10-05-PLAN.md — Wave 3: MIG-02 n8n decom — workflow JSON export to S3 (KMS) → systemd stop/disable/mask → iptables DROP 5678 → external probe
+- [ ] 10-06-PLAN.md — Wave 3 parallel: INF-11 unfrozen VPS scripts retirement (brain_server INERT, gmail_classifier→Phase-4-email-triage, brain-dump-listener→Plan-10-04, sync_aggregated INERT)
+- [ ] 10-07-PLAN.md — Wave 4: INF-11 Hetzner snapshot + power-off + 14-day clean-ops probe + rollback runbook (dry-run rehearsed) + Telegram webhook persistence re-test (resolves M1 from 02-VERIFICATION.md) + verify-phase-10-e2e.mjs Gate
 
 **UI hint**: no
 
@@ -352,7 +361,7 @@
 | 7. Lifecycle Automation         | 0/5            | Planned          | -         |
 | 8. Outbound Content + Calendar  | 0/7            | Planned          | -         |
 | 9. V2 Specialty Agents          | 0/?            | BLOCKED (Gate 4) | -         |
-| 10. Migration & Decommission    | 0/?            | Not started      | -         |
+| 10. Migration & Decommission    | 0/8            | Planned          | -         |
 
 ---
 
@@ -385,4 +394,4 @@ Notes on dual-listed requirements (handled as single-phase ownership with cross-
 ---
 
 _Roadmap created: 2026-04-21_
-_Last updated: 2026-04-24 (Phase 7 planned — 5 plans enumerated; Phase 8 planned — 7 plans enumerated; SC 6 imperative-verb mutation pathway + SC 7 Postiz Fargate added; D-18 morning-brief 07:00→08:00 drift documented)_
+_Last updated: 2026-04-24 (Phase 10 planned — 8 plans enumerated; 24 D-XX locked; <30-min rollback runbook + Telegram webhook persistence re-test resolves M1 closure path; net -$49.50/mo steady-state savings)_

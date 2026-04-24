@@ -59,6 +59,16 @@ const integrations = new IntegrationsStack(app, 'KosIntegrations', {
   captureBus: events.buses.capture,
   systemBus: events.buses.system,
   scheduleGroupName: events.scheduleGroupName,
+  // Phase 6 Plan 06-01: granola-poller wiring. KEVIN_OWNER_ID + Sentry +
+  // Langfuse secrets propagate into the Lambda env so the D-28 instrumentation
+  // can resolve at cold start.
+  kevinOwnerId:
+    process.env.KEVIN_OWNER_ID ??
+    (app.node.tryGetContext('kevinOwnerId') as string | undefined) ??
+    '',
+  sentryDsnSecret: data.sentryDsnSecret,
+  langfusePublicKeySecret: data.langfusePublicSecret,
+  langfuseSecretKeySecret: data.langfuseSecretSecret,
 });
 void integrations;
 

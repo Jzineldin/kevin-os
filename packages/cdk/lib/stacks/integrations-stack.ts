@@ -24,6 +24,7 @@ import type { KosLambda } from '../constructs/kos-lambda.js';
 import { wireNotionIntegrations, type NotionWiring } from './integrations-notion.js';
 import { wireAzureSearch } from './integrations-azure.js';
 import { wireTranscribeVocab } from './integrations-transcribe.js';
+import { wireGranolaPipeline } from './integrations-granola.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -44,6 +45,13 @@ export interface IntegrationsStackProps extends StackProps {
   // Plan 06 — Transcribe sv-SE vocab (optional wiring)
   blobsBucket?: IBucket;
   transcribeRegion?: string;
+  // Phase 6 Plan 06-01 — granola-poller wiring (optional so existing tests
+  // synth without supplying these). Production deploy must pass
+  // kevinOwnerId at minimum; sentry/langfuse secrets enable D-28 tracing.
+  kevinOwnerId?: string;
+  sentryDsnSecret?: ISecret;
+  langfusePublicKeySecret?: ISecret;
+  langfuseSecretKeySecret?: ISecret;
 }
 
 export class IntegrationsStack extends Stack {
@@ -92,6 +100,27 @@ export class IntegrationsStack extends Stack {
       wireTranscribeVocab(this, {
         blobsBucket: props.blobsBucket,
         transcribeRegion: props.transcribeRegion,
+      });
+    }
+
+    // Plan 06-01: Granola pipeline (granola-poller Lambda + 15-min Scheduler).
+    // Re-uses notion.schedulerRole so all Phase 6 schedules share one role.
+    // Skipped at synth time when kevinOwnerId is unset — keeps existing test
+    // fixtures green; production CDK app always supplies the prop.
+    if (props.kevinOwnerId) {
+      wireGranolaPipeline(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        notionTokenSecret: props.notionTokenSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+        captureBus: props.captureBus,
+        scheduleGroupName: props.scheduleGroupName,
+        schedulerRole: notion.schedulerRole,
+        kevinOwnerId: props.kevinOwnerId,
       });
     }
   }

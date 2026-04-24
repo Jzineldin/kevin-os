@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./events": "./src/events.ts",
-    "./dashboard": "./src/dashboard.ts"
+    "./dashboard": "./src/dashboard.ts",
+    "./context": "./src/context.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

@@ -1,0 +1,30 @@
+{
+  "name": "@kos/context-loader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kos/contracts": "workspace:*",
+    "@kos/db": "workspace:*",
+    "@kos/azure-search": "workspace:*",
+    "@aws-sdk/rds-signer": "3.691.0",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@kos/test-fixtures": "workspace:*",
+    "@types/node": "22.9.0",
+    "@types/pg": "8.11.10",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}

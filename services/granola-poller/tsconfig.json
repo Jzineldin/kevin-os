@@ -6,6 +6,9 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
+      "@opentelemetry/*": ["./node_modules/@opentelemetry/*"],
+      "@langfuse/*": ["./node_modules/@langfuse/*"],
+      "@arizeai/*": ["./node_modules/@arizeai/*"],
       "@sentry/*": ["./node_modules/@sentry/*"],
       "@aws-sdk/*": ["./node_modules/@aws-sdk/*"]
     }

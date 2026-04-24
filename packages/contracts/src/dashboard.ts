@@ -143,6 +143,11 @@ export const TimelineRowSchema = z.object({
   context: z.string(),
   capture_id: z.string().nullable(),
   href: z.string().nullable(),
+  // Phase 6 MEM-04: true when the row was sourced from the live 10-min
+  // overlay (mention_events occurred_at > now() - interval '10 minutes')
+  // and NOT yet present in entity_timeline MV. Defaults false so callers
+  // that don't need overlay-awareness keep working unchanged.
+  is_live_overlay: z.boolean().optional().default(false),
 });
 export type TimelineRow = z.infer<typeof TimelineRowSchema>;
 
@@ -150,6 +155,9 @@ export const TimelinePageSchema = z.object({
   rows: z.array(TimelineRowSchema),
   // base64("${occurred_at_iso}:${id}") per RESEARCH §10
   next_cursor: z.string().nullable(),
+  // Phase 6 MEM-04: server-timing for budget verification (D-26 <50ms p95).
+  // Optional + nullable to keep wire-format backwards-compatible.
+  elapsed_ms: z.number().int().nonnegative().optional(),
 });
 export type TimelinePage = z.infer<typeof TimelinePageSchema>;
 

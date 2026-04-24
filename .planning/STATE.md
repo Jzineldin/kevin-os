@@ -118,8 +118,9 @@ Phase 10:[ ] Migration & Decommission        (depends on 7; ‖ with 6-8)
 | 260423-vra | Fix audit H1 + H2: route dashboard /capture through triage, clean up Cohere v3 test drift | 2026-04-23 | 57dc08f | [260423-vra-fix-audit-h1-h2-route-dashboard-capture-](./quick/260423-vra-fix-audit-h1-h2-route-dashboard-capture-/) |
 | 260424-pxt | Fix dashboard sidebar 404 — add /entities list RSC reusing getPaletteEntities() | 2026-04-24 | 522897c | [260424-pxt-fix-dashboard-sidebar-404-create-apps-da](./quick/260424-pxt-fix-dashboard-sidebar-404-create-apps-da/) |
 | 260424-q93 | Remove orphan aws4fetch dead code from dashboard after Bearer auth migration | 2026-04-24 | 5c5edff | [260424-q93-remove-orphan-aws4fetch-dead-code-from-d](./quick/260424-q93-remove-orphan-aws4fetch-dead-code-from-d/) |
+| 260424-r6s | Migrate dashboard PWA from @serwist/next to @serwist/turbopack for Next 16 (sw URL: `/sw.js` → `/serwist/sw.js`, Vercel preview verified 200 OK) | 2026-04-24 | 4b4c906 | [260424-r6s-migrate-dashboard-pwa-from-serwist-next-](./quick/260424-r6s-migrate-dashboard-pwa-from-serwist-next-/) |
 
-Last activity: 2026-04-24 - Completed quick task 260424-q93 (aws4fetch orphan cleanup)
+Last activity: 2026-04-24 - Completed quick task 260424-r6s (PWA service worker fix via @serwist/turbopack)
 
 ---
 

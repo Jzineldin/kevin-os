@@ -81,10 +81,20 @@ export async function callApi<T>(
   init: RequestInit,
   schema: z.ZodSchema<T>,
 ): Promise<T> {
-  const res = await getClient().fetch(`${apiBase()}${path}`, {
+  // 2026-04-24: switched from SigV4 to Bearer auth after the
+  // kos-dashboard-caller IAM user hit undebugable 403 Forbidden against
+  // the Function URL despite matching identity + resource policies.
+  // Bearer token is the same shared secret Vercel middleware already
+  // gates the /login page with — stored in KOS_DASHBOARD_BEARER_TOKEN.
+  const bearer = process.env.KOS_DASHBOARD_BEARER_TOKEN;
+  if (!bearer) {
+    throw new Error('dashboard-api: KOS_DASHBOARD_BEARER_TOKEN not set on runtime.');
+  }
+  const res = await fetch(`${apiBase()}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
+      authorization: `Bearer ${bearer}`,
       ...(init.headers ?? {}),
     },
   });
@@ -96,13 +106,23 @@ export async function callApi<T>(
 }
 
 /**
- * SigV4-signed fetch against dashboard-listen-relay. Returns the raw
+ * Bearer-auth fetch against dashboard-listen-relay. Returns the raw
  * Response so callers can pipe streaming bodies (used by Plan 07's SSE
- * proxy). Default content-type NOT injected — the relay signs whatever
- * headers you pass.
+ * proxy). Default content-type NOT injected — the relay sees whatever
+ * headers you pass (plus Authorization).
  */
 export async function callRelay(path: string, init: RequestInit): Promise<Response> {
-  return getClient().fetch(`${relayBase()}${path}`, init);
+  const bearer = process.env.KOS_DASHBOARD_BEARER_TOKEN;
+  if (!bearer) {
+    throw new Error('relay: KOS_DASHBOARD_BEARER_TOKEN not set on runtime.');
+  }
+  return fetch(`${relayBase()}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${bearer}`,
+      ...(init.headers ?? {}),
+    },
+  });
 }
 
 export { AwsClient };

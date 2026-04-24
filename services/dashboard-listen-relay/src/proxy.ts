@@ -27,7 +27,37 @@ import type { LambdaFunctionURLHandler } from 'aws-lambda';
 
 const DEFAULT_TIMEOUT_MS = 28_000;
 
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return out === 0;
+}
+
+function verifyBearer(headers: Record<string, string | undefined> | undefined): boolean {
+  const hdr = headers?.authorization ?? headers?.Authorization;
+  if (!hdr || typeof hdr !== 'string') return false;
+  const m = /^Bearer\s+(.+)$/.exec(hdr.trim());
+  if (!m) return false;
+  const expected = process.env.KOS_DASHBOARD_BEARER_TOKEN;
+  if (!expected) {
+    console.error('[relay-proxy] KOS_DASHBOARD_BEARER_TOKEN env not set');
+    return false;
+  }
+  return constantTimeEqual(m[1]!, expected);
+}
+
 export const handler: LambdaFunctionURLHandler = async (event) => {
+  // Bearer auth — Function URL is AuthType=NONE (switched 2026-04-24 after
+  // long-term-IAM-user SigV4 returned 403 Forbidden mysteriously).
+  if (!verifyBearer(event.headers as Record<string, string | undefined> | undefined)) {
+    return {
+      statusCode: 401,
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+      body: JSON.stringify({ error: 'unauthorized' }),
+    };
+  }
+
   const target = process.env.RELAY_INTERNAL_URL;
   if (!target) {
     return {

@@ -32,7 +32,45 @@ import './handlers/merge.js';
 import './handlers/capture.js';
 import './handlers/calendar.js';
 
+/**
+ * Constant-time string compare — prevents timing oracles on the shared
+ * Bearer token. Identical pattern to apps/dashboard/src/lib/constant-time.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return out === 0;
+}
+
+function verifyBearer(headers: Record<string, string | undefined> | undefined): boolean {
+  const hdr = headers?.authorization ?? headers?.Authorization;
+  if (!hdr || typeof hdr !== 'string') return false;
+  const m = /^Bearer\s+(.+)$/.exec(hdr.trim());
+  if (!m) return false;
+  const presented = m[1]!;
+  const expected = process.env.KOS_DASHBOARD_BEARER_TOKEN;
+  if (!expected) {
+    console.error('[dashboard-api] KOS_DASHBOARD_BEARER_TOKEN env not set');
+    return false;
+  }
+  return constantTimeEqual(presented, expected);
+}
+
 export const handler: LambdaFunctionURLHandler = async (event) => {
+  // Bearer auth — enforced here because Function URL is AuthType=NONE
+  // (switched 2026-04-24 after long-term-IAM-user SigV4 invocations
+  // returned 403 despite matching identity + resource policies; root
+  // cause unresolved). Shared secret matches the one Vercel middleware
+  // already gates the /login page with.
+  if (!verifyBearer(event.headers as Record<string, string | undefined> | undefined)) {
+    return {
+      statusCode: 401,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ error: 'unauthorized' }),
+    };
+  }
+
   try {
     const res = await route(event);
     return {

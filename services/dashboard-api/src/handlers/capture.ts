@@ -28,6 +28,14 @@ async function captureHandler(ctx: Ctx): Promise<RouteResponse> {
   try {
     await publishCapture({
       capture_id,
+      // `kind: 'text'` is load-bearing — the Phase-2 TriageFromCaptureRule
+      // EventBridge pattern filters on detail.kind=['text'] to avoid
+      // double-firing on voice captures (those have kind='voice' and go
+      // through the CaptureReceivedVoiceRule → transcribe-starter path).
+      // Without this field, triage never receives the event. (Drift found
+      // 2026-04-24 after the Vercel capture box ack'd but nothing
+      // downstream fired.)
+      kind: 'text' as const,
       source: 'dashboard',
       received_at,
       ...parsed,

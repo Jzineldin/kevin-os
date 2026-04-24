@@ -116,10 +116,14 @@ export interface AgentsWiring {
   resolverFn: KosLambda;
   bulkImportKontakterFn: KosLambda;
   bulkImportGranolaGmailFn: KosLambda;
+  /** Phase 6 Plan 06-02 (AGT-06). */
+  transcriptExtractorFn: KosLambda;
   triageRule: Rule;
   triageVoiceRule: Rule;
   voiceCaptureRule: Rule;
   resolverRule: Rule;
+  /** Phase 6 Plan 06-02 — kos.capture / transcript.available → transcript-extractor. */
+  transcriptExtractorRule: Rule;
 }
 
 export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps): AgentsWiring {
@@ -473,16 +477,90 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
     );
   }
 
+  // --- Transcript-extractor Lambda (AGT-06) — Plan 06-02 ------------------
+  //
+  // Consumes kos.capture / transcript.available (emitted by Plan 06-01
+  // granola-poller). Sonnet 4.6 EU CRIS via direct AnthropicBedrock SDK +
+  // tool_use for structured extraction. Writes Kevin's Command Center
+  // (Swedish schema), bulk-INSERTs mention_events, and PutEvents
+  // entity.mention.detected to kos.agent (re-using the existing Phase 2
+  // resolver pipeline unchanged — D-08).
+  //
+  // Timeout 5 min (Sonnet 4.6 ≤30 s on a 30-min transcript + Notion CC
+  // creates + 2 Postgres calls + PutEvents); memory 1024 MB for SDK + pg +
+  // @notionhq + OTel.
+  const transcriptExtractorDlq = new Queue(scope, 'TranscriptExtractorDlq', {
+    queueName: 'kos-transcript-extractor-dlq',
+    retentionPeriod: Duration.days(14),
+    visibilityTimeout: Duration.minutes(5),
+  });
+
+  const transcriptExtractorFn = new KosLambda(scope, 'TranscriptExtractor', {
+    entry: svcEntry('transcript-extractor'),
+    timeout: Duration.minutes(5),
+    memory: 1024,
+    ...vpcConfig,
+    environment: {
+      KEVIN_OWNER_ID: p.kevinOwnerId,
+      RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
+      RDS_IAM_USER: p.rdsIamUser,
+      DATABASE_NAME: 'kos',
+      NOTION_TOKEN_SECRET_ARN: p.notionTokenSecret.secretArn,
+      // Reuse the Command Center DB id from .notion-db-ids.json (same
+      // env-injection pattern as voice-capture).
+      NOTION_COMMAND_CENTER_DB_ID: commandCenterId,
+      KOS_AGENT_BUS_NAME: p.agentBus.eventBusName,
+      SENTRY_DSN_SECRET_ARN: p.sentryDsnSecret.secretArn,
+      LANGFUSE_PUBLIC_KEY_SECRET_ARN: p.langfusePublicSecret.secretArn,
+      LANGFUSE_SECRET_KEY_SECRET_ARN: p.langfuseSecretSecret.secretArn,
+      CLAUDE_CODE_USE_BEDROCK: '1',
+    },
+  });
+  // Bedrock Sonnet 4.6 (EU CRIS profile + foundation model ARN forms).
+  // Mirrors the grantBedrock helper (which covers Haiku 4.5 + Sonnet 4.6);
+  // re-using it keeps the IAM surface uniform with the other agent Lambdas.
+  grantBedrock(transcriptExtractorFn);
+  transcriptExtractorFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectResource],
+    }),
+  );
+  p.notionTokenSecret.grantRead(transcriptExtractorFn);
+  p.sentryDsnSecret.grantRead(transcriptExtractorFn);
+  p.langfusePublicSecret.grantRead(transcriptExtractorFn);
+  p.langfuseSecretSecret.grantRead(transcriptExtractorFn);
+  // PutEvents entity.mention.detected → kos.agent (re-uses Phase 2 resolver).
+  p.agentBus.grantPutEventsTo(transcriptExtractorFn);
+
+  const transcriptExtractorRule = new Rule(scope, 'TranscriptExtractorRule', {
+    eventBus: p.captureBus,
+    eventPattern: {
+      source: ['kos.capture'],
+      detailType: ['transcript.available'],
+    },
+    targets: [
+      new LambdaTarget(transcriptExtractorFn, {
+        deadLetterQueue: transcriptExtractorDlq,
+        maxEventAge: Duration.hours(1),
+        retryAttempts: 2,
+      }),
+    ],
+  });
+
   return {
     triageFn,
     voiceCaptureFn,
     resolverFn,
     bulkImportKontakterFn,
     bulkImportGranolaGmailFn,
+    transcriptExtractorFn,
     triageRule,
     triageVoiceRule,
     voiceCaptureRule,
     resolverRule,
+    transcriptExtractorRule,
   };
 }
 

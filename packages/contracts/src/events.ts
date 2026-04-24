@@ -164,7 +164,15 @@ export const EntityMentionDetectedSchema = z.object({
   mention_text: z.string().min(1).max(200),
   context_snippet: z.string().max(500),
   candidate_type: z.enum(['Person', 'Project', 'Org', 'Other']),
-  source: z.enum(['telegram-text', 'telegram-voice', 'dashboard-text']),
+  // Phase 6 Plan 06-02 (AGT-06): added 'granola-transcript' so the
+  // transcript-extractor Lambda can publish detected mentions through the
+  // existing entity-resolver pipeline without a parallel event taxonomy.
+  source: z.enum([
+    'telegram-text',
+    'telegram-voice',
+    'dashboard-text',
+    'granola-transcript',
+  ]),
   occurred_at: z.string().datetime(),
   notion_command_center_page_id: z.string().optional(),
 });

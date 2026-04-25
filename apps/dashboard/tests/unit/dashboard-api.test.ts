@@ -1,35 +1,38 @@
 /**
- * callApi — SigV4-signed fetch wrapper around dashboard-api.
+ * callApi / callRelay — Bearer-auth fetch wrappers around dashboard-api
+ * and dashboard-listen-relay (Lambda Function URLs).
  *
- * Targets (03-05-PLAN.md Task 2 behaviour):
+ * Targets (post-2026-04-24 Bearer migration):
  *   - URL base concatenation (KOS_DASHBOARD_API_URL + path)
+ *   - Authorization: Bearer <token> header injected from env
  *   - response body parsed against the provided zod schema
  *   - throws on non-2xx with status + body in message
- *   - callRelay uses KOS_DASHBOARD_RELAY_URL but same AwsClient
+ *   - callRelay uses KOS_DASHBOARD_RELAY_URL and returns raw Response
  *
- * aws4fetch is mocked at module scope so the test never touches the
- * network. The mock records the request it was handed so we can assert
- * the URL was signed against the correct base.
+ * Global `fetch` is mocked so the test never touches the network.
+ *
+ * History: switched from SigV4 (aws4fetch) to Bearer on 2026-04-24 after
+ * undebugable 403s on the kos-dashboard-caller IAM user.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { z } from 'zod';
 
 const fetchMock = vi.fn();
 
-vi.mock('aws4fetch', () => ({
-  AwsClient: vi.fn().mockImplementation(() => ({
-    fetch: fetchMock,
-  })),
-}));
+beforeEach(() => {
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('callApi', () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    vi.stubEnv('AWS_ACCESS_KEY_ID_DASHBOARD', 'AKIATESTKEY');
-    vi.stubEnv('AWS_SECRET_ACCESS_KEY_DASHBOARD', 'secret-key-test');
-    vi.stubEnv('AWS_REGION', 'eu-north-1');
     vi.stubEnv('KOS_DASHBOARD_API_URL', 'https://abc123.lambda-url.eu-north-1.on.aws');
     vi.stubEnv('KOS_DASHBOARD_RELAY_URL', 'https://def456.lambda-url.eu-north-1.on.aws');
+    vi.stubEnv('KOS_DASHBOARD_BEARER_TOKEN', 'test-bearer-secret');
     vi.resetModules();
   });
 
@@ -37,7 +40,7 @@ describe('callApi', () => {
     vi.unstubAllEnvs();
   });
 
-  it('prefixes BASE URL + signs via AwsClient + parses response via schema', async () => {
+  it('prefixes BASE URL + injects Bearer auth + parses response via schema', async () => {
     const { callApi } = await import('@/lib/dashboard-api');
     const payload = { brief: null, priorities: [], drafts: [], dropped: [], meetings: [] };
     fetchMock.mockResolvedValueOnce(
@@ -59,6 +62,7 @@ describe('callApi', () => {
     expect(url).toBe('https://abc123.lambda-url.eu-north-1.on.aws/today');
     expect(init.method).toBe('GET');
     expect(init.headers['content-type']).toBe('application/json');
+    expect(init.headers.authorization).toBe('Bearer test-bearer-secret');
     expect(result).toEqual(payload);
   });
 
@@ -81,22 +85,24 @@ describe('callApi', () => {
     await expect(callApi('/x', { method: 'GET' }, schema)).rejects.toBeTruthy();
   });
 
-  it('merges caller headers with the default content-type', async () => {
+  it('merges caller headers with the default content-type and Bearer token', async () => {
     const { callApi } = await import('@/lib/dashboard-api');
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     await callApi('/today', { method: 'POST', headers: { 'x-trace': 'abc' } }, z.any());
     const [, init] = fetchMock.mock.calls[0]!;
-    expect(init.headers).toMatchObject({ 'content-type': 'application/json', 'x-trace': 'abc' });
+    expect(init.headers).toMatchObject({
+      'content-type': 'application/json',
+      authorization: 'Bearer test-bearer-secret',
+      'x-trace': 'abc',
+    });
   });
 });
 
 describe('callRelay', () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    vi.stubEnv('AWS_ACCESS_KEY_ID_DASHBOARD', 'AKIATESTKEY');
-    vi.stubEnv('AWS_SECRET_ACCESS_KEY_DASHBOARD', 'secret-key-test');
-    vi.stubEnv('AWS_REGION', 'eu-north-1');
     vi.stubEnv('KOS_DASHBOARD_RELAY_URL', 'https://def456.lambda-url.eu-north-1.on.aws');
+    vi.stubEnv('KOS_DASHBOARD_BEARER_TOKEN', 'test-bearer-secret');
     vi.resetModules();
   });
 
@@ -104,7 +110,7 @@ describe('callRelay', () => {
     vi.unstubAllEnvs();
   });
 
-  it('signs against KOS_DASHBOARD_RELAY_URL and returns raw Response', async () => {
+  it('hits KOS_DASHBOARD_RELAY_URL with Bearer auth and returns raw Response', async () => {
     const { callRelay } = await import('@/lib/dashboard-api');
     const upstream = new Response('stream-bytes', { status: 200 });
     fetchMock.mockResolvedValueOnce(upstream);
@@ -112,8 +118,9 @@ describe('callRelay', () => {
     const res = await callRelay('/stream/today', { method: 'GET' });
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    const [url] = fetchMock.mock.calls[0]!;
+    const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://def456.lambda-url.eu-north-1.on.aws/stream/today');
+    expect(init.headers.authorization).toBe('Bearer test-bearer-secret');
     expect(res).toBe(upstream);
   });
 });

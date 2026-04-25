@@ -53,6 +53,7 @@ vi.mock('../../_shared/sentry.js', () => ({
 }));
 vi.mock('../../_shared/tracing.js', () => ({
   setupOtelTracing: vi.fn(),
+  setupOtelTracingAsync: vi.fn(async () => {}),
   flush: vi.fn(async () => {}),
   tagTraceWithCaptureId: vi.fn(),
 }));
@@ -83,9 +84,7 @@ describe('voice-capture handler', () => {
 
   it('happy path: writes Notion row, emits entity.mention.detected + output.push (is_reply=true)', async () => {
     const { handler } = await import('../src/handler.js');
-    const res = await (handler as unknown as (e: unknown) => Promise<unknown>)(
-      baseEvent,
-    );
+    const res = await (handler as unknown as (e: unknown) => Promise<unknown>)(baseEvent);
     expect((res as { notion_page_id: string }).notion_page_id).toBe('notion-page-abc');
 
     const mentionCall = ebSend.mock.calls.find((c) =>
@@ -93,20 +92,18 @@ describe('voice-capture handler', () => {
     );
     expect(mentionCall).toBeDefined();
     const mentionDetail = JSON.parse(
-      (mentionCall as unknown as [{ input: { Entries: { Detail: string }[] } }])[0]
-        .input.Entries[0]!.Detail,
+      (mentionCall as unknown as [{ input: { Entries: { Detail: string }[] } }])[0].input
+        .Entries[0]!.Detail,
     );
     expect(mentionDetail.mention_text).toBe('Damien');
     expect(mentionDetail.candidate_type).toBe('Person');
     expect(mentionDetail.notion_command_center_page_id).toBe('notion-page-abc');
 
-    const outputCall = ebSend.mock.calls.find((c) =>
-      JSON.stringify(c[0]).includes('output.push'),
-    );
+    const outputCall = ebSend.mock.calls.find((c) => JSON.stringify(c[0]).includes('output.push'));
     expect(outputCall).toBeDefined();
     const outputDetail = JSON.parse(
-      (outputCall as unknown as [{ input: { Entries: { Detail: string }[] } }])[0]
-        .input.Entries[0]!.Detail,
+      (outputCall as unknown as [{ input: { Entries: { Detail: string }[] } }])[0].input.Entries[0]!
+        .Detail,
     );
     expect(outputDetail.is_reply).toBe(true);
     expect(outputDetail.body).toContain('✅ Saved to Command Center');

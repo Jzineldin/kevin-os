@@ -10,24 +10,25 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@kos/contracts": "workspace:*",
-    "grammy": "^1.38.0",
-    "@aws-sdk/client-s3": "3.691.0",
-    "@aws-sdk/client-eventbridge": "3.691.0",
-    "@aws-sdk/client-secrets-manager": "3.691.0",
-    "ulid": "2.3.0",
-    "@sentry/aws-serverless": "^8",
-    "@langfuse/otel": "^5",
     "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2",
+    "@aws-sdk/client-eventbridge": "3.691.0",
+    "@aws-sdk/client-s3": "3.691.0",
+    "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@kos/contracts": "workspace:*",
+    "@langfuse/otel": "^5",
     "@opentelemetry/api": "^1",
+    "@opentelemetry/instrumentation": "^0.215",
     "@opentelemetry/sdk-trace-node": "^2",
-    "@opentelemetry/instrumentation": "^0.215"
+    "@sentry/aws-serverless": "^8",
+    "grammy": "^1.38.0",
+    "node-fetch": "3",
+    "ulid": "2.3.0"
   },
   "devDependencies": {
     "@kos/test-fixtures": "workspace:*",
+    "@types/aws-lambda": "8.10.145",
     "@types/node": "22.9.0",
     "typescript": "5.6.3",
-    "vitest": "2.1.4",
-    "@types/aws-lambda": "8.10.145"
+    "vitest": "2.1.4"
   }
 }

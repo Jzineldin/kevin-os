@@ -19,11 +19,21 @@ import type { IVpc, ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
 import type { IBucket } from 'aws-cdk-lib/aws-s3';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
+import type { ITopic } from 'aws-cdk-lib/aws-sns';
 import { createHash } from 'node:crypto';
 import type { KosLambda } from '../constructs/kos-lambda.js';
 import { wireNotionIntegrations, type NotionWiring } from './integrations-notion.js';
 import { wireAzureSearch } from './integrations-azure.js';
 import { wireTranscribeVocab } from './integrations-transcribe.js';
+import { wireGranolaPipeline } from './integrations-granola.js';
+import { wireAzureSearchIndexers } from './integrations-azure-indexers.js';
+import { wireMvRefresher } from './integrations-mv-refresher.js';
+import { wireDossierLoader } from './integrations-vertex.js';
+import {
+  wireLifecycleAutomation,
+  type LifecycleAutomationWiring,
+} from './integrations-lifecycle.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -44,12 +54,42 @@ export interface IntegrationsStackProps extends StackProps {
   // Plan 06 — Transcribe sv-SE vocab (optional wiring)
   blobsBucket?: IBucket;
   transcribeRegion?: string;
+  // Phase 6 Plan 06-01 — granola-poller wiring (optional so existing tests
+  // synth without supplying these). Production deploy must pass
+  // kevinOwnerId at minimum; sentry/langfuse secrets enable D-28 tracing.
+  kevinOwnerId?: string;
+  sentryDsnSecret?: ISecret;
+  langfusePublicKeySecret?: ISecret;
+  langfuseSecretKeySecret?: ISecret;
+  // Phase 6 Plan 06-05 (INF-10) — Vertex AI dossier-loader. Optional so
+  // existing test fixtures synth without GCP wiring; production deploy
+  // must supply `gcpVertexSaSecret` + `gcpProjectId` + `agentBus` to
+  // activate the dossier-loader pipeline.
+  gcpVertexSaSecret?: ISecret;
+  gcpProjectId?: string;
+  agentBus?: EventBus;
+  // Phase 7 Plan 07-00 — lifecycle automation wiring (morning-brief +
+  // day-close + weekly-review + verify-notification-cap). Optional so
+  // existing test fixtures synth without supplying SafetyStack refs;
+  // production deploy passes both `telegramCapTable` and `alarmTopic`
+  // (from SafetyStack) plus `outputBus` (from EventsStack) to activate
+  // the brief Lambdas. Schedulers + IAM grants accrete in 07-01..07-04.
+  telegramCapTable?: ITable;
+  alarmTopic?: ITopic;
+  outputBus?: EventBus;
 }
 
 export class IntegrationsStack extends Stack {
   public readonly notionIndexer: KosLambda;
   public readonly notionIndexerBackfill: KosLambda;
   public readonly notionReconcile: KosLambda;
+  /**
+   * Phase 7 lifecycle automation wiring — populated only when
+   * `telegramCapTable`, `alarmTopic`, and `outputBus` are all supplied
+   * (production deploy). Plans 07-01..07-04 attach schedules + IAM grants
+   * to the Lambdas inside this struct.
+   */
+  public readonly lifecycle?: LifecycleAutomationWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -92,6 +132,106 @@ export class IntegrationsStack extends Stack {
       wireTranscribeVocab(this, {
         blobsBucket: props.blobsBucket,
         transcribeRegion: props.transcribeRegion,
+      });
+    }
+
+    // Plan 06-01: Granola pipeline (granola-poller Lambda + 15-min Scheduler).
+    // Re-uses notion.schedulerRole so all Phase 6 schedules share one role.
+    // Skipped at synth time when kevinOwnerId is unset — keeps existing test
+    // fixtures green; production CDK app always supplies the prop.
+    if (props.kevinOwnerId) {
+      wireGranolaPipeline(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        notionTokenSecret: props.notionTokenSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+        captureBus: props.captureBus,
+        scheduleGroupName: props.scheduleGroupName,
+        schedulerRole: notion.schedulerRole,
+        kevinOwnerId: props.kevinOwnerId,
+      });
+
+      // Plan 06-03: 4 Azure Search indexer Lambdas + 4 schedulers (5 min for
+      // entities/projects/transcripts; 15 min for daily-brief). Re-uses the
+      // notion schedulerRole so all Phase 6 schedules share one trust policy.
+      wireAzureSearchIndexers(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        azureSearchAdminSecret: props.azureSearchAdminSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+        scheduleGroupName: props.scheduleGroupName,
+        ownerId: props.kevinOwnerId,
+        schedulerRole: notion.schedulerRole,
+      });
+
+      // Plan 06-04: entity-timeline-refresher Lambda + 5-min Scheduler.
+      // Re-uses notion.schedulerRole so all Phase 6 schedules share one
+      // trust policy. Issues `REFRESH MATERIALIZED VIEW CONCURRENTLY
+      // entity_timeline` against the RDS Proxy on a 5-min cadence.
+      wireMvRefresher(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        scheduleGroupName: props.scheduleGroupName,
+        schedulerRole: notion.schedulerRole,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
+
+      // Plan 06-05 (INF-10): dossier-loader Lambda + EventBridge rule on
+      // kos.agent / context.full_dossier_requested. Skipped at synth time
+      // when the GCP secret/project/agentBus props are unset — production
+      // deploy must supply all three to activate the dossier pipeline.
+      if (props.gcpVertexSaSecret && props.gcpProjectId && props.agentBus) {
+        wireDossierLoader(this, {
+          vpc: props.vpc,
+          rdsSecurityGroup: props.rdsSecurityGroup,
+          rdsProxyEndpoint: props.rdsProxyEndpoint,
+          rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+          gcpSaJsonSecret: props.gcpVertexSaSecret,
+          gcpProjectId: props.gcpProjectId,
+          agentBus: props.agentBus,
+          ownerId: props.kevinOwnerId,
+          sentryDsnSecret: props.sentryDsnSecret,
+          langfusePublicKeySecret: props.langfusePublicKeySecret,
+          langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+        });
+      }
+    }
+
+    // Plan 07-00 (Phase 7 lifecycle automation): morning-brief + day-close +
+    // weekly-review + verify-notification-cap Lambdas + 2 scheduler roles.
+    // Schedulers + IAM grants accrete in Plans 07-01..07-04. Skipped at
+    // synth time when SafetyStack-derived props (cap table, alarm topic) +
+    // outputBus are unset; production deploy supplies all three.
+    if (props.telegramCapTable && props.alarmTopic && props.outputBus) {
+      this.lifecycle = wireLifecycleAutomation(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        notionTokenSecret: props.notionTokenSecret,
+        azureSearchAdminSecret: props.azureSearchAdminSecret,
+        telegramCapTable: props.telegramCapTable,
+        alarmTopic: props.alarmTopic,
+        captureBus: props.captureBus,
+        // agentBus is optional on IntegrationsStackProps; lifecycle helper
+        // requires it for symmetry with future event sources. Use captureBus
+        // as a synth-time fallback when agentBus is unset.
+        agentBus: props.agentBus ?? props.captureBus,
+        outputBus: props.outputBus,
+        systemBus: props.systemBus,
+        scheduleGroupName: props.scheduleGroupName,
       });
     }
   }

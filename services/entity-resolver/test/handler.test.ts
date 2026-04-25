@@ -125,6 +125,7 @@ vi.mock('../../_shared/sentry.js', () => ({
 }));
 vi.mock('../../_shared/tracing.js', () => ({
   setupOtelTracing: vi.fn(),
+  setupOtelTracingAsync: vi.fn(async () => {}),
   flush: vi.fn(async () => {}),
   tagTraceWithCaptureId: vi.fn(),
 }));
@@ -135,7 +136,9 @@ const ULID = '01HABCDEFGHJKMNPQRSTVWXYZ0';
 const UUID_A = '11111111-1111-1111-1111-111111111111';
 const UUID_B = '22222222-2222-2222-2222-222222222222';
 
-function mkCandidate(over: Partial<MockCandidate> & { id: string; hybridScore: number }): MockCandidate {
+function mkCandidate(
+  over: Partial<MockCandidate> & { id: string; hybridScore: number },
+): MockCandidate {
   return {
     name: 'Damien',
     aliases: [],
@@ -147,11 +150,7 @@ function mkCandidate(over: Partial<MockCandidate> & { id: string; hybridScore: n
     trigramScore: 0.9,
     cosineScore: 0.9,
     stage:
-      over.hybridScore > 0.95
-        ? 'auto-merge'
-        : over.hybridScore >= 0.75
-          ? 'llm-disambig'
-          : 'inbox',
+      over.hybridScore > 0.95 ? 'auto-merge' : over.hybridScore >= 0.75 ? 'llm-disambig' : 'inbox',
     ...over,
   };
 }
@@ -170,12 +169,10 @@ function baseEvent() {
 }
 
 function getEmittedResolved(): Record<string, unknown> | null {
-  const call = ebSend.mock.calls.find((c) =>
-    JSON.stringify(c[0]).includes('mention.resolved'),
-  );
+  const call = ebSend.mock.calls.find((c) => JSON.stringify(c[0]).includes('mention.resolved'));
   if (!call) return null;
-  const detail = (call as unknown as [{ input: { Entries: { Detail: string }[] } }])[0]
-    .input.Entries[0]!.Detail;
+  const detail = (call as unknown as [{ input: { Entries: { Detail: string }[] } }])[0].input
+    .Entries[0]!.Detail;
   return JSON.parse(detail) as Record<string, unknown>;
 }
 
@@ -255,9 +252,7 @@ describe('entity-resolver handler', () => {
   });
 
   it('Branch 3 — llm-disambig native stage matched: writes audit with secondary_signal="none"', async () => {
-    resolverState.candidates = [
-      mkCandidate({ id: UUID_B, hybridScore: 0.82 }),
-    ];
+    resolverState.candidates = [mkCandidate({ id: UUID_B, hybridScore: 0.82 })];
     disambigState.result = { matched_id: UUID_B };
 
     const { handler } = await import('../src/handler.js');
@@ -275,9 +270,7 @@ describe('entity-resolver handler', () => {
   });
 
   it('Branch 4 — llm-disambig unknown + no pending Inbox row: createInboxRow fires (outcome="inbox-new")', async () => {
-    resolverState.candidates = [
-      mkCandidate({ id: UUID_A, hybridScore: 0.82 }),
-    ];
+    resolverState.candidates = [mkCandidate({ id: UUID_A, hybridScore: 0.82 })];
     disambigState.result = { matched_id: 'unknown' };
 
     const { handler } = await import('../src/handler.js');
@@ -300,9 +293,7 @@ describe('entity-resolver handler', () => {
   });
 
   it('Branch 5 — inbox stage (low score) + no pending: createInboxRow fires', async () => {
-    resolverState.candidates = [
-      mkCandidate({ id: UUID_A, hybridScore: 0.5 }),
-    ];
+    resolverState.candidates = [mkCandidate({ id: UUID_A, hybridScore: 0.5 })];
 
     const { handler } = await import('../src/handler.js');
     const res = (await (handler as unknown as (e: unknown) => Promise<unknown>)(baseEvent())) as {

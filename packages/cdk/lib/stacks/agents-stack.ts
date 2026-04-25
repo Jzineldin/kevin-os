@@ -42,6 +42,17 @@ export interface AgentsStackProps extends StackProps {
   rdsSecurityGroup: ISecurityGroup;
   /** Plan 02-09 (ENT-06): Gmail OAuth tokens secret. Optional. */
   gmailOauthSecret?: ISecret;
+  /**
+   * Phase 6 AGT-04 gap closure (Plan 06-07): each agent Lambda calls
+   * loadContext({ azureSearch: hybridQuery }) which reads
+   * AZURE_SEARCH_ADMIN_SECRET_ARN at cold start. Optional so existing test
+   * fixtures that pre-date the gap-closure run still synth — when absent,
+   * the Lambda starts but loadContext's Azure path returns empty semantic
+   * chunks (degraded path; matches pre-gap behaviour).
+   */
+  azureSearchAdminSecret?: ISecret;
+  /** Optional override; defaults to 'kos-memory' (matches integrations-azure-indexers default). */
+  azureSearchIndexName?: string;
 }
 
 export class AgentsStack extends Stack {

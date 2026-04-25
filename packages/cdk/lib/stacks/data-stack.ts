@@ -2,13 +2,15 @@ import { Stack, type StackProps, RemovalPolicy, Duration, Fn } from 'aws-cdk-lib
 import type { Construct } from 'constructs';
 import { Bucket, BucketEncryption, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
 import { PolicyStatement, Effect, AnyPrincipal, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Port, SubnetType, type IVpc, type IGatewayVpcEndpoint, type SecurityGroup } from 'aws-cdk-lib/aws-ec2';
-import { Secret, type ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import {
-  DatabaseProxy,
-  ProxyTarget,
-  type DatabaseInstance,
-} from 'aws-cdk-lib/aws-rds';
+  Port,
+  SubnetType,
+  type IVpc,
+  type IGatewayVpcEndpoint,
+  type SecurityGroup,
+} from 'aws-cdk-lib/aws-ec2';
+import { Secret, type ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import { DatabaseProxy, ProxyTarget, type DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 import type { Cluster } from 'aws-cdk-lib/aws-ecs';
 import { KosRds } from '../constructs/kos-rds.js';
 import { KosBastion } from '../constructs/kos-bastion.js';
@@ -40,6 +42,21 @@ export interface DataStackProps extends StackProps {
  * it (threat T-01-BASTION-01 mitigation).
  */
 export class DataStack extends Stack {
+  /**
+   * Glob patterns (role-name portion of the IAM ARN) for Lambdas that live
+   * OUTSIDE the VPC and are exempted from the `DenyAllExceptVpce` bucket
+   * policy on `blobsBucket`. Exposed as a static so a CDK test can assert
+   * each pattern matches a live role when all stacks synth together.
+   *
+   * Each entry is a `{StackName}-{LogicalId}*` CFN-generated role-name
+   * pattern. See the inline comment in the constructor for rationale per
+   * Lambda.
+   */
+  public static readonly VPCE_BYPASS_ROLE_PATTERNS: readonly string[] = [
+    'KosCapture-TelegramBot*',
+    'KosCapture-TranscribeStarter*',
+    'KosCapture-TranscribeComplete*',
+  ];
   public readonly rds: DatabaseInstance;
   public readonly rdsCredentialsSecret: ISecret;
   public readonly rdsSecurityGroup: SecurityGroup;
@@ -64,6 +81,8 @@ export class DataStack extends Stack {
   public readonly telegramWebhookSecret: Secret;
   public readonly granolaApiKeySecret: Secret;
   public readonly gmailOauthSecret: Secret;
+  // Phase 6 Plan 06-05: GCP Vertex AI service-account JSON for dossier-loader.
+  public readonly gcpVertexSaSecret: Secret;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -92,9 +111,56 @@ export class DataStack extends Stack {
     });
     this.rdsCredentialsSecret.grantRead(proxyRole);
 
+    // Phase 3 dashboard roles — RDS Proxy needs one secret per Postgres role
+    // it AS-authenticates. The migration 0011_dashboard_roles.sql consumes
+    // the password from each secret to set the matching CREATE ROLE password.
+    // removalPolicy: DESTROY is fine — passwords are auto-regenerated on
+    // recreate and the migration's ALTER ROLE branch handles re-set.
+    const dashboardRelayDbSecret = new Secret(this, 'DashboardRelayDbSecret', {
+      secretName: 'kos/db/dashboard_relay',
+      description: 'Postgres credentials for dashboard_relay role (RDS Proxy AS-auth).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'dashboard_relay' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    const dashboardApiDbSecret = new Secret(this, 'DashboardApiDbSecret', {
+      secretName: 'kos/db/dashboard_api',
+      description: 'Postgres credentials for dashboard_api role (RDS Proxy AS-auth).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'dashboard_api' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    const dashboardNotifyDbSecret = new Secret(this, 'DashboardNotifyDbSecret', {
+      secretName: 'kos/db/dashboard_notify',
+      description: 'Postgres credentials for dashboard_notify role (RDS Proxy AS-auth).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'dashboard_notify' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    dashboardRelayDbSecret.grantRead(proxyRole);
+    dashboardApiDbSecret.grantRead(proxyRole);
+    dashboardNotifyDbSecret.grantRead(proxyRole);
+
     this.rdsProxy = new DatabaseProxy(this, 'RdsProxy', {
       proxyTarget: ProxyTarget.fromInstance(rds.instance),
-      secrets: [this.rdsCredentialsSecret],
+      secrets: [
+        this.rdsCredentialsSecret,
+        dashboardRelayDbSecret,
+        dashboardApiDbSecret,
+        dashboardNotifyDbSecret,
+      ],
       vpc: props.vpc,
       // Pin proxy to PRIVATE_ISOLATED only so adding new subnet types
       // (e.g. the PRIVATE_WITH_EGRESS 'lambda' subnets in 2026-04-22's
@@ -138,6 +204,28 @@ export class DataStack extends Stack {
     // Pitfall 2 mitigation: deny everything *except* traffic through the
     // S3 Gateway Endpoint. `aws:ViaAWSService=false` lets CloudFormation/AWS-
     // internal paths through during stack operations.
+    //
+    // Narrow exceptions (2026-04-23) — Lambdas that live OUTSIDE the VPC
+    // but need to read/write specific prefixes of this bucket:
+    //   (a) telegram-bot (D-05: intentionally outside VPC) — uploads user
+    //       voice memos to `audio/*`.
+    //   (b) transcribe-starter / transcribe-complete — start/finalise
+    //       Amazon Transcribe jobs. Transcribe validates S3 access using
+    //       the caller's identity at StartTranscriptionJob time, so the
+    //       starter role needs bucket reach even though the actual read
+    //       happens inside AWS. Both live outside the VPC.
+    //
+    // Each scope is narrow: the bot's grant is `audio/*` only; transcribe
+    // roles are only granted read on audio/transcripts prefixes at the
+    // resource-policy layer in integrations-transcribe-pipeline.ts.
+    //
+    // DRIFT RISK: These patterns use CloudFormation-generated role names
+    // (`{StackName}-{LogicalId}*`). If a role is renamed, moved to a
+    // different stack, or the stack prefix changes, the bypass silently
+    // breaks. Guarded by a CDK test in test/data-stack-vpce-bypass.test.ts
+    // that synthesises all stacks and asserts each bypass pattern matches
+    // a live role.
+    const vpceBypassRolePatterns = DataStack.VPCE_BYPASS_ROLE_PATTERNS;
     this.blobsBucket.addToResourcePolicy(
       new PolicyStatement({
         sid: 'DenyAllExceptVpce',
@@ -148,6 +236,11 @@ export class DataStack extends Stack {
         conditions: {
           StringNotEquals: { 'aws:SourceVpce': props.s3Endpoint.vpcEndpointId },
           Bool: { 'aws:ViaAWSService': 'false' },
+          ArnNotLike: {
+            'aws:PrincipalArn': vpceBypassRolePatterns.map(
+              (pattern) => `arn:aws:iam::${this.account}:role/${pattern}`,
+            ),
+          },
         },
       }),
     );
@@ -226,6 +319,17 @@ export class DataStack extends Stack {
       'GmailOauth',
       'kos/gmail-oauth-tokens',
       'Gmail OAuth client_id + client_secret + refresh_token JSON for ENT-06 (D-23).',
+    );
+
+    // Phase 6 Plan 06-05 (INF-10): GCP Vertex AI service-account JSON.
+    // Operator pre-creates the SA out-of-band in a GCP project with Vertex
+    // AI enabled in europe-west4 (roles/aiplatform.user) and seeds the JSON
+    // into this secret via `aws secretsmanager put-secret-value` before
+    // `cdk deploy`. dossier-loader Lambda fetches at cold start.
+    this.gcpVertexSaSecret = mkSecret(
+      'GcpVertexSa',
+      'kos/gcp-vertex-sa',
+      'GCP service-account JSON for Vertex AI Gemini 2.5 Pro europe-west4 (Phase 6 INF-10 dossier-loader).',
     );
 
     // --- ECS Fargate cluster (INF-06) ---------------------------------------

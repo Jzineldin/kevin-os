@@ -29,6 +29,9 @@ describe('SafetyStack', () => {
   const events = new EventsStack(app, 'E', { env });
   const safety = new SafetyStack(app, 'S', {
     env,
+    vpc: net.vpc,
+    rdsSecurityGroup: data.rdsSecurityGroup,
+    rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
     rdsSecret: data.rdsCredentialsSecret,
     rdsProxyEndpoint: data.rdsProxyEndpoint,
     telegramBotTokenSecret: data.telegramBotTokenSecret,
@@ -61,14 +64,16 @@ describe('SafetyStack', () => {
     );
   });
 
-  it('creates the push-telegram Lambda (nodejs22.x, arm64) outside the VPC', () => {
+  it('creates the push-telegram Lambda (nodejs22.x, arm64) inside the VPC', () => {
     tpl.hasResourceProperties(
       'AWS::Lambda::Function',
       Match.objectLike({
         Runtime: 'nodejs22.x',
         Architectures: ['arm64'],
-        // No VpcConfig — push-telegram runs outside the VPC (D-05).
-        VpcConfig: Match.absent(),
+        // push-telegram runs inside the VPC (Wave 5 architectural change for RDS access).
+        VpcConfig: Match.objectLike({
+          SubnetIds: Match.anyValue(),
+        }),
       }),
     );
   });
@@ -77,7 +82,8 @@ describe('SafetyStack', () => {
     // Find the lambda function and check env keys exist.
     const fns = tpl.findResources('AWS::Lambda::Function');
     const pushFn = Object.values(fns).find((f: unknown) => {
-      const props = (f as { Properties: { Environment?: { Variables?: Record<string, unknown> } } }).Properties;
+      const props = (f as { Properties: { Environment?: { Variables?: Record<string, unknown> } } })
+        .Properties;
       const vars = props.Environment?.Variables ?? {};
       return 'CAP_TABLE_NAME' in vars;
     }) as { Properties: { Environment: { Variables: Record<string, unknown> } } } | undefined;
@@ -133,9 +139,7 @@ describe('SafetyStack', () => {
     const pushRule = Object.values(rules).find((r: unknown) => {
       const props = (r as { Properties: { EventPattern?: { source?: string[] } } }).Properties;
       return props.EventPattern?.source?.[0] === 'kos.output';
-    }) as
-      | { Properties: { Targets: Array<{ DeadLetterConfig?: unknown }> } }
-      | undefined;
+    }) as { Properties: { Targets: Array<{ DeadLetterConfig?: unknown }> } } | undefined;
     expect(pushRule).toBeDefined();
     expect(pushRule!.Properties.Targets.length).toBeGreaterThan(0);
     expect(pushRule!.Properties.Targets[0]!.DeadLetterConfig).toBeDefined();

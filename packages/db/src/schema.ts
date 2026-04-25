@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
   vector,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { ownerId } from './owner.js';
@@ -188,3 +189,118 @@ export const kevinContext = pgTable(
     byOwnerHeading: index('kevin_context_by_owner_heading').on(t.ownerId, t.sectionHeading),
   }),
 );
+
+// ENT-07: entity merge audit + resume state machine (Phase 3 Plan 01 migration 0007).
+// Every Notion→RDS manual merge writes one row per state transition. The
+// merge-resume Lambda reads (state, merge_id) to pick up partial merges
+// exactly where they failed without replaying side-effects.
+//
+// `state` is CHECK-constrained at the SQL layer to the 11 values in 0007;
+// Drizzle type is plain `text` (no enum column — matches existing repo
+// convention for CHECK-constrained text columns like agent_runs.status).
+export const entityMergeAudit = pgTable(
+  'entity_merge_audit',
+  {
+    mergeId: text('merge_id').primaryKey(), // ULID string
+    ownerId: ownerId(),
+    sourceEntityId: uuid('source_entity_id')
+      .notNull()
+      .references(() => entityIndex.id),
+    targetEntityId: uuid('target_entity_id')
+      .notNull()
+      .references(() => entityIndex.id),
+    initiatedBy: text('initiated_by').notNull().default('kevin'),
+    state: text('state').notNull(),
+    diff: jsonb('diff').notNull(),
+    errorMessage: text('error_message'),
+    notionArchivedAt: timestamp('notion_archived_at', { withTimezone: true }),
+    rdsUpdatedAt: timestamp('rds_updated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => ({
+    byState: index('entity_merge_audit_by_state').on(t.state, t.createdAt),
+    bySource: index('entity_merge_audit_by_source').on(t.sourceEntityId),
+    byOwner: index('entity_merge_audit_by_owner').on(t.ownerId, t.createdAt),
+  }),
+);
+
+// UI-04 data source: inbox_index mirrors the KOS Inbox Notion DB (Phase 3
+// Plan 01 migration 0008). The notion-indexer upserts rows here; the
+// dashboard-api reads them; the 0009 trigger emits pg_notify('kos_output',
+// { kind: 'inbox_item', id, ts }) on INSERT for SSE fan-out.
+//
+// `id` matches the Notion page id verbatim so upsert-on-notion-edit is
+// idempotent via INSERT ... ON CONFLICT (id) DO UPDATE.
+export const inboxIndex = pgTable(
+  'inbox_index',
+  {
+    id: text('id').primaryKey(), // Notion page id
+    ownerId: ownerId(),
+    kind: text('kind').notNull(), // 'draft_reply' | 'entity_routing' | 'new_entity' | 'merge_resume'
+    title: text('title').notNull(),
+    preview: text('preview').notNull(),
+    bolag: text('bolag'), // 'tale-forge' | 'outbehaving' | 'personal' | null
+    entityId: uuid('entity_id').references(() => entityIndex.id),
+    mergeId: text('merge_id').references(() => entityMergeAudit.mergeId),
+    payload: jsonb('payload').notNull().default(sql`'{}'::jsonb`),
+    status: text('status').notNull().default('pending'), // 'pending'|'approved'|'skipped'|'rejected'|'archived'
+    notionLastEditedAt: timestamp('notion_last_edited_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pending: index('inbox_index_pending').on(t.ownerId, t.createdAt),
+    byEntity: index('inbox_index_by_entity').on(t.entityId),
+    byMerge: index('inbox_index_by_merge').on(t.mergeId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Phase 6 Migration 0012: dossier cache (D-17 / D-18 / D-19)
+//
+// Postgres-backed cache for assembled entity dossiers. Composite PK
+// (entity_id, owner_id) preserves the multi-user forward-compat invariant
+// from Locked Decision #13 even though v1 is single-user. Invalidation
+// is trigger-driven via `trg_entity_dossiers_cached_invalidate` on
+// mention_events INSERT (D-18); TTL belt-and-braces via expires_at column
+// read at query time. Bundle is the full ContextBundle JSON minus
+// kevin_context (which is concat'd at call time).
+//
+// The materialized view `entity_timeline` (MEM-04) is intentionally NOT
+// modeled here — Drizzle does not represent materialized views as first
+// class objects; queries against it use raw `pool.query` SQL.
+// See: packages/db/drizzle/0012_phase_6_dossier_cache_and_timeline_mv.sql
+// ---------------------------------------------------------------------------
+export const entityDossiersCached = pgTable(
+  'entity_dossiers_cached',
+  {
+    entityId: uuid('entity_id').notNull(),
+    ownerId: ownerId(),
+    lastTouchHash: text('last_touch_hash').notNull(),
+    bundle: jsonb('bundle').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.entityId, t.ownerId] }),
+    byExpires: index('idx_entity_dossiers_cached_expires').on(t.expiresAt),
+    byOwner: index('idx_entity_dossiers_cached_owner').on(t.ownerId, t.entityId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Phase 6 Migration 0012: per-Azure-indexer-source incremental sync cursor.
+//
+// Each `services/azure-search-indexer-*` Lambda reads + writes a row keyed
+// by `key` ('azure-indexer-entities', 'azure-indexer-projects',
+// 'azure-indexer-transcripts', 'azure-indexer-daily-brief') to track the
+// `updated_at` watermark of the last-processed source row. First-run cursor
+// is NULL (=> fetch-all-then-advance).
+// ---------------------------------------------------------------------------
+export const azureIndexerCursor = pgTable('azure_indexer_cursor', {
+  key: text('key').primaryKey(),
+  ownerId: ownerId(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

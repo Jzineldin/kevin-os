@@ -107,22 +107,16 @@ export async function updateAgentRun(id: string, patch: UpdateAgentRunPatch): Pr
 
 /**
  * Render Kevin Context as a single string suitable for prompt injection
- * (cached as part of the system prompt). Sections sorted by heading for
- * cache stability — random ordering would invalidate the prompt cache on
- * every invocation.
+ * (cached as part of the system prompt). Phase 6 Plan 06-05 canonicalised
+ * this in `@kos/context-loader/src/kevin.ts::loadKevinContextMarkdown`;
+ * this function is now a thin pool-wired adapter so the existing call sites
+ * (handler degraded fallback path) keep their `(ownerId): Promise<string>`
+ * signature.
  */
 export async function loadKevinContextBlock(ownerId: string): Promise<string> {
+  const { loadKevinContextMarkdown } = await import('@kos/context-loader');
   const p = await getPool();
-  const r = await p.query(
-    `SELECT section_heading, section_body
-       FROM kevin_context
-       WHERE owner_id = $1
-       ORDER BY section_heading`,
-    [ownerId],
-  );
-  return r.rows
-    .map((x) => `## ${x.section_heading}\n${x.section_body}`)
-    .join('\n\n');
+  return loadKevinContextMarkdown(ownerId, p);
 }
 
 /** Test-only helper: reset the module-scope pool between tests. */

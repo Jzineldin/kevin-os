@@ -37,7 +37,11 @@ export class KosBastion extends Construct {
 
     this.host = new BastionHostLinux(this, 'Host', {
       vpc: props.vpc,
-      subnetSelection: { subnetType: SubnetType.PRIVATE_ISOLATED },
+      // PRIVATE_WITH_EGRESS so SSM agent can reach the SSM control plane via
+      // NAT (no SSM VPC endpoints on this VPC). Without egress, the agent
+      // never registers and `aws ssm start-session` errors with
+      // TargetNotConnected.
+      subnetSelection: { subnetType: SubnetType.PRIVATE_WITH_EGRESS },
       instanceType: InstanceType.of(InstanceClass.T4G, InstanceSize.NANO),
     });
 

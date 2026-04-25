@@ -31,6 +31,8 @@ describe('AgentsStack', () => {
   });
   const agents = new AgentsStack(app, 'A', {
     env,
+    vpc: net.vpc,
+    rdsSecurityGroup: data.rdsSecurityGroup,
     captureBus: events.buses.capture,
     triageBus: events.buses.triage,
     agentBus: events.buses.agent,
@@ -48,30 +50,48 @@ describe('AgentsStack', () => {
   });
   const tpl = Template.fromStack(agents);
 
-  it('TriageFromCaptureRule matches both capture.received + capture.voice.transcribed with DLQ', () => {
+  it('TriageFromCaptureRule + TriageFromVoiceTranscribedRule together match text + voice-transcribed with DLQ', () => {
     const rules = tpl.findResources('AWS::Events::Rule');
-    const rule = Object.values(rules).find((r) => {
-      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
-        ?.EventPattern as
-        | { source?: string[]; 'detail-type'?: string[] }
+    const values = Object.values(rules);
+
+    // Text path: capture.received + detail.kind=text only
+    const textRule = values.find((r) => {
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
+        | { source?: string[]; 'detail-type'?: string[]; detail?: { kind?: string[] } }
         | undefined;
       return (
         ep?.source?.includes('kos.capture') === true &&
         ep?.['detail-type']?.includes('capture.received') === true &&
+        ep?.detail?.kind?.includes('text') === true
+      );
+    });
+    expect(textRule).toBeDefined();
+    expect(
+      (textRule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } }).Properties
+        .Targets[0]?.DeadLetterConfig,
+    ).toBeDefined();
+
+    // Voice-transcribed path: capture.voice.transcribed (post-Transcribe)
+    const voiceRule = values.find((r) => {
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
+        | { source?: string[]; 'detail-type'?: string[] }
+        | undefined;
+      return (
+        ep?.source?.includes('kos.capture') === true &&
         ep?.['detail-type']?.includes('capture.voice.transcribed') === true
       );
     });
-    expect(rule).toBeDefined();
-    const targets = (rule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } })
-      .Properties.Targets;
-    expect(targets[0]?.DeadLetterConfig).toBeDefined();
+    expect(voiceRule).toBeDefined();
+    expect(
+      (voiceRule as { Properties: { Targets: { DeadLetterConfig?: unknown }[] } }).Properties
+        .Targets[0]?.DeadLetterConfig,
+    ).toBeDefined();
   });
 
   it('VoiceCaptureFromTriageRule filters detail.route=voice-capture with DLQ', () => {
     const rules = tpl.findResources('AWS::Events::Rule');
     const rule = Object.values(rules).find((r) => {
-      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
-        ?.EventPattern as
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
         | {
             source?: string[];
             'detail-type'?: string[];
@@ -95,9 +115,8 @@ describe('AgentsStack', () => {
   const agentFns = () => {
     const fns = tpl.findResources('AWS::Lambda::Function');
     return Object.values(fns).filter((fn) => {
-      const env = (
-        fn as { Properties?: { Environment?: { Variables?: Record<string, unknown> } } }
-      ).Properties?.Environment?.Variables;
+      const env = (fn as { Properties?: { Environment?: { Variables?: Record<string, unknown> } } })
+        .Properties?.Environment?.Variables;
       return env?.KEVIN_OWNER_ID !== undefined;
     });
   };
@@ -105,11 +124,10 @@ describe('AgentsStack', () => {
   it('all agent Lambdas run nodejs22.x + arm64', () => {
     const fns = agentFns();
     // triage + voice-capture + entity-resolver + bulk-import-kontakter (Plan 02-08)
-    // + bulk-import-granola-gmail (Plan 02-09)
-    expect(fns.length).toBe(5);
+    // + bulk-import-granola-gmail (Plan 02-09) + transcript-extractor (Plan 06-02)
+    expect(fns.length).toBe(6);
     for (const fn of fns) {
-      const props = (fn as { Properties: { Runtime: string; Architectures: string[] } })
-        .Properties;
+      const props = (fn as { Properties: { Runtime: string; Architectures: string[] } }).Properties;
       expect(props.Runtime).toBe('nodejs22.x');
       expect(props.Architectures).toEqual(['arm64']);
     }
@@ -117,15 +135,13 @@ describe('AgentsStack', () => {
 
   it('Claude-SDK agent Lambdas have CLAUDE_CODE_USE_BEDROCK=1 env (both bulk-import lambdas excluded — no LLM calls)', () => {
     for (const fn of agentFns()) {
-      const env = (
-        fn as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (fn as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       // Plan 02-08 bulk-import-kontakter (KONTAKTER_DB_ID_OPTIONAL env) +
       // Plan 02-09 bulk-import-granola-gmail (TRANSKRIPTEN_DB_ID_OPTIONAL env)
       // do NOT call any LLM — skip the Bedrock env check for both.
       const isBulkImport =
-        env.KONTAKTER_DB_ID_OPTIONAL !== undefined ||
-        env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
+        env.KONTAKTER_DB_ID_OPTIONAL !== undefined || env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
       if (!isBulkImport) {
         expect(env.CLAUDE_CODE_USE_BEDROCK).toBe('1');
       }
@@ -145,9 +161,8 @@ describe('AgentsStack', () => {
 
   it('voice-capture Lambda has NOTION_COMMAND_CENTER_DB_ID env + agent/output bus PutEvents grants', () => {
     const vc = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       return env.NOTION_COMMAND_CENTER_DB_ID !== undefined;
     });
     expect(vc).toBeDefined();
@@ -160,10 +175,12 @@ describe('AgentsStack', () => {
     expect(serialized).toMatch(/KosBustriageBus/);
   });
 
-  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; both bulk-imports ≤ 900s', () => {
+  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; transcript-extractor ≤ 300s; both bulk-imports ≤ 900s', () => {
     for (const fn of agentFns()) {
       const props = (
-        fn as { Properties: { Timeout: number; Environment: { Variables: Record<string, unknown> } } }
+        fn as {
+          Properties: { Timeout: number; Environment: { Variables: Record<string, unknown> } };
+        }
       ).Properties;
       const env = props.Environment.Variables;
       if (
@@ -171,6 +188,8 @@ describe('AgentsStack', () => {
         env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined
       ) {
         expect(props.Timeout).toBeLessThanOrEqual(900); // bulk-import (Plans 02-08 / 02-09)
+      } else if (env.KOS_AGENT_BUS_NAME !== undefined) {
+        expect(props.Timeout).toBeLessThanOrEqual(300); // transcript-extractor (Plan 06-02) — 5 min for Sonnet 4.6 tool_use
       } else if (env.NOTION_COMMAND_CENTER_DB_ID !== undefined) {
         expect(props.Timeout).toBeLessThanOrEqual(60); // voice-capture
       } else if (env.NOTION_KOS_INBOX_DB_ID !== undefined) {
@@ -196,8 +215,7 @@ describe('AgentsStack', () => {
   it('EntityResolverFromAgentRule on kos.agent matches entity.mention.detected with per-pipeline DLQ', () => {
     const rules = tpl.findResources('AWS::Events::Rule');
     const rule = Object.values(rules).find((r) => {
-      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties
-        ?.EventPattern as
+      const ep = (r as { Properties?: { EventPattern?: unknown } }).Properties?.EventPattern as
         | { source?: string[]; 'detail-type'?: string[] }
         | undefined;
       return (
@@ -213,19 +231,21 @@ describe('AgentsStack', () => {
 
   it('entity-resolver Lambda: timeout 60s, memory ≥ 1024MB, NOTION_TOKEN + RDS env wired', () => {
     const resolver = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       // Disambiguate from bulk-import-kontakter (which also has
       // NOTION_KOS_INBOX_DB_ID) by requiring CLAUDE_CODE_USE_BEDROCK.
-      return (
-        env.NOTION_KOS_INBOX_DB_ID !== undefined &&
-        env.CLAUDE_CODE_USE_BEDROCK === '1'
-      );
+      return env.NOTION_KOS_INBOX_DB_ID !== undefined && env.CLAUDE_CODE_USE_BEDROCK === '1';
     });
     expect(resolver).toBeDefined();
     const props = (
-      resolver as { Properties: { Timeout: number; MemorySize: number; Environment: { Variables: Record<string, unknown> } } }
+      resolver as {
+        Properties: {
+          Timeout: number;
+          MemorySize: number;
+          Environment: { Variables: Record<string, unknown> };
+        };
+      }
     ).Properties;
     expect(props.Timeout).toBe(60);
     expect(props.MemorySize).toBeGreaterThanOrEqual(1024);
@@ -240,24 +260,23 @@ describe('AgentsStack', () => {
     const policies = tpl.findResources('AWS::IAM::Policy');
     const serialized = JSON.stringify(policies);
     expect(serialized).toContain('eu.anthropic.claude-sonnet-4-6');
-    expect(serialized).toContain('cohere.embed-multilingual-v3');
+    expect(serialized).toContain('cohere.embed-v4');
     // Notion token grant present (3 readers — 1 voice-capture + 1 resolver +
     // potentially others). Two `secretsmanager:GetSecretValue` resources is
     // sufficient evidence that resolver is granted alongside voice-capture.
     expect(serialized).toContain('secretsmanager:GetSecretValue');
   });
 
-  it('emits exactly 5 agent Lambdas (triage + voice-capture + entity-resolver + bulk-import-kontakter + bulk-import-granola-gmail); CDK helper Lambdas excluded', () => {
-    expect(agentFns().length).toBe(5);
+  it('emits exactly 6 agent Lambdas (triage + voice-capture + entity-resolver + bulk-import-kontakter + bulk-import-granola-gmail + transcript-extractor); CDK helper Lambdas excluded', () => {
+    expect(agentFns().length).toBe(6);
   });
 
   // --- Plan 02-08 BulkImportKontakter assertions -------------------------
 
   it('BulkImportKontakter Lambda: 15-min timeout, NOTION_TOKEN + KOS Inbox env wired, no event-source rule', () => {
     const fn = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       return env.KONTAKTER_DB_ID_OPTIONAL !== undefined;
     });
     expect(fn).toBeDefined();
@@ -297,9 +316,8 @@ describe('AgentsStack', () => {
 
   it('BulkImportGranolaGmail Lambda: 15-min timeout, GMAIL_OAUTH_SECRET_ID + KOS Inbox env wired, no event-source rule', () => {
     const fn = agentFns().find((f) => {
-      const env = (
-        f as { Properties: { Environment: { Variables: Record<string, unknown> } } }
-      ).Properties.Environment.Variables;
+      const env = (f as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+        .Properties.Environment.Variables;
       return env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined;
     });
     expect(fn).toBeDefined();

@@ -1,0 +1,94 @@
+name: dashboard-ci
+
+on:
+  pull_request:
+    paths:
+      - 'apps/dashboard/**'
+      - 'services/dashboard-*/**'
+      - 'packages/contracts/**'
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'apps/dashboard/**'
+      - 'services/dashboard-*/**'
+      - 'packages/contracts/**'
+
+jobs:
+  quick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kos/contracts typecheck
+      - run: pnpm --filter @kos/dashboard typecheck
+      - run: pnpm --filter @kos/dashboard test
+      - run: pnpm --filter @kos/dashboard-api typecheck
+      - run: pnpm --filter @kos/dashboard-api test
+      - run: pnpm --filter @kos/dashboard-listen-relay typecheck
+      - run: pnpm --filter @kos/dashboard-listen-relay test
+      - run: pnpm --filter @kos/dashboard-notify typecheck
+      - run: pnpm --filter @kos/dashboard-notify test
+
+  full:
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [quick]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kos/dashboard exec playwright install --with-deps chromium
+      - run: pnpm --filter @kos/dashboard build
+      - run: pnpm --filter @kos/dashboard e2e
+        env:
+          KOS_TEST_BEARER_TOKEN: ${{ secrets.KOS_TEST_BEARER_TOKEN }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.VERCEL_PREVIEW_URL }}
+
+  lighthouse:
+    # Plan 03-12 Task 2 — perf + a11y budgets (D-34). Runs after the build
+    # has already been verified by `full`. Uses `next start` locally in the
+    # runner so it works without a deployed preview URL. The Vercel-deployed
+    # preview remains the authoritative budget check (Plan 03-13); local
+    # hardware variance is expected on this runner, hence assertions were
+    # tuned per 03-CONTEXT.md D-34.
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [full]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kos/dashboard build
+      - name: Lighthouse CI
+        run: pnpm --filter @kos/dashboard lhci autorun
+        env:
+          # Middleware (Plan 03-05) requires a bearer token to reach
+          # authenticated routes. `next start` reads this from process.env
+          # and the LHCI collector hits `http://localhost:3000/...` with a
+          # matching `kos_session` cookie set via the LHCI `extraHeaders`
+          # pathway — handled in Plan 03-13 once the preview auth is in
+          # place. For now the `/` root is reachable without auth (login
+          # redirect is itself a 200 HTML response) so the collector still
+          # produces usable numbers.
+          KOS_DASHBOARD_BEARER_TOKEN: ${{ secrets.KOS_TEST_BEARER_TOKEN }}

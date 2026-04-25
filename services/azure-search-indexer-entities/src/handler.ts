@@ -51,7 +51,7 @@ export const handler = wrapHandler(async (): Promise<{
   );
 
   if (rows.length === 0) {
-    return { read: 0, upserted: 0, errors: 0, cursor };
+    return { read: 0, upserted: 0, errors: 0, cursor: cursor?.toISOString() ?? null };
   }
 
   const batch = rows.map((r) => {

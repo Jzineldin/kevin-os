@@ -169,3 +169,48 @@ describe('hybridQuery — result mapping', () => {
     expect(out.semantic_reranker_applied).toBe(true);
   });
 });
+
+describe('IN-01: UUID validation guard (Plan 06-08)', () => {
+  it('throws when an entityId is not a UUID', async () => {
+    await expect(
+      hybridQuery({ rawText: 'foo', entityIds: ['not-a-uuid'] }),
+    ).rejects.toThrow(/not a UUID/);
+  });
+
+  it('throws with the offending value in the message', async () => {
+    await expect(
+      hybridQuery({ rawText: 'foo', entityIds: ['injection-attempt;DROP TABLE x'] }),
+    ).rejects.toThrow(/injection-attempt/);
+  });
+
+  it('does not throw for valid UUIDs', async () => {
+    // The harness's mock for getAzureSearchClient resolves; we only need to
+    // assert the UUID guard does NOT raise.
+    let validationThrew = false;
+    try {
+      await hybridQuery({
+        rawText: 'foo',
+        entityIds: ['11111111-1111-1111-1111-111111111111'],
+      });
+    } catch (e) {
+      // Anything not matching /not a UUID/ is fine; we only want to assert
+      // the guard itself didn't raise.
+      if (/not a UUID/.test((e as Error).message)) {
+        validationThrew = true;
+      }
+    }
+    expect(validationThrew).toBe(false);
+  });
+
+  it('accepts empty entityIds (no-filter degraded path)', async () => {
+    let validationThrew = false;
+    try {
+      await hybridQuery({ rawText: 'foo', entityIds: [] });
+    } catch (e) {
+      if (/not a UUID/.test((e as Error).message)) {
+        validationThrew = true;
+      }
+    }
+    expect(validationThrew).toBe(false);
+  });
+});

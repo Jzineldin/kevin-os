@@ -9,6 +9,13 @@ import type { SearchHit } from '@kos/contracts/context';
 import { getAzureSearchClient } from './client.js';
 import { embedText } from './embed.js';
 
+// IN-01 hardening (Plan 06-08): defense-in-depth UUID validation before
+// interpolating entity IDs into the OData filter. Today every caller
+// passes DB UUIDs (entity_index PK / mention_events.entity_id), so this
+// is belt-and-braces — but it eliminates a future regression vector if a
+// less-trusted caller is ever wired up.
+const UUID_RE = /^[0-9a-f-]{36}$/i;
+
 export interface HybridQueryInput {
   rawText: string;
   entityIds: string[];
@@ -31,6 +38,18 @@ export async function hybridQuery(input: HybridQueryInput): Promise<HybridQueryR
     topK = 10,
     indexName = process.env.AZURE_SEARCH_INDEX_NAME ?? 'kos-memory',
   } = input;
+
+  // IN-01 hardening (Plan 06-08): validate entity IDs are UUIDs BEFORE we
+  // interpolate them into the OData filter below. Runs first so a malicious
+  // entityId never reaches the Azure SDK and so non-UUID inputs short-circuit
+  // with a clear error.
+  for (const id of entityIds) {
+    if (!UUID_RE.test(id)) {
+      throw new Error(
+        `hybridQuery: entityId "${id}" is not a UUID — refusing to interpolate into OData filter (IN-01 hardening, Plan 06-08)`,
+      );
+    }
+  }
 
   if (!rawText || rawText.trim().length === 0) {
     return { hits: [], elapsed_ms: Date.now() - started, semantic_reranker_applied: false };

@@ -5,9 +5,12 @@
  * on explicit intent (e.g. "load Damien's full dossier before drafting").
  * Aggregates every row tied to each entity (entity_index row, all
  * mention_events, email_drafts touching the entity, document_versions,
- * agent_runs context.summary per transcript) into a single 200k-800k token
- * context. Calls Vertex Gemini 2.5 Pro in europe-west4 with context caching
- * enabled.
+ * agent_runs output_json.summary per transcript) into a single 200k-800k
+ * token context. Calls Vertex Gemini 2.5 Pro in europe-west4.
+ *
+ * WR-03: context caching is a Phase 7 follow-up — see src/vertex.ts header.
+ * Current implementation issues generateContent directly; the 25% cached-input
+ * discount is not yet realised.
  *
  * Writes result to `entity_dossiers_cached` with `last_touch_hash` prefix
  * 'gemini-full:' so regular loadContext() path treats it as a distinct

@@ -1,5 +1,5 @@
 /**
- * Vertex AI Gemini 2.5 Pro client with context caching.
+ * Vertex AI Gemini 2.5 Pro client.
  *
  * Uses `@google-cloud/vertexai` v1.x. Credentials pulled from Secrets
  * Manager at cold start (`GCP_SA_JSON_SECRET_ARN` — service account JSON).
@@ -9,9 +9,15 @@
  *   - Input < 200k tokens: $1.25 per 1M tokens
  *   - Input ≥ 200k tokens: $2.50 per 1M tokens
  *   - Output: $10.00 per 1M tokens
- *   - Cached content: 25% discount on input
+ *   - Cached content: 25% discount on input (NOT YET REALISED — see below)
  *
  * Target: <$1.50 average per full-dossier call.
+ *
+ * WR-03: TODO (Phase 7) — wire `cachedContents.create` on first call per
+ * entity set so the 25% input-cache discount is realised. Current
+ * implementation issues `model.generateContent(...)` directly with no
+ * cache key management. At an 800k-token default budget this leaves
+ * ~$0.38 on the table per call. Tracked in deferred-items.md.
  */
 import { VertexAI } from '@google-cloud/vertexai';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';

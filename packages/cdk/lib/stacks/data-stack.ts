@@ -149,9 +149,28 @@ export class DataStack extends Stack {
       },
       removalPolicy: RemovalPolicy.DESTROY,
     });
+    // Phase 6+7 agent role — used by entity-timeline-refresher,
+    // 4× azure-search-indexer-*, dossier-loader, granola-poller,
+    // mv-refresher. The proxy needs a secret per IAM-authenticating
+    // user; without it Lambdas hit "RDS proxy has no credentials for
+    // the role kos_agent_writer" at runtime. Migration 0015 creates
+    // the role and grants rds_iam.
+    const agentWriterDbSecret = new Secret(this, 'AgentWriterDbSecret', {
+      secretName: 'kos/db/kos_agent_writer',
+      description: 'Postgres credentials for kos_agent_writer role (RDS Proxy AS-auth, Phase 6+7 IAM users).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'kos_agent_writer' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
     dashboardRelayDbSecret.grantRead(proxyRole);
     dashboardApiDbSecret.grantRead(proxyRole);
     dashboardNotifyDbSecret.grantRead(proxyRole);
+    agentWriterDbSecret.grantRead(proxyRole);
 
     this.rdsProxy = new DatabaseProxy(this, 'RdsProxy', {
       proxyTarget: ProxyTarget.fromInstance(rds.instance),
@@ -160,6 +179,7 @@ export class DataStack extends Stack {
         dashboardRelayDbSecret,
         dashboardApiDbSecret,
         dashboardNotifyDbSecret,
+        agentWriterDbSecret,
       ],
       vpc: props.vpc,
       // Pin proxy to PRIVATE_ISOLATED only so adding new subnet types

@@ -26,7 +26,7 @@ function getClient(): AnthropicBedrock {
   return client;
 }
 
-export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6-20250929-v1:0';
+export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
 
 export const WEEKLY_REVIEW_BASE_PROMPT = `# Role
 You are KOS Weekly Review agent for Kevin — Sunday 19:00 retrospective. Calm, prose-first, no emoji fatigue.

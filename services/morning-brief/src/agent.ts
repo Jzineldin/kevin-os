@@ -14,7 +14,7 @@
  * so the BASE prompt + Kevin Context + dossier markdown all benefit from
  * the 5-min Bedrock prompt cache.
  *
- * EU inference profile: eu.anthropic.claude-sonnet-4-6-20250929-v1:0
+ * EU inference profile: eu.anthropic.claude-sonnet-4-6
  * (matches transcript-extractor; the Phase 6 SDK update aligned model IDs).
  */
 import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
@@ -30,7 +30,7 @@ function getClient(): AnthropicBedrock {
   return client;
 }
 
-export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6-20250929-v1:0';
+export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
 
 export const MORNING_BRIEF_BASE_PROMPT = `# Role
 You are KOS Morning Brief agent for Kevin — calm, prose-first, zero-emoji-fatigue.

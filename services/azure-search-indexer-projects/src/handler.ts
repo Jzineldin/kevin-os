@@ -19,6 +19,9 @@ export const handler = wrapHandler(async () => {
   const pool = await getPool();
   const cursor = await readCursor(pool, CURSOR_KEY);
 
+  // CR-04: project_index PK column is `id` (see packages/db/src/schema.ts:76
+  // and migration 0001:38). Alias `id AS project_id` so downstream code and
+  // the Azure document id (`project:${r.project_id}`) remain stable.
   const { rows } = await pool.query<{
     project_id: string;
     name: string;
@@ -28,7 +31,7 @@ export const handler = wrapHandler(async () => {
     seed_context: string | null;
     updated_at: Date;
   }>(
-    `SELECT project_id, name, bolag, status, description, seed_context, updated_at
+    `SELECT id AS project_id, name, bolag, status, description, seed_context, updated_at
        FROM project_index
       WHERE updated_at > $1
       ORDER BY updated_at ASC

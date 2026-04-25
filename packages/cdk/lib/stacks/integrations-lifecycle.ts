@@ -321,6 +321,44 @@ export function wireLifecycleAutomation(
     },
   });
 
+  // --- verify-notification-cap IAM grants (Plan 07-04 D-12 + threat model) -
+  //
+  // Read-only Lambda — issues SELECT-only SQL via RDS Proxy + GetItem on
+  // DynamoDB cap table + Publish on the SafetyStack alarmTopic + PutEvents
+  // on kos.system (brief.compliance_violation). T-07-VERIFY-02 mitigation:
+  // grantReadData (NOT grantReadWriteData) so write attempts fail at IAM
+  // even if the handler tries to write by mistake.
+  verifyNotificationCap.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectArn],
+    }),
+  );
+  props.telegramCapTable.grantReadData(verifyNotificationCap); // GetItem only.
+  props.alarmTopic.grantPublish(verifyNotificationCap);
+  props.systemBus.grantPutEventsTo(verifyNotificationCap);
+
+  // --- verify-notification-cap weekly schedule (Plan 07-04 D-07) -----------
+  //
+  // Cron 03:00 Sunday Stockholm — fires BEFORE Sunday 19:00 weekly-review so
+  // any cap-violation surfaces in the same morning batch (T-07-VERIFY-03
+  // mitigation). flexibleTimeWindow OFF — fire on the exact wall-clock minute.
+  verifyNotificationCap.grantInvoke(schedulerRole);
+  new CfnSchedule(scope, 'VerifyNotificationCapSchedule', {
+    name: 'verify-notification-cap-weekly',
+    groupName: props.scheduleGroupName,
+    scheduleExpression: 'cron(0 3 ? * SUN *)',
+    scheduleExpressionTimezone: 'Europe/Stockholm',
+    flexibleTimeWindow: { mode: 'OFF' },
+    target: {
+      arn: verifyNotificationCap.functionArn,
+      roleArn: schedulerRole.roleArn,
+      input: JSON.stringify({ kind: 'weekly-compliance-check' }),
+    },
+    state: 'ENABLED',
+  });
+
   // --- AUTO-02 email-triage every-2h scheduler (Plan 07-03) ---------------
   //
   // Phase 4 (Plan 04-04 Task 4) owns the email-triage Lambda + an

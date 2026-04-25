@@ -379,6 +379,109 @@ describe('IntegrationsStack — lifecycle automation (Plan 07-00)', () => {
     expect(collectedActions.has('lambda:InvokeFunction')).toBe(false);
   });
 
+  // --- Plan 07-04: verify-notification-cap schedule + IAM grants -------
+  it('Plan 07-04: VerifyNotificationCap IAM has rds-db:connect on kos_admin', () => {
+    const { tpl } = synth();
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    let found = false;
+    for (const p of Object.values(policies)) {
+      const roles =
+        ((p as { Properties?: { Roles?: Array<{ Ref?: string }> } }).Properties?.Roles ?? []);
+      const onVerify = roles.some((r) => /^VerifyNotificationCapServiceRole/.test(r.Ref ?? ''));
+      if (!onVerify) continue;
+      const stmts =
+        ((p as { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }).Properties
+          ?.PolicyDocument?.Statement) ?? [];
+      for (const s of stmts as Array<{ Action?: string | string[]; Resource?: string | string[] }>) {
+        const actions = Array.isArray(s.Action) ? s.Action : s.Action ? [s.Action] : [];
+        const resources = Array.isArray(s.Resource) ? s.Resource : s.Resource ? [s.Resource] : [];
+        if (
+          actions.includes('rds-db:connect') &&
+          resources.some((r) => /kos_admin/.test(JSON.stringify(r)))
+        ) {
+          found = true;
+        }
+      }
+    }
+    expect(found).toBe(true);
+  });
+
+  it('Plan 07-04: VerifyNotificationCap IAM has dynamodb:GetItem on TelegramCap (NOT write)', () => {
+    const { tpl } = synth();
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    let getItem = false;
+    let putItem = false;
+    for (const p of Object.values(policies)) {
+      const roles =
+        ((p as { Properties?: { Roles?: Array<{ Ref?: string }> } }).Properties?.Roles ?? []);
+      const onVerify = roles.some((r) => /^VerifyNotificationCapServiceRole/.test(r.Ref ?? ''));
+      if (!onVerify) continue;
+      const stmts =
+        ((p as { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }).Properties
+          ?.PolicyDocument?.Statement) ?? [];
+      for (const s of stmts as Array<{ Action?: string | string[] }>) {
+        const actions = Array.isArray(s.Action) ? s.Action : s.Action ? [s.Action] : [];
+        for (const a of actions) {
+          if (/^dynamodb:(GetItem|BatchGetItem|Query|Scan|DescribeTable|ConditionCheckItem)$/.test(a)) {
+            getItem = true;
+          }
+          if (/^dynamodb:(Put|Update|Delete|BatchWrite)/.test(a)) {
+            putItem = true;
+          }
+        }
+      }
+    }
+    expect(getItem).toBe(true);
+    // T-07-VERIFY-02 mitigation: read-only grant; write attempts must fail.
+    expect(putItem).toBe(false);
+  });
+
+  it('Plan 07-04: VerifyNotificationCap IAM has sns:Publish on alarmTopic', () => {
+    const { tpl } = synth();
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    let found = false;
+    for (const p of Object.values(policies)) {
+      const roles =
+        ((p as { Properties?: { Roles?: Array<{ Ref?: string }> } }).Properties?.Roles ?? []);
+      const onVerify = roles.some((r) => /^VerifyNotificationCapServiceRole/.test(r.Ref ?? ''));
+      if (!onVerify) continue;
+      const stmts =
+        ((p as { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }).Properties
+          ?.PolicyDocument?.Statement) ?? [];
+      for (const s of stmts as Array<{ Action?: string | string[] }>) {
+        const actions = Array.isArray(s.Action) ? s.Action : s.Action ? [s.Action] : [];
+        if (actions.includes('sns:Publish')) found = true;
+      }
+    }
+    expect(found).toBe(true);
+  });
+
+  it('Plan 07-04: CfnSchedule verify-notification-cap-weekly cron(0 3 ? * SUN *) Stockholm + OFF + ENABLED', () => {
+    const { tpl } = synth();
+    tpl.hasResourceProperties(
+      'AWS::Scheduler::Schedule',
+      Match.objectLike({
+        Name: 'verify-notification-cap-weekly',
+        ScheduleExpression: 'cron(0 3 ? * SUN *)',
+        ScheduleExpressionTimezone: 'Europe/Stockholm',
+        FlexibleTimeWindow: Match.objectLike({ Mode: 'OFF' }),
+        State: 'ENABLED',
+      }),
+    );
+    // Target is the VerifyNotificationCap Lambda (not a bus).
+    const schedules = tpl.findResources('AWS::Scheduler::Schedule');
+    const entry = Object.entries(schedules).find(
+      ([, r]) =>
+        (r as { Properties?: { Name?: string } }).Properties?.Name ===
+        'verify-notification-cap-weekly',
+    );
+    expect(entry).toBeDefined();
+    const target = (entry![1] as { Properties: { Target: { Arn: unknown } } }).Properties.Target;
+    const targetSerialised = JSON.stringify(target.Arn);
+    expect(targetSerialised).toMatch(/VerifyNotificationCap/);
+    expect(targetSerialised).toMatch(/Arn/);
+  });
+
   it('IntegrationsStack synthesises with NO Phase 7 Lambdas when SafetyStack refs are unset', () => {
     // Regression: existing test fixtures (mv-refresher, granola, etc.) must
     // continue to synth without the new SafetyStack/outputBus props.

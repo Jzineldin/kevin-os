@@ -25,6 +25,7 @@
     "@opentelemetry/instrumentation": "^0.215"
   },
   "devDependencies": {
+    "@kos/contracts": "workspace:*",
     "@kos/test-fixtures": "workspace:*",
     "@types/node": "22.9.0",
     "@types/pg": "8.11.10",

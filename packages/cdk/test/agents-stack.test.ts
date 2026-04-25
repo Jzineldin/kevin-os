@@ -124,8 +124,8 @@ describe('AgentsStack', () => {
   it('all agent Lambdas run nodejs22.x + arm64', () => {
     const fns = agentFns();
     // triage + voice-capture + entity-resolver + bulk-import-kontakter (Plan 02-08)
-    // + bulk-import-granola-gmail (Plan 02-09)
-    expect(fns.length).toBe(5);
+    // + bulk-import-granola-gmail (Plan 02-09) + transcript-extractor (Plan 06-02)
+    expect(fns.length).toBe(6);
     for (const fn of fns) {
       const props = (fn as { Properties: { Runtime: string; Architectures: string[] } }).Properties;
       expect(props.Runtime).toBe('nodejs22.x');
@@ -175,7 +175,7 @@ describe('AgentsStack', () => {
     expect(serialized).toMatch(/KosBustriageBus/);
   });
 
-  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; both bulk-imports ≤ 900s', () => {
+  it('per-agent timeout caps: triage ≤ 30s; voice-capture + entity-resolver ≤ 60s; transcript-extractor ≤ 300s; both bulk-imports ≤ 900s', () => {
     for (const fn of agentFns()) {
       const props = (
         fn as {
@@ -188,6 +188,8 @@ describe('AgentsStack', () => {
         env.TRANSKRIPTEN_DB_ID_OPTIONAL !== undefined
       ) {
         expect(props.Timeout).toBeLessThanOrEqual(900); // bulk-import (Plans 02-08 / 02-09)
+      } else if (env.KOS_AGENT_BUS_NAME !== undefined) {
+        expect(props.Timeout).toBeLessThanOrEqual(300); // transcript-extractor (Plan 06-02) — 5 min for Sonnet 4.6 tool_use
       } else if (env.NOTION_COMMAND_CENTER_DB_ID !== undefined) {
         expect(props.Timeout).toBeLessThanOrEqual(60); // voice-capture
       } else if (env.NOTION_KOS_INBOX_DB_ID !== undefined) {
@@ -265,8 +267,8 @@ describe('AgentsStack', () => {
     expect(serialized).toContain('secretsmanager:GetSecretValue');
   });
 
-  it('emits exactly 5 agent Lambdas (triage + voice-capture + entity-resolver + bulk-import-kontakter + bulk-import-granola-gmail); CDK helper Lambdas excluded', () => {
-    expect(agentFns().length).toBe(5);
+  it('emits exactly 6 agent Lambdas (triage + voice-capture + entity-resolver + bulk-import-kontakter + bulk-import-granola-gmail + transcript-extractor); CDK helper Lambdas excluded', () => {
+    expect(agentFns().length).toBe(6);
   });
 
   // --- Plan 02-08 BulkImportKontakter assertions -------------------------

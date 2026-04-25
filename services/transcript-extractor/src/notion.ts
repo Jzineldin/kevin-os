@@ -33,27 +33,53 @@ export async function readTranscriptBody(
   notion: NotionClient,
   pageId: string,
 ): Promise<string> {
+  // Recursive walk: Granola's `transcription` block has children blocks
+  // that hold the actual transcript text. The current implementation flat-
+  // listed top-level page children only and missed every transcript line.
   const parts: string[] = [];
   let total = 0;
+  await walkBlocks(notion, pageId, 0, parts, () => total, (n) => { total = n; });
+  const out = parts.join('\n').trim();
+  return out.length > RAW_LENGTH_CAP ? out.slice(0, RAW_LENGTH_CAP) : out;
+}
+
+/**
+ * Walk a block subtree, depth-first, accumulating plain text from every
+ * supported block type. Bounded by `RAW_LENGTH_CAP` so a pathological page
+ * cannot exhaust heap. Bounded by depth=4 so we don't recurse infinitely
+ * on cyclic refs (Notion does not produce them in practice but cheap guard).
+ */
+async function walkBlocks(
+  notion: NotionClient,
+  blockId: string,
+  depth: number,
+  parts: string[],
+  getTotal: () => number,
+  setTotal: (n: number) => void,
+): Promise<void> {
+  if (depth > 4) return;
   let cursor: string | undefined;
   do {
     const res = await notion.blocks.children.list({
-      block_id: pageId,
+      block_id: blockId,
       start_cursor: cursor,
       page_size: 100,
     });
     for (const b of res.results) {
+      const block = b as { type?: string; has_children?: boolean; id?: string };
       const text = extractBlockText(b);
-      if (!text) continue;
-      parts.push(text);
-      total += text.length + 1;
-      if (total >= RAW_LENGTH_CAP) break;
+      if (text) {
+        parts.push(text);
+        setTotal(getTotal() + text.length + 1);
+        if (getTotal() >= RAW_LENGTH_CAP) return;
+      }
+      if (block.has_children && block.id && getTotal() < RAW_LENGTH_CAP) {
+        await walkBlocks(notion, block.id, depth + 1, parts, getTotal, setTotal);
+      }
     }
     cursor =
-      total < RAW_LENGTH_CAP && res.has_more ? (res.next_cursor ?? undefined) : undefined;
+      getTotal() < RAW_LENGTH_CAP && res.has_more ? (res.next_cursor ?? undefined) : undefined;
   } while (cursor);
-  const out = parts.join('\n').trim();
-  return out.length > RAW_LENGTH_CAP ? out.slice(0, RAW_LENGTH_CAP) : out;
 }
 
 function extractBlockText(block: unknown): string | null {
@@ -68,6 +94,9 @@ function extractBlockText(block: unknown): string | null {
     toggle?: { rich_text?: Array<{ plain_text?: string }> };
     quote?: { rich_text?: Array<{ plain_text?: string }> };
     callout?: { rich_text?: Array<{ plain_text?: string }> };
+    // Granola-injected block: holds the meeting title in `title` and the
+    // transcript lines as child blocks (recursed via walkBlocks).
+    transcription?: { title?: Array<{ plain_text?: string }> };
   };
   const candidate =
     b.paragraph?.rich_text ??
@@ -78,7 +107,8 @@ function extractBlockText(block: unknown): string | null {
     b.numbered_list_item?.rich_text ??
     b.toggle?.rich_text ??
     b.quote?.rich_text ??
-    b.callout?.rich_text;
+    b.callout?.rich_text ??
+    b.transcription?.title;
   if (!candidate || candidate.length === 0) return null;
   return candidate
     .map((t) => t.plain_text ?? '')

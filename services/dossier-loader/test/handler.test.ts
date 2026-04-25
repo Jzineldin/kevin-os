@@ -100,7 +100,11 @@ describe('dossier-loader handler', () => {
     expect(entityIdsWritten).toEqual([ENTITY_A, ENTITY_B]);
   });
 
-  it('skips when entity_ids is empty', async () => {
+  it('rejects empty entity_ids via Zod (FullDossierRequestedSchema.min(1))', async () => {
+    // WR-05: FullDossierRequestedSchema enforces z.array(...).min(1), so
+    // empty entity_ids arrays are rejected at Zod.parse time. The handler
+    // no longer carries a redundant length-check branch; invalid input
+    // surfaces as a schema parse error, not a 'skipped' status.
     const { handler } = await import('../src/handler.js');
     const event = {
       version: '0',
@@ -114,14 +118,12 @@ describe('dossier-loader handler', () => {
       detail: {
         capture_id: 'cap-2',
         owner_id: OWNER,
-        entity_ids: [], // empty entityIds → skipped path
+        entity_ids: [],
         requested_by: 'operator',
         intent: 'noop',
         requested_at: new Date().toISOString(),
       },
     };
-    // Zod min(1) on entity_ids triggers parse error before the skip branch.
-    // The schema requires at least 1 entityId so empty arrays throw at parse.
     await expect(
       (handler as unknown as (e: unknown) => Promise<unknown>)(event),
     ).rejects.toBeDefined();

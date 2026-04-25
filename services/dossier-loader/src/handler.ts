@@ -44,7 +44,9 @@ const GEMINI_FULL_DOSSIER_TTL_SECONDS = 24 * 3600;
 export const handler = wrapHandler(async (
   event: EventBridgeEvent<'context.full_dossier_requested', unknown>,
 ): Promise<{
-  status: 'ok' | 'skipped';
+  // WR-05: 'skipped' removed — FullDossierRequestedSchema.min(1) makes
+  // empty entity_ids unreachable (Zod.parse throws first).
+  status: 'ok';
   entity_count: number;
   elapsed_ms: number;
   tokens_input?: number;
@@ -61,9 +63,12 @@ export const handler = wrapHandler(async (
     const detail: FullDossierRequested = FullDossierRequestedSchema.parse(event.detail);
     tagTraceWithCaptureId(detail.capture_id);
 
-    if (detail.entity_ids.length === 0) {
-      return { status: 'skipped', entity_count: 0, elapsed_ms: 0 };
-    }
+    // WR-05: no empty-entity_ids check here — FullDossierRequestedSchema
+    // enforces z.array(...).min(1), so Zod.parse above rejects empty arrays
+    // before we ever reach this point. The Zod contract is the single place
+    // that rules on "empty = invalid" vs "empty = skip"; keeping a second
+    // redundant branch in the handler caused confusion (its own test had
+    // to assert .rejects rather than status:'skipped').
 
     const started = Date.now();
     const pool = await getPool();

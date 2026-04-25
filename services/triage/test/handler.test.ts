@@ -53,6 +53,7 @@ vi.mock('../../_shared/sentry.js', () => ({
 }));
 vi.mock('../../_shared/tracing.js', () => ({
   setupOtelTracing: vi.fn(),
+  setupOtelTracingAsync: vi.fn(async () => {}),
   flush: vi.fn(async () => {}),
   tagTraceWithCaptureId: vi.fn(),
 }));
@@ -85,13 +86,11 @@ describe('triage handler', () => {
         telegram: { chat_id: 1, message_id: 1 },
       },
     });
-    const call = ebSend.mock.calls.find((c) =>
-      JSON.stringify(c[0]).includes('triage.routed'),
-    );
+    const call = ebSend.mock.calls.find((c) => JSON.stringify(c[0]).includes('triage.routed'));
     expect(call).toBeDefined();
     const detail = JSON.parse(
-      (call as unknown as [{ input: { Entries: { Detail: string }[] } }])[0].input
-        .Entries[0]!.Detail,
+      (call as unknown as [{ input: { Entries: { Detail: string }[] } }])[0].input.Entries[0]!
+        .Detail,
     );
     expect(detail.route).toBe('voice-capture');
     expect(detail.source_kind).toBe('text');
@@ -123,13 +122,11 @@ describe('triage handler', () => {
         vocab_name: 'kos-sv-se-v1',
       },
     });
-    const call = ebSend.mock.calls.find((c) =>
-      JSON.stringify(c[0]).includes('triage.routed'),
-    );
+    const call = ebSend.mock.calls.find((c) => JSON.stringify(c[0]).includes('triage.routed'));
     expect(call).toBeDefined();
     const detail = JSON.parse(
-      (call as unknown as [{ input: { Entries: { Detail: string }[] } }])[0].input
-        .Entries[0]!.Detail,
+      (call as unknown as [{ input: { Entries: { Detail: string }[] } }])[0].input.Entries[0]!
+        .Detail,
     );
     expect(detail.source_kind).toBe('voice');
     expect(detail.source_text).toBe('möte med Damien om Almi');

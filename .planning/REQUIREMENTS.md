@@ -54,7 +54,8 @@ All v1 requirements are hypotheses until shipped and validated. Requirements map
 - [ ] **AGT-01**: Triage agent (Haiku 4.5 via Bedrock, 60s/512MB Lambda) — every inbound event routes through triage first; decides which subagent(s) to invoke; hard-capped at 3 Telegram push messages per day
 - [ ] **AGT-02**: Voice-capture agent (Haiku 4.5) — transcript → structured Notion row with auto-detected entities, project, type, urgency classification
 - [ ] **AGT-03**: Entity-resolver agent (Sonnet 4.6) — extracts named entities from any text, fuzzy-matches to existing dossiers with three-stage pipeline (ENT-09), flags new ones for Inbox confirmation
-- [ ] **AGT-04**: Auto-context loader — pre-call hook that extracts entity mentions, queries Postgres + Azure AI Search, injects ranked dossier blocks into downstream agent's system prompt; Kevin Context always prompt-cached
+- [x] **AGT-04
+**: Auto-context loader — pre-call hook that extracts entity mentions, queries Postgres + Azure AI Search, injects ranked dossier blocks into downstream agent's system prompt; Kevin Context always prompt-cached
 - [ ] **AGT-05**: Email-triage agent (Haiku 4.5 classify / Sonnet 4.6 draft) — classifies emails (urgent/important/informational/junk), drafts replies for urgent; idempotency key in RDS; email body wrapped in `<email_content>` delimiters to resist prompt injection
 - [ ] **AGT-06**: Transcript-extractor agent (Sonnet 4.6) — reads Granola transcripts, extracts Kevin-action items to Command Center, updates entity dossiers with mention events
 - [ ] **AGT-07**: Content-writer agent (Sonnet 4.6) — multi-channel content drafts (IG/LinkedIn/TikTok/Reddit/newsletter) using BRAND_VOICE.md + few-shot examples; never auto-publishes
@@ -80,9 +81,12 @@ All v1 requirements are hypotheses until shipped and validated. Requirements map
 ### Lifecycle Automation (AUTO)
 
 - [ ] **AUTO-01**: 07:00 Stockholm — Morning brief agent writes 3-5 sentence prose brief + Top 3 + Calendar + Drafts ready + Dropped threads to 🏠 Today and Telegram
-- [ ] **AUTO-02**: Every 2h weekdays 08:00-18:00 — Email triage runs on both accounts, drafts replies for urgent
-- [ ] **AUTO-03**: 18:00 Stockholm — Day close: writes Daily Brief Log entry, updates Kevin Context, flags slipped items, posts evening summary to Telegram
-- [ ] **AUTO-04**: Sunday 19:00 — Weekly review: full week recap + next-week candidates → Kevin Context + Telegram
+- [x] **AUTO-02
+**: Every 2h weekdays 08:00-18:00 — Email triage runs on both accounts, drafts replies for urgent
+- [x] **AUTO-03
+**: 18:00 Stockholm — Day close: writes Daily Brief Log entry, updates Kevin Context, flags slipped items, posts evening summary to Telegram
+- [x] **AUTO-04
+**: Sunday 19:00 — Weekly review: full week recap + next-week candidates → Kevin Context + Telegram
 - [ ] **AUTO-05**: Every 15 min — Transcript watcher polls Transkripten DB for new entries, runs extractor
 
 ### Migration (MIG)

@@ -3,12 +3,19 @@
  *
  * Verifies the entity_index embedding-population path added to upsert.ts:
  *   1. First sync (embed_hash IS NULL) → embedBatch called once + UPDATE
- *      writes {embedding, embedding_model='cohere.embed-multilingual-v3',
+ *      writes {embedding, embedding_model='eu.cohere.embed-v4:0',
  *      embed_hash=sha256(text)}
  *   2. Re-sync with identical text (embed_hash matches) → embedBatch NOT
  *      called (Pitfall: Denial of Wallet) and no UPDATE issued
  *   3. embedBatch throws → upsert continues; no exception propagates;
  *      warn is logged; embedding stays unchanged
+ *
+ * NOTE: The EMBED_MODEL_ID literal in the vi.mock below MUST track
+ * packages/resolver/src/embed.ts MODEL_ID (re-exported via
+ * packages/resolver/src/index.ts as EMBED_MODEL_ID). Wave-5 Gap A
+ * migrated off the prior Cohere v3 multilingual model to the current
+ * eu.cohere.embed-v4:0 EU inference profile. If you change the resolver
+ * constant, update this test in lockstep.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -17,7 +24,7 @@ import { embedEntityIfNeeded, type DbExec } from '../src/upsert';
 
 // Mock @kos/resolver before importing the function under test
 vi.mock('@kos/resolver', () => ({
-  EMBED_MODEL_ID: 'cohere.embed-multilingual-v3',
+  EMBED_MODEL_ID: 'eu.cohere.embed-v4:0',
   buildEntityEmbedText: (e: any) =>
     [e.name, (e.aliases ?? []).join(', '), e.role ?? '', e.org ?? '', e.relationship ?? '', e.seedContext ?? '']
       .filter((s: string) => s.length > 0)
@@ -75,8 +82,8 @@ describe('embedEntityIfNeeded — Plan 02-08 Task 2', () => {
 
     // embedBatch called once with the D-08 text
     expect(embedBatch).toHaveBeenCalledTimes(1);
-    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual([EXPECTED_TEXT]);
-    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0][1]).toBe('search_document');
+    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toEqual([EXPECTED_TEXT]);
+    expect((embedBatch as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toBe('search_document');
 
     // UPDATE issued with the right model + hash
     const updates = db.calls.filter((c) => /UPDATE entity_index/i.test(c.text));
@@ -85,7 +92,7 @@ describe('embedEntityIfNeeded — Plan 02-08 Task 2', () => {
     // [vecLiteral, model, hash, page_id]
     expect(typeof vals[0]).toBe('string');
     expect(vals[0]).toContain('[0.001');
-    expect(vals[1]).toBe('cohere.embed-multilingual-v3');
+    expect(vals[1]).toBe('eu.cohere.embed-v4:0');
     expect(vals[2]).toBe(EXPECTED_HASH);
     expect(vals[3]).toBe('page-1');
   });

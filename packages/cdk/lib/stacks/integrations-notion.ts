@@ -22,52 +22,14 @@ import { CfnSchedule } from 'aws-cdk-lib/aws-scheduler';
 import { Role, ServicePrincipal, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { KosLambda } from '../constructs/kos-lambda.js';
 import * as path from 'node:path';
-import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { loadNotionIds, type NotionIds } from './_notion-ids.js';
 
 // Resolve __dirname in ESM for node:path usage.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-type NotionIds = {
-  entities: string;
-  projects: string;
-  kevinContext: string;
-  legacyInbox: string;
-  commandCenter: string;
-  // Plan 02-07: human-in-the-loop entity-resolver inbox queue (D-13). Optional
-  // here only because Plan 02-07 ships the bootstrap script + indexer wiring
-  // BEFORE Kevin has run the live Notion bootstrap. Once `scripts/bootstrap-
-  // notion-dbs.mjs` populates this key, redeploy and the schedule receives
-  // the real DB UUID. Until then we synth with empty string and the runtime
-  // surfaces an actionable error on first invocation — mirrors the
-  // NOTION_KOS_INBOX_DB_ID empty-fallback pattern in integrations-agents.ts
-  // (Plan 02-05 deploy-unblock convention).
-  kosInbox: string;
-};
-
-function loadNotionIds(): NotionIds {
-  const idFile = path.resolve(__dirname, '../../../../scripts/.notion-db-ids.json');
-  const raw = fs.readFileSync(idFile, 'utf8');
-  const parsed = JSON.parse(raw) as Partial<NotionIds>;
-  const required: (keyof NotionIds)[] = [
-    'entities',
-    'projects',
-    'kevinContext',
-    'legacyInbox',
-    'commandCenter',
-  ];
-  for (const k of required) {
-    if (!parsed[k]) {
-      throw new Error(
-        `scripts/.notion-db-ids.json missing required key "${k}". ` +
-          `Run scripts/bootstrap-notion-dbs.mjs first.`,
-      );
-    }
-  }
-  // kosInbox is permitted to be empty at synth time — see type comment above.
-  return { ...parsed, kosInbox: parsed.kosInbox ?? '' } as NotionIds;
-}
+export type { NotionIds };
 
 export interface WireNotionProps {
   vpc: IVpc;

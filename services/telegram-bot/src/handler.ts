@@ -17,12 +17,9 @@
  *  - T-02-S3-01 (path traversal): S3 key is built from the ULID + UTC date,
  *    never from user input.
  */
-import { Bot, webhookCallback } from 'grammy';
+import { Bot } from 'grammy';
 import { ulid } from 'ulid';
-import type {
-  APIGatewayProxyEventV2,
-  APIGatewayProxyResultV2,
-} from 'aws-lambda';
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { initSentry, wrapHandler } from '../../_shared/sentry.js';
 import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
 import { CaptureReceivedSchema } from '@kos/contracts';
@@ -148,18 +145,38 @@ export function __resetBotForTests(): void {
 }
 
 export const handler = wrapHandler(
-  async (
-    event: APIGatewayProxyEventV2,
-  ): Promise<APIGatewayProxyResultV2> => {
+  async (event: APIGatewayProxyEventV2, _context?: unknown): Promise<APIGatewayProxyResultV2> => {
+    console.log('[tg] handler start');
     await initSentry();
+    console.log('[tg] sentry ok');
     const { webhookSecret } = await getTelegramSecrets();
+    console.log('[tg] secrets ok');
     const hdr = event.headers?.['x-telegram-bot-api-secret-token'];
     if (hdr !== webhookSecret) {
+      console.log('[tg] secret mismatch');
       return { statusCode: 401, body: 'invalid secret' };
     }
+    console.log('[tg] secret valid, getting bot');
     const bot = await getBot();
-    const cb = webhookCallback(bot, 'aws-lambda-async');
-    const res = await cb(event, {});
-    return res as unknown as APIGatewayProxyResultV2;
+    console.log('[tg] bot ready, processing update');
+
+    // Use bot.handleUpdate directly instead of webhookCallback to avoid
+    // the node-fetch@2 vs native AbortSignal conflict (grammy 1.42 passes
+    // AbortSignal to node-fetch@2 which doesn't support it) and the
+    // aws-lambda adapter callback shape mismatch.
+    const body = event.body;
+    if (!body) {
+      return { statusCode: 200, body: 'no body' };
+    }
+    const update = JSON.parse(body);
+    try {
+      await bot.handleUpdate(update);
+      console.log('[tg] update processed ok');
+    } catch (err) {
+      // Non-fatal: the event may already be published to EventBridge.
+      // Log and return 200 so Telegram doesn't retry.
+      console.error('[tg] handleUpdate error (non-fatal):', err);
+    }
+    return { statusCode: 200, body: '' };
   },
 );

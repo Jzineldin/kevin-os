@@ -14,7 +14,9 @@
     "db:push": "bash scripts/db-push.sh",
     "notion:bootstrap": "node scripts/bootstrap-notion-dbs.mjs",
     "verify:stacks": "bash scripts/verify-stacks-exist.sh",
-    "verify:gate-1": "node scripts/verify-gate-1.mjs"
+    "verify:gate-1": "node scripts/verify-gate-1.mjs",
+    "sync-vercel": "tsx scripts/sync-vercel-env.ts",
+    "verify-phase-3": "tsx scripts/verify-phase-3.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-cloudformation": "^3.1034.0",
@@ -31,6 +33,7 @@
     "eslint": "9.14.0",
     "pg": "8.13.1",
     "prettier": "3.3.3",
+    "tsx": "4.19.2",
     "typescript": "5.6.3",
     "vitest": "2.1.4"
   }

@@ -31,6 +31,7 @@ describe('IntegrationsStack — Azure Search bootstrap', () => {
     const integrations = new IntegrationsStack(app, 'I', {
       env,
       vpc: net.vpc,
+      rdsSecurityGroup: data.rdsSecurityGroup,
       rdsSecret: data.rdsCredentialsSecret,
       rdsProxyEndpoint: data.rdsProxyEndpoint,
       rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,

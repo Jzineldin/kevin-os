@@ -26,7 +26,7 @@ const __dirname = path.dirname(__filename);
 
 const compat = new FlatCompat({ baseDirectory: __dirname });
 
-export default [
+const config = [
   // Ignore build + vendor output.
   {
     ignores: [
@@ -126,3 +126,5 @@ export default [
     },
   },
 ];
+
+export default config;

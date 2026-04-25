@@ -28,6 +28,9 @@ export const handler = wrapHandler(async (): Promise<{
   const pool = await getPool();
   const cursor = await readCursor(pool, CURSOR_KEY);
 
+  // CR-05: entity_index PK column is `id` (see packages/db/src/schema.ts:40
+  // and migration 0001:13). Alias `id AS entity_id` so downstream doc id
+  // prefix (`entity:${r.entity_id}`) remains stable.
   const { rows } = await pool.query<{
     entity_id: string;
     name: string;
@@ -39,7 +42,7 @@ export const handler = wrapHandler(async (): Promise<{
     manual_notes: string | null;
     updated_at: Date;
   }>(
-    `SELECT entity_id, name, aliases, type, org, role, seed_context, manual_notes, updated_at
+    `SELECT id AS entity_id, name, aliases, type, org, role, seed_context, manual_notes, updated_at
        FROM entity_index
       WHERE updated_at > $1
       ORDER BY updated_at ASC

@@ -212,7 +212,13 @@ export function wireLifecycleAutomation(
     memory: 1024,
     timeout: Duration.minutes(10),
     ...vpcConfig,
-    environment: { ...commonEnv },
+    environment: {
+      ...commonEnv,
+      NOTION_TODAY_PAGE_ID: notionIds.todayPage,
+      NOTION_DAILY_BRIEF_LOG_DB_ID: notionIds.dailyBriefLog,
+      NOTION_KEVIN_CONTEXT_PAGE_ID: notionIds.kevinContext,
+      DASH_URL: 'https://kevin-os.vercel.app',
+    },
   });
 
   // --- weekly-review Lambda (AUTO-04) ------------------------------------
@@ -222,7 +228,82 @@ export function wireLifecycleAutomation(
     memory: 1536,
     timeout: Duration.minutes(10),
     ...vpcConfig,
-    environment: { ...commonEnv },
+    environment: {
+      ...commonEnv,
+      NOTION_DAILY_BRIEF_LOG_DB_ID: notionIds.dailyBriefLog,
+      NOTION_KEVIN_CONTEXT_PAGE_ID: notionIds.kevinContext,
+      DASH_URL: 'https://kevin-os.vercel.app',
+    },
+  });
+
+  // --- Day-close + Weekly-review IAM grants (Plan 07-02 D-12) ------------
+  //
+  // Both Lambdas share the same IAM shape as morning-brief: Bedrock Sonnet
+  // 4.6 EU profile + foundation-model fan-out, RDS Proxy IAM auth on
+  // kos_admin, Notion + Azure secret reads, output bus PutEvents (the
+  // single output.push event), system bus PutEvents (brief.generation_failed
+  // failure path). Explicitly NO ses:* — briefs do not send email.
+  for (const fn of [dayClose, weeklyReview]) {
+    fn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          'arn:aws:bedrock:*:*:inference-profile/eu.anthropic.claude-sonnet-4-6*',
+          'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*',
+        ],
+      }),
+    );
+    fn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['rds-db:connect'],
+        resources: [rdsDbConnectArn],
+      }),
+    );
+    props.notionTokenSecret.grantRead(fn);
+    props.azureSearchAdminSecret.grantRead(fn);
+    props.outputBus.grantPutEventsTo(fn);
+    props.systemBus.grantPutEventsTo(fn);
+  }
+
+  // --- Day-close schedule (Plan 07-02: 18:00 weekdays Stockholm) ----------
+  //
+  // 18:00 is OUTSIDE the 20:00–08:00 quiet-hours window so D-18 doesn't
+  // apply; output.push lands directly without queueing.
+  dayClose.grantInvoke(schedulerRole);
+  new CfnSchedule(scope, 'DayCloseSchedule', {
+    name: 'day-close-weekdays-18',
+    groupName: props.scheduleGroupName,
+    scheduleExpression: 'cron(0 18 ? * MON-FRI *)',
+    scheduleExpressionTimezone: 'Europe/Stockholm',
+    flexibleTimeWindow: { mode: 'OFF' },
+    target: {
+      arn: dayClose.functionArn,
+      roleArn: schedulerRole.roleArn,
+      input: JSON.stringify({ kind: 'day-close' }),
+    },
+    state: 'ENABLED',
+  });
+
+  // --- Weekly-review schedule (Plan 07-02: Sunday 19:00 Stockholm) --------
+  //
+  // 19:00 Sunday lands cleanly in the post-quiet-hours window. Sunday gets
+  // its own per-day cap budget (stockholmDateKey is per-day) so the weekly
+  // review counts as 1-of-3 for Sunday with no contention.
+  weeklyReview.grantInvoke(schedulerRole);
+  new CfnSchedule(scope, 'WeeklyReviewSchedule', {
+    name: 'weekly-review-sun-19',
+    groupName: props.scheduleGroupName,
+    scheduleExpression: 'cron(0 19 ? * SUN *)',
+    scheduleExpressionTimezone: 'Europe/Stockholm',
+    flexibleTimeWindow: { mode: 'OFF' },
+    target: {
+      arn: weeklyReview.functionArn,
+      roleArn: schedulerRole.roleArn,
+      input: JSON.stringify({ kind: 'weekly-review' }),
+    },
+    state: 'ENABLED',
   });
 
   // --- verify-notification-cap Lambda (D-07) -----------------------------

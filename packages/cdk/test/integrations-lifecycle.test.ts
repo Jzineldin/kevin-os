@@ -194,6 +194,132 @@ describe('IntegrationsStack — lifecycle automation (Plan 07-00)', () => {
     expect(targetSerialised).toMatch(/Arn/);
   });
 
+  // --- Plan 07-02: day-close + weekly-review IAM + schedules -----------
+  it('Plan 07-02: DayClose IAM has bedrock:InvokeModel + rds-db:connect + Notion read', () => {
+    const { tpl } = synth();
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    let bedrock = false;
+    let rds = false;
+    for (const p of Object.values(policies)) {
+      const roles =
+        ((p as { Properties?: { Roles?: Array<{ Ref?: string }> } }).Properties?.Roles ?? []);
+      const onDayClose = roles.some((r) => /^DayCloseServiceRole/.test(r.Ref ?? ''));
+      if (!onDayClose) continue;
+      const stmts =
+        ((p as { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }).Properties
+          ?.PolicyDocument?.Statement) ?? [];
+      for (const s of stmts as Array<{ Action?: string | string[]; Resource?: string | string[] }>) {
+        const actions = Array.isArray(s.Action) ? s.Action : s.Action ? [s.Action] : [];
+        const resources = Array.isArray(s.Resource) ? s.Resource : s.Resource ? [s.Resource] : [];
+        if (
+          actions.includes('bedrock:InvokeModel') &&
+          resources.some((r) => /eu\.anthropic\.claude-sonnet-4-6/.test(String(r)))
+        ) {
+          bedrock = true;
+        }
+        if (
+          actions.includes('rds-db:connect') &&
+          resources.some((r) => /kos_admin/.test(JSON.stringify(r)))
+        ) {
+          rds = true;
+        }
+      }
+    }
+    expect(bedrock).toBe(true);
+    expect(rds).toBe(true);
+  });
+
+  it('Plan 07-02: WeeklyReview IAM has bedrock:InvokeModel + rds-db:connect', () => {
+    const { tpl } = synth();
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    let bedrock = false;
+    let rds = false;
+    for (const p of Object.values(policies)) {
+      const roles =
+        ((p as { Properties?: { Roles?: Array<{ Ref?: string }> } }).Properties?.Roles ?? []);
+      const onWeekly = roles.some((r) => /^WeeklyReviewServiceRole/.test(r.Ref ?? ''));
+      if (!onWeekly) continue;
+      const stmts =
+        ((p as { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }).Properties
+          ?.PolicyDocument?.Statement) ?? [];
+      for (const s of stmts as Array<{ Action?: string | string[]; Resource?: string | string[] }>) {
+        const actions = Array.isArray(s.Action) ? s.Action : s.Action ? [s.Action] : [];
+        const resources = Array.isArray(s.Resource) ? s.Resource : s.Resource ? [s.Resource] : [];
+        if (
+          actions.includes('bedrock:InvokeModel') &&
+          resources.some((r) => /eu\.anthropic\.claude-sonnet-4-6/.test(String(r)))
+        ) {
+          bedrock = true;
+        }
+        if (
+          actions.includes('rds-db:connect') &&
+          resources.some((r) => /kos_admin/.test(JSON.stringify(r)))
+        ) {
+          rds = true;
+        }
+      }
+    }
+    expect(bedrock).toBe(true);
+    expect(rds).toBe(true);
+  });
+
+  it('Plan 07-02: DayClose Lambda env carries NOTION_KEVIN_CONTEXT_PAGE_ID', () => {
+    const { tpl } = synth();
+    const lambdas = tpl.findResources('AWS::Lambda::Function');
+    const dayClose = Object.entries(lambdas).find(([logicalId]) =>
+      /^DayClose[^S]/.test(logicalId), // exclude DayCloseSchedule
+    );
+    expect(dayClose).toBeDefined();
+    const env =
+      ((dayClose![1] as { Properties: { Environment?: { Variables?: Record<string, unknown> } } })
+        .Properties.Environment?.Variables) ?? {};
+    expect(env).toHaveProperty('NOTION_KEVIN_CONTEXT_PAGE_ID');
+    expect(env).toHaveProperty('NOTION_TODAY_PAGE_ID');
+    expect(env).toHaveProperty('NOTION_DAILY_BRIEF_LOG_DB_ID');
+  });
+
+  it('Plan 07-02: WeeklyReview Lambda env carries NOTION_KEVIN_CONTEXT_PAGE_ID', () => {
+    const { tpl } = synth();
+    const lambdas = tpl.findResources('AWS::Lambda::Function');
+    const weekly = Object.entries(lambdas).find(([logicalId]) =>
+      /^WeeklyReview[^S]/.test(logicalId), // exclude WeeklyReviewSchedule
+    );
+    expect(weekly).toBeDefined();
+    const env =
+      ((weekly![1] as { Properties: { Environment?: { Variables?: Record<string, unknown> } } })
+        .Properties.Environment?.Variables) ?? {};
+    expect(env).toHaveProperty('NOTION_KEVIN_CONTEXT_PAGE_ID');
+    expect(env).toHaveProperty('NOTION_DAILY_BRIEF_LOG_DB_ID');
+  });
+
+  it('Plan 07-02: CfnSchedule day-close-weekdays-18 cron + Stockholm + OFF', () => {
+    const { tpl } = synth();
+    tpl.hasResourceProperties(
+      'AWS::Scheduler::Schedule',
+      Match.objectLike({
+        Name: 'day-close-weekdays-18',
+        ScheduleExpression: 'cron(0 18 ? * MON-FRI *)',
+        ScheduleExpressionTimezone: 'Europe/Stockholm',
+        FlexibleTimeWindow: Match.objectLike({ Mode: 'OFF' }),
+        State: 'ENABLED',
+      }),
+    );
+  });
+
+  it('Plan 07-02: CfnSchedule weekly-review-sun-19 cron + Stockholm + OFF', () => {
+    const { tpl } = synth();
+    tpl.hasResourceProperties(
+      'AWS::Scheduler::Schedule',
+      Match.objectLike({
+        Name: 'weekly-review-sun-19',
+        ScheduleExpression: 'cron(0 19 ? * SUN *)',
+        ScheduleExpressionTimezone: 'Europe/Stockholm',
+        FlexibleTimeWindow: Match.objectLike({ Mode: 'OFF' }),
+        State: 'ENABLED',
+      }),
+    );
+  });
+
   // --- Plan 07-03: AUTO-02 email-triage every-2h scheduler --------------
   it('Plan 07-03: CfnSchedule email-triage-every-2h with cron + Stockholm + OFF', () => {
     const { tpl } = synth();

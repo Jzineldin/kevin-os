@@ -56,6 +56,12 @@ export class DataStack extends Stack {
     'KosCapture-TelegramBot*',
     'KosCapture-TranscribeStarter*',
     'KosCapture-TranscribeComplete*',
+    // Phase 4 Plan 04-01 (CAP-02): ios-webhook Lambda lives in IntegrationsStack
+    // and PUTs to `audio/*` on the blobs bucket from outside the VPC, same as
+    // the Telegram bot. The plan-prescribed pattern was `KosEmailPipeline-*`,
+    // but the helper is wired into IntegrationsStack rather than a dedicated
+    // EmailPipeline stack — see 04-01-AGENT-NOTES for the deviation.
+    'KosIntegrations-IosWebhook*',
   ];
   public readonly rds: DatabaseInstance;
   public readonly rdsCredentialsSecret: ISecret;
@@ -83,6 +89,11 @@ export class DataStack extends Stack {
   public readonly gmailOauthSecret: Secret;
   // Phase 6 Plan 06-05: GCP Vertex AI service-account JSON for dossier-loader.
   public readonly gcpVertexSaSecret: Secret;
+  // Phase 4 Plan 04-01 (CAP-02): shared HMAC secret for the iOS Shortcut
+  // webhook. Operator seeds the real value via scripts/seed-secrets.sh
+  // (`openssl rand -hex 32`) before pointing the iOS Shortcut at the
+  // Function URL.
+  public readonly iosShortcutWebhookSecret: Secret;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -350,6 +361,19 @@ export class DataStack extends Stack {
       'GcpVertexSa',
       'kos/gcp-vertex-sa',
       'GCP service-account JSON for Vertex AI Gemini 2.5 Pro europe-west4 (Phase 6 INF-10 dossier-loader).',
+    );
+
+    // Phase 4 Plan 04-01 (CAP-02): iOS Shortcut HMAC shared secret. The
+    // ios-webhook Lambda fetches this on cold start and rejects any value
+    // that is empty or the literal 'PLACEHOLDER' (T-04-IOS-03 fail-closed).
+    // Operator seeds the real value via:
+    //   aws secretsmanager put-secret-value \
+    //     --secret-id kos/ios-shortcut-webhook-secret \
+    //     --secret-string "$(openssl rand -hex 32)"
+    this.iosShortcutWebhookSecret = mkSecret(
+      'IosShortcutWebhookSecret',
+      'kos/ios-shortcut-webhook-secret',
+      'Shared HMAC-SHA256 secret for the iOS Action Button webhook (CAP-02 / D-01).',
     );
 
     // --- ECS Fargate cluster (INF-06) ---------------------------------------

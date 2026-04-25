@@ -34,6 +34,10 @@ import {
   wireLifecycleAutomation,
   type LifecycleAutomationWiring,
 } from './integrations-lifecycle.js';
+import {
+  wireIosWebhook,
+  type IosWebhookWiring,
+} from './integrations-ios-webhook.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -77,6 +81,11 @@ export interface IntegrationsStackProps extends StackProps {
   telegramCapTable?: ITable;
   alarmTopic?: ITopic;
   outputBus?: EventBus;
+  // Phase 4 Plan 04-01 (CAP-02): iOS Shortcut HMAC secret. Optional so
+  // existing test fixtures synth without it; production deploy MUST pass it
+  // along with `blobsBucket` (already optional) so wireIosWebhook can grant
+  // SecretsManager:GetSecretValue + S3:PutObject on `audio/*`.
+  iosShortcutWebhookSecret?: ISecret;
 }
 
 export class IntegrationsStack extends Stack {
@@ -90,6 +99,13 @@ export class IntegrationsStack extends Stack {
    * to the Lambdas inside this struct.
    */
   public readonly lifecycle?: LifecycleAutomationWiring;
+  /**
+   * Phase 4 Plan 04-01 (CAP-02) iOS webhook wiring. Populated only when
+   * both `blobsBucket` and `iosShortcutWebhookSecret` props are supplied.
+   * Plan 04-01 invariant: Function URL authType=NONE (HMAC is the auth
+   * boundary); replay table TTL on `expires_at`.
+   */
+  public readonly iosWebhook?: IosWebhookWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -207,6 +223,19 @@ export class IntegrationsStack extends Stack {
           langfuseSecretKeySecret: props.langfuseSecretKeySecret,
         });
       }
+    }
+
+    // Plan 04-01 (Phase 4 CAP-02): iOS Action Button webhook. Synth gated on
+    // both `blobsBucket` and `iosShortcutWebhookSecret` props — keeps existing
+    // test fixtures green; production CDK app supplies both. Helper installs
+    // the Lambda + Function URL (authType=NONE) + DDB replay table + grants.
+    if (props.blobsBucket && props.iosShortcutWebhookSecret) {
+      this.iosWebhook = wireIosWebhook(this, {
+        captureBus: props.captureBus,
+        blobsBucket: props.blobsBucket,
+        iosShortcutWebhookSecret: props.iosShortcutWebhookSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+      });
     }
 
     // Plan 07-00 (Phase 7 lifecycle automation): morning-brief + day-close +

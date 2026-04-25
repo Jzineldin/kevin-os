@@ -107,6 +107,10 @@ const integrations = new IntegrationsStack(app, 'KosIntegrations', {
   telegramCapTable: safety.capTable,
   alarmTopic: safety.alarmTopic,
   outputBus: events.buses.output,
+  // Phase 4 Plan 04-01 (CAP-02): iOS Action Button webhook. Helper synth-
+  // gates on both `blobsBucket` and `iosShortcutWebhookSecret` so absence
+  // of either drops the wiring (preserves existing test fixtures).
+  iosShortcutWebhookSecret: data.iosShortcutWebhookSecret,
 });
 integrations.addDependency(safety);
 void integrations;

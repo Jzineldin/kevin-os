@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./events": "./src/events.ts",
     "./dashboard": "./src/dashboard.ts",
-    "./context": "./src/context.ts"
+    "./context": "./src/context.ts",
+    "./brief": "./src/brief.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

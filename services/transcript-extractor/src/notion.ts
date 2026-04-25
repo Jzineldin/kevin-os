@@ -22,11 +22,19 @@ import type {
 // Read side — transcript body extraction
 // ---------------------------------------------------------------------------
 
+// WR-07: mirror granola-poller's 64 000-char cap so pathologically large
+// Granola pages (Kevin's longer planning meetings) cannot exhaust the
+// 1 GB Lambda heap. Sonnet's 200k-token input cap already clips useful
+// payload downstream, so keeping the whole block tree in memory before
+// slicing wastes both heap and runtime.
+const RAW_LENGTH_CAP = 64_000;
+
 export async function readTranscriptBody(
   notion: NotionClient,
   pageId: string,
 ): Promise<string> {
   const parts: string[] = [];
+  let total = 0;
   let cursor: string | undefined;
   do {
     const res = await notion.blocks.children.list({
@@ -36,11 +44,16 @@ export async function readTranscriptBody(
     });
     for (const b of res.results) {
       const text = extractBlockText(b);
-      if (text) parts.push(text);
+      if (!text) continue;
+      parts.push(text);
+      total += text.length + 1;
+      if (total >= RAW_LENGTH_CAP) break;
     }
-    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+    cursor =
+      total < RAW_LENGTH_CAP && res.has_more ? (res.next_cursor ?? undefined) : undefined;
   } while (cursor);
-  return parts.join('\n').trim();
+  const out = parts.join('\n').trim();
+  return out.length > RAW_LENGTH_CAP ? out.slice(0, RAW_LENGTH_CAP) : out;
 }
 
 function extractBlockText(block: unknown): string | null {

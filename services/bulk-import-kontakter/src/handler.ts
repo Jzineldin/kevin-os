@@ -15,12 +15,15 @@
  * Kevin flips its Inbox row to Approved → indexer creates the Entities-DB
  * page → next entities-DB tick embeds it.
  *
- * Embed-profile discovery (Open Question 2 runbook): on cold start, calls
- * `bedrock:ListInferenceProfiles` and logs whether an `eu.*cohere.embed-
- * multilingual-v3` profile exists. The profile ID is logged but NOT used
- * here — Task 2's indexer is the only consumer. If absent, indexer falls
- * back to base `cohere.embed-multilingual-v3` (cross-region us-east-1; GDPR
- * note in SUMMARY).
+ * Embed-profile discovery (Open Question 2 runbook): on cold start, logs
+ * an operator breadcrumb pointing at `scripts/discover-bedrock-embed-profile.sh`.
+ * The indexer (notion-indexer Task 2) is the only consumer of embeddings in
+ * this pipeline and consumes the EU inference profile `eu.cohere.embed-v4:0`
+ * via `packages/resolver/src/embed.ts` (exported as `EMBED_MODEL_ID` from
+ * `@kos/resolver`). Wave-5 Gap A (2026-04-22) migrated off the prior Cohere
+ * v3 multilingual model, which is not available in eu-north-1 Bedrock. There
+ * is no fallback model — embeddings are only written to entity_index once a
+ * row is Approved in the KOS Inbox.
  */
 
 import { initSentry, wrapHandler } from '../../_shared/sentry.js';
@@ -85,9 +88,9 @@ async function logBedrockEmbedProfile(): Promise<void> {
   console.log(
     `[bulk-kontakter] Embed-profile discovery is operator-driven: run ` +
       `\`scripts/discover-bedrock-embed-profile.sh\` (region=${region}) to ` +
-      `check for an eu.*cohere.embed-multilingual-v3 inference profile. ` +
-      `Indexer (Task 2) honours COHERE_EMBED_MODEL_ID env override; if absent ` +
-      `it uses the base model ID (cross-region us-east-1; GDPR-acceptable per A1).`,
+      `verify the eu.cohere.embed-v4:0 EU inference profile is reachable. ` +
+      `Indexer (Task 2) consumes EMBED_MODEL_ID from @kos/resolver (currently ` +
+      `eu.cohere.embed-v4:0); Wave-5 Gap A migrated off v3.`,
   );
 }
 

@@ -35,7 +35,18 @@ import {
   insertAgentRun,
   updateAgentRun,
   loadKevinContextBlock,
+  getPool,
 } from './persist.js';
+// Phase 6 AGT-04: explicit loadContext() replaces the abandoned Claude Agent
+// SDK pre-call hook pattern (Locked Decision #3 revised 2026-04-23). The
+// older loadKevinContextBlock() is preserved as a fallback when the
+// @kos/context-loader library fails (degraded operation).
+import { loadContext } from '@kos/context-loader';
+// Phase 6 AGT-04 gap closure (Plan 06-07): inject hybridQuery as the Azure
+// semantic search callable. Without this injection semanticChunks is always
+// []. The wrapper projects HybridQueryResult.hits → SearchHit[] (note:
+// the field is `hits`, NOT `results` — VERIFICATION.md prose typo).
+import { hybridQuery } from '@kos/azure-search';
 
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -60,20 +71,25 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     let captureId: string;
     let sourceKind: 'text' | 'voice';
     let text: string;
-    let senderId: number;
+    let channel: 'telegram' | 'dashboard' = 'telegram';
+    // Telegram-only — absent for dashboard-sourced captures. voice-capture
+    // consults these downstream to decide whether to emit an output.push
+    // Telegram reply ack (2026-04-24 widen).
+    let senderId: number | undefined;
     let senderDisplay: string | undefined;
-    let chatId: number;
-    let messageId: number;
+    let chatId: number | undefined;
+    let messageId: number | undefined;
 
     if (dt === 'capture.received') {
       const d = CaptureReceivedTextSchema.parse(event.detail);
       captureId = d.capture_id;
       sourceKind = 'text';
       text = d.text;
-      senderId = d.sender.id;
-      senderDisplay = d.sender.display;
-      chatId = d.telegram.chat_id;
-      messageId = d.telegram.message_id;
+      channel = d.channel;
+      senderId = d.sender?.id;
+      senderDisplay = d.sender?.display;
+      chatId = d.telegram?.chat_id;
+      messageId = d.telegram?.message_id;
     } else if (dt === 'capture.voice.transcribed') {
       const d = CaptureVoiceTranscribedSchema.parse(event.detail);
       captureId = d.capture_id;
@@ -103,25 +119,60 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     });
 
     try {
-      const kevinContextBlock = await loadKevinContextBlock(ownerId);
-      const { output, usage } = await runTriageAgent({
+      // Phase 6 AGT-04: loadContext() replaces the Claude Agent SDK pre-call
+      // hook. Returns a ContextBundle with Kevin Context + any matched entity
+      // dossiers + Azure semantic chunks + linked projects. Empty entityIds
+      // here — triage is the ROUTING step, entity resolution happens downstream.
+      let contextMarkdown: string;
+      try {
+        const pool = await getPool();
+        const bundle = await loadContext({
+          entityIds: [],
+          agentName: 'triage',
+          captureId,
+          ownerId,
+          rawText: text,
+          maxSemanticChunks: 6,
+          pool,
+          azureSearch: ({ rawText: rt, entityIds: eids, topK }) =>
+            hybridQuery({ rawText: rt, entityIds: eids, topK }).then((r) => r.hits),
+        });
+        contextMarkdown = bundle.assembled_markdown;
+      } catch (err) {
+        // Degraded fallback: use the legacy Kevin-Context-only block so triage
+        // still runs if @kos/context-loader / Azure Search / pg are impaired.
+        console.warn('[triage] loadContext failed, falling back to Kevin Context only:', err);
+        contextMarkdown = await loadKevinContextBlock(ownerId);
+      }
+      const { output, usage, rawText } = await runTriageAgent({
         captureId,
         sourceKind,
         text,
         senderDisplay,
-        kevinContextBlock,
+        kevinContextBlock: contextMarkdown,
       });
+
+      // Log raw LLM output immediately — invaluable for prompt tuning
+      console.log('[triage] raw LLM output', { captureId, rawText });
 
       const routed = TriageRoutedSchema.parse({
         capture_id: captureId,
         source_kind: sourceKind,
         source_text: text.slice(0, 8000),
+        channel,
         route: output.route,
         detected_type: output.detected_type,
         urgency: output.urgency,
         reason: output.reason,
-        sender: { id: senderId, display: senderDisplay },
-        telegram: { chat_id: chatId, message_id: messageId },
+        // Only forward the Telegram reply-target when it exists — dashboard
+        // captures have no chat/message to reply to (voice-capture will skip
+        // the output.push emit accordingly).
+        ...(senderId !== undefined
+          ? { sender: { id: senderId, display: senderDisplay } }
+          : {}),
+        ...(chatId !== undefined && messageId !== undefined
+          ? { telegram: { chat_id: chatId, message_id: messageId } }
+          : {}),
         routed_at: new Date().toISOString(),
       });
 

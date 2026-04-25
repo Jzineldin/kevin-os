@@ -44,6 +44,15 @@ type NotionIds = {
   // NOTION_KOS_INBOX_DB_ID empty-fallback pattern in integrations-agents.ts
   // (Plan 02-05 deploy-unblock convention).
   kosInbox: string;
+  // Phase 7 / Plan 07-00: brief Lambdas need the 🏠 Today page id (replace-
+  // in-place target for morning-brief + day-close) and the Daily Brief Log
+  // database id (one append per brief run). Optional here for the same
+  // deploy-unblock reason as kosInbox: synth-time empty string is allowed,
+  // and brief Lambdas surface actionable runtime errors if either ID is
+  // unset when the schedule fires. Operator seeds both before AUTO-01..04
+  // schedules deploy.
+  todayPage: string;
+  dailyBriefLog: string;
 };
 
 function loadNotionIds(): NotionIds {
@@ -65,8 +74,14 @@ function loadNotionIds(): NotionIds {
       );
     }
   }
-  // kosInbox is permitted to be empty at synth time — see type comment above.
-  return { ...parsed, kosInbox: parsed.kosInbox ?? '' } as NotionIds;
+  // kosInbox + todayPage + dailyBriefLog are permitted to be empty at synth
+  // time — see type comment above.
+  return {
+    ...parsed,
+    kosInbox: parsed.kosInbox ?? '',
+    todayPage: parsed.todayPage ?? '',
+    dailyBriefLog: parsed.dailyBriefLog ?? '',
+  } as NotionIds;
 }
 
 export interface WireNotionProps {

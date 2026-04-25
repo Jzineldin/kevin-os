@@ -34,8 +34,16 @@ import {
   insertAgentRun,
   updateAgentRun,
   loadKevinContextBlock,
+  getPool,
 } from './persist.js';
 import { writeCommandCenterRow } from './notion.js';
+// Phase 6 AGT-04: explicit loadContext() call replaces the abandoned SDK
+// pre-call hook (Locked Decision #3 revised 2026-04-23).
+import { loadContext } from '@kos/context-loader';
+// Phase 6 AGT-04 gap closure (Plan 06-07): inject hybridQuery as the Azure
+// semantic search callable. Without this injection semanticChunks is always
+// []. The wrapper projects HybridQueryResult.hits → SearchHit[].
+import { hybridQuery } from '@kos/azure-search';
 
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -71,11 +79,30 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     });
 
     try {
-      const kevinContextBlock = await loadKevinContextBlock(ownerId);
+      // Phase 6 AGT-04: loadContext() — degrades to Kevin-Context-only on failure.
+      let contextMarkdown: string;
+      try {
+        const pool = await getPool();
+        const bundle = await loadContext({
+          entityIds: [],
+          agentName: 'voice-capture',
+          captureId: d.capture_id,
+          ownerId,
+          rawText: d.source_text,
+          maxSemanticChunks: 8,
+          pool,
+          azureSearch: ({ rawText: rt, entityIds: eids, topK }) =>
+            hybridQuery({ rawText: rt, entityIds: eids, topK }).then((r) => r.hits),
+        });
+        contextMarkdown = bundle.assembled_markdown;
+      } catch (err) {
+        console.warn('[voice-capture] loadContext failed, fallback to Kevin Context only:', err);
+        contextMarkdown = await loadKevinContextBlock(ownerId);
+      }
       const { output, usage } = await runVoiceCaptureAgent({
         captureId: d.capture_id,
         text: d.source_text,
-        kevinContextBlock,
+        kevinContextBlock: contextMarkdown,
         triageHint: { type: d.detected_type, urgency: d.urgency },
       });
 
@@ -90,6 +117,15 @@ export const handler = wrapHandler(async (event: EBEvent) => {
       // One entity.mention.detected per candidate. Batched in groups of 10
       // (EventBridge PutEvents per-call entry cap).
       const occurredAt = new Date().toISOString();
+      // 2026-04-24: dashboard-sourced captures have no Telegram message to
+      // reply to — classify the mention source accordingly.
+      const isDashboard = d.channel === 'dashboard' || !d.telegram;
+      const mentionSource = isDashboard
+        ? ('dashboard-text' as const)
+        : d.source_kind === 'voice'
+          ? ('telegram-voice' as const)
+          : ('telegram-text' as const);
+
       const entries = output.candidate_entities.map((e) => ({
         EventBusName: 'kos.agent',
         Source: 'kos.agent',
@@ -100,7 +136,7 @@ export const handler = wrapHandler(async (event: EBEvent) => {
             mention_text: e.mention_text,
             context_snippet: e.context_snippet,
             candidate_type: e.candidate_type,
-            source: d.source_kind === 'voice' ? 'telegram-voice' : 'telegram-text',
+            source: mentionSource,
             occurred_at: occurredAt,
             notion_command_center_page_id: pageId,
           }),
@@ -110,28 +146,31 @@ export const handler = wrapHandler(async (event: EBEvent) => {
         await eb.send(new PutEventsCommand({ Entries: entries.slice(i, i + 10) }));
       }
 
-      // Final user-facing ack — push-telegram (Plan 02-06) consumes
-      // output.push and sends a reply to the original Telegram message.
-      await eb.send(
-        new PutEventsCommand({
-          Entries: [
-            {
-              EventBusName: 'kos.output',
-              Source: 'kos.output',
-              DetailType: 'output.push',
-              Detail: JSON.stringify({
-                capture_id: d.capture_id,
-                is_reply: true,
-                body: `✅ Saved to Command Center · ${output.title.slice(0, 60)}`,
-                telegram: {
-                  chat_id: d.telegram.chat_id,
-                  reply_to_message_id: d.telegram.message_id,
-                },
-              }),
-            },
-          ],
-        }),
-      );
+      // Final user-facing ack — only emitted for Telegram-sourced captures.
+      // Dashboard captures get their ack via the SSE pipeline (capture_ack
+      // kind in migration 0009 agent_runs trigger).
+      if (d.telegram && !isDashboard) {
+        await eb.send(
+          new PutEventsCommand({
+            Entries: [
+              {
+                EventBusName: 'kos.output',
+                Source: 'kos.output',
+                DetailType: 'output.push',
+                Detail: JSON.stringify({
+                  capture_id: d.capture_id,
+                  is_reply: true,
+                  body: `✅ Saved to Command Center · ${output.title.slice(0, 60)}`,
+                  telegram: {
+                    chat_id: d.telegram.chat_id,
+                    reply_to_message_id: d.telegram.message_id,
+                  },
+                }),
+              },
+            ],
+          }),
+        );
+      }
 
       await updateAgentRun(runId, {
         status: 'ok',

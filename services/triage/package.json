@@ -17,6 +17,8 @@
     "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/client-secrets-manager": "3.691.0",
     "@aws-sdk/rds-signer": "3.691.0",
+    "@kos/azure-search": "workspace:*",
+    "@kos/context-loader": "workspace:*",
     "@kos/contracts": "workspace:*",
     "@kos/db": "workspace:*",
     "@langfuse/otel": "^5",

@@ -54,6 +54,17 @@ import {
   appendCaptureIdToPending,
 } from './inbox.js';
 import { runDisambigWithRetry } from './disambig.js';
+// Phase 6 Plan 06-05 (AGT-04): explicit loadContext() injected into the
+// disambig step. EntityIds = top 5 candidate IDs so Sonnet sees full
+// dossiers for the candidates it must disambiguate between. Falls back to
+// no-context disambig on loadContext failure (degraded but functional).
+import { loadContext } from '@kos/context-loader';
+// Phase 6 AGT-04 gap closure (Plan 06-07): inject hybridQuery as the Azure
+// semantic search callable. Without this injection semanticChunks is always
+// []. The wrapper projects HybridQueryResult.hits → SearchHit[]. Note:
+// entity-resolver passes candidateIds (top-5 disambig candidates) as
+// entityIds so the Azure filter narrows to candidate-related documents.
+import { hybridQuery } from '@kos/azure-search';
 
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -101,15 +112,43 @@ interface CompleteDisambigInput {
 /**
  * Drives the disambig→merge OR fall-through-to-Inbox path. Used for both the
  * native llm-disambig stage AND the demoted-from-auto-merge case (D-11).
+ *
+ * Phase 6 Plan 06-05 (AGT-04): loadContext is invoked just before Sonnet's
+ * disambig with entityIds = top 5 candidate IDs. The assembled_markdown is
+ * passed to runDisambigWithRetry as additionalContextBlock so Sonnet sees
+ * recent mention history + linked projects for the candidates it must pick
+ * between. loadContext is non-throwing — partial=true survives gracefully
+ * and disambig still runs (degraded but functional).
  */
 async function completeDisambigOrInbox(
   i: CompleteDisambigInput,
 ): Promise<RouteResult> {
   const { ownerId, detail, candidates, lookup, pool } = i;
+
+  let additionalContextBlock = '';
+  try {
+    const candidateIds = candidates.slice(0, 5).map((c) => c.id);
+    const bundle = await loadContext({
+      entityIds: candidateIds,
+      agentName: 'entity-resolver',
+      captureId: detail.capture_id,
+      ownerId,
+      rawText: detail.context_snippet,
+      maxSemanticChunks: 6,
+      pool,
+      azureSearch: ({ rawText: rt, entityIds: eids, topK }) =>
+        hybridQuery({ rawText: rt, entityIds: eids, topK }).then((r) => r.hits),
+    });
+    additionalContextBlock = bundle.assembled_markdown;
+  } catch (err) {
+    console.warn('[entity-resolver] loadContext failed, disambig runs without dossier context:', err);
+  }
+
   const res = await runDisambigWithRetry({
     mention: detail.mention_text,
     contextSnippet: detail.context_snippet,
     candidates,
+    additionalContextBlock,
   });
   if (res.matched_id !== 'unknown') {
     const match = candidates.find((c) => c.id === res.matched_id);

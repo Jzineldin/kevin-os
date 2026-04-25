@@ -32,6 +32,7 @@ vi.mock('../../_shared/sentry.js', () => ({
 }));
 vi.mock('../../_shared/tracing.js', () => ({
   setupOtelTracing: vi.fn(),
+  setupOtelTracingAsync: vi.fn(async () => {}),
   flush: vi.fn(async () => {}),
   tagTraceWithCaptureId: vi.fn(),
 }));
@@ -100,15 +101,51 @@ vi.mock('node-fetch', () => {
   return { default: fetchMock };
 });
 
-// Global fetch is also used by the handler for the file-download URL
-// (https://api.telegram.org/file/bot{token}/{path}) — must return bytes.
+// Global fetch is used by grammY v1.42+ for all Telegram API calls (replacing
+// node-fetch), and also by the handler for file downloads.
 vi.stubGlobal(
   'fetch',
-  vi.fn().mockImplementation(async () => ({
-    ok: true,
-    status: 200,
-    arrayBuffer: async () => new ArrayBuffer(64),
-  })),
+  vi.fn().mockImplementation(async (url: string | URL | Request) => {
+    const u = String(url);
+    // grammY Telegram API calls
+    if (u.includes('api.telegram.org')) {
+      if (u.includes('/getMe')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({
+            ok: true,
+            result: {
+              id: 42,
+              is_bot: true,
+              first_name: 'kos-test-bot',
+              username: 'kos_test_bot',
+              can_join_groups: false,
+              can_read_all_group_messages: false,
+              supports_inline_queries: false,
+            },
+          }),
+          text: async () =>
+            '{"ok":true,"result":{"id":42,"is_bot":true,"first_name":"kos-test-bot","username":"kos_test_bot"}}',
+        };
+      }
+      // sendMessage, getFile, and other API methods
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ ok: true, result: { message_id: 1 } }),
+        text: async () => '{"ok":true,"result":{"message_id":1}}',
+      };
+    }
+    // File downloads (binary)
+    return {
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(64),
+    };
+  }),
 );
 
 type AnyHandler = (e: unknown, c?: unknown, cb?: unknown) => Promise<unknown>;
@@ -123,9 +160,13 @@ describe('telegram-bot handler', () => {
     process.env.BLOBS_BUCKET = 'kos-blobs-test';
     process.env.KEVIN_TELEGRAM_USER_ID = '111222333';
     process.env.TELEGRAM_BOT_INFO_JSON = JSON.stringify({
-      id: 42, is_bot: true, first_name: 'kos-test-bot',
-      username: 'kos_test_bot', can_join_groups: false,
-      can_read_all_group_messages: false, supports_inline_queries: false,
+      id: 42,
+      is_bot: true,
+      first_name: 'kos-test-bot',
+      username: 'kos_test_bot',
+      can_join_groups: false,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
     });
     mockSend.mockClear();
     s3Send.mockClear();
@@ -179,10 +220,10 @@ describe('telegram-bot handler', () => {
       return typeof k === 'string' && k.startsWith('audio/meta/');
     });
     expect(metaPut).toBeDefined();
-    const put = metaPut![0] as { input: { Key: string; Bucket: string; Body: string; ContentType: string } };
-    expect(put.input.Key).toBe(
-      'audio/meta/01HABCDEFGHJKMNPQRSTVWXYZ0.json',
-    );
+    const put = metaPut![0] as {
+      input: { Key: string; Bucket: string; Body: string; ContentType: string };
+    };
+    expect(put.input.Key).toBe('audio/meta/01HABCDEFGHJKMNPQRSTVWXYZ0.json');
     expect(put.input.Bucket).toBe('kos-blobs-test');
     expect(put.input.ContentType).toBe('application/json');
     const body = JSON.parse(put.input.Body) as { telegram: { chat_id: number } };
@@ -191,10 +232,7 @@ describe('telegram-bot handler', () => {
 
   it('handler module imports putVoiceMeta (Plan 02-02 wiring)', async () => {
     const handlerSrc = await import('node:fs').then((fs) =>
-      fs.readFileSync(
-        new URL('../src/handler.ts', import.meta.url),
-        'utf8',
-      ),
+      fs.readFileSync(new URL('../src/handler.ts', import.meta.url), 'utf8'),
     );
     expect(handlerSrc).toMatch(/putVoiceMeta/);
   });
@@ -213,7 +251,13 @@ describe('telegram-bot handler', () => {
     expect(putEventsCalls.length).toBeGreaterThanOrEqual(1);
     const firstCall = putEventsCalls[0];
     if (!firstCall) throw new Error('no PutEvents call recorded');
-    const input = (firstCall[0] as { input: { Entries: { Detail: string; Source: string; DetailType: string; EventBusName: string }[] } }).input;
+    const input = (
+      firstCall[0] as {
+        input: {
+          Entries: { Detail: string; Source: string; DetailType: string; EventBusName: string }[];
+        };
+      }
+    ).input;
     const entry = input.Entries[0];
     if (!entry) throw new Error('no PutEvents entry');
     expect(entry.EventBusName).toBe('kos.capture');

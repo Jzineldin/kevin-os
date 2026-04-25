@@ -99,6 +99,21 @@ export function wireTranscribePipeline(
   });
   p.sentryDsnSecret.grantRead(starter);
   p.blobsBucket.grantRead(starter, 'audio/*');
+  // Transcribe validates the OutputBucket via the caller's (starter's)
+  // credentials at StartTranscriptionJob time, so the starter role needs
+  // a PutObject grant on `transcripts/*` even though Transcribe itself
+  // performs the final upload. Discovered 2026-04-23 live:
+  //   BadRequestException: "The specified S3 bucket can't be accessed"
+  // Scope = `s3:PutObject` only (not the broader `grantWrite` which also
+  // includes Delete*, Abort*, PutObjectTagging, etc.) to minimise blast
+  // radius if the starter role is ever compromised.
+  starter.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['s3:PutObject'],
+      resources: [`${p.blobsBucket.bucketArn}/transcripts/*`],
+    }),
+  );
   starter.addToRolePolicy(
     new PolicyStatement({
       effect: Effect.ALLOW,

@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/events.ts",
-  "types": "./src/events.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
-    ".": "./src/events.ts"
+    ".": "./src/index.ts",
+    "./events": "./src/events.ts",
+    "./dashboard": "./src/dashboard.ts",
+    "./context": "./src/context.ts",
+    "./brief": "./src/brief.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

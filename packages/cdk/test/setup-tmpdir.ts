@@ -1,19 +1,26 @@
 /**
- * Redirect CDK synth temp dirs into a project-local `.cdk-tmp/` instead
- * of the OS `/tmp`. CDK's `App.synth()` uses `os.tmpdir()` by default
- * which on this dev EC2 fills up the root disk fast (each synth run
- * leaves a `cdk.out<random>` dir of ~70-115 MB).
+ * Redirect CDK synth temp dirs into a process-scoped subdir of /tmp
+ * instead of bare /tmp. CDK's `App.synth()` uses `os.tmpdir()` by
+ * default; each synth leaves a `cdk.out<random>` dir of ~70-115 MB.
+ * Without this, hundreds of tests fill the host disk fast.
  *
- * Mechanism: setting `TMPDIR` env var before any CDK code runs makes
- * Node's `os.tmpdir()` return that path instead of `/tmp`.
- *
- * The dir is created if missing and wiped clean before each run so
- * stale synth outputs from prior runs don't accumulate either.
+ * Mechanism: setting `TMPDIR` env var makes Node's `os.tmpdir()`
+ * return that path. We use `/tmp/kos-cdk-test-<pid>/` so:
+ *   - the dir is OUTSIDE the project tree (CRITICAL — putting it
+ *     inside packages/cdk caused recursive asset copies hitting
+ *     ENAMETOOLONG, since CDK NodejsFunction bundling copies the
+ *     workspace tree and would then re-copy its own output)
+ *   - the dir is unique per test process (parallel runs don't
+ *     stomp each other)
+ *   - it lives in /tmp which is already ephemeral
+ *   - we own teardown explicitly, so a single test run leaves
+ *     ZERO `cdk.out*` artifacts behind
  */
 import { mkdirSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
-const TMP_DIR = resolve(__dirname, '../.cdk-tmp');
+const TMP_DIR = join(tmpdir(), `kos-cdk-test-${process.pid}`);
 
 export function setup(): void {
   rmSync(TMP_DIR, { recursive: true, force: true });

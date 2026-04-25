@@ -24,7 +24,7 @@ const poolState = {
 vi.mock('../src/common.js', () => ({
   getPool: vi.fn(async () => ({
     query: vi.fn(async (sql: string) => {
-      if (/SELECT project_id/.test(sql)) return { rows: poolState.rows };
+      if (/FROM project_index/.test(sql)) return { rows: poolState.rows };
       return { rows: [] };
     }),
   })),

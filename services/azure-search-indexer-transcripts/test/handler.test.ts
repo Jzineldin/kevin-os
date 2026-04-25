@@ -11,14 +11,14 @@ const poolState = {
   rows: [] as Array<{
     capture_id: string;
     owner_id: string;
-    context: {
+    output_json: {
       transcript_id?: string;
       title?: string | null;
       summary?: string;
       decisions?: string[];
       open_questions?: string[];
     };
-    created_at: Date;
+    started_at: Date;
   }>,
   cursor: null as Date | null,
   cursorWrites: [] as Array<{ key: string; at: Date }>,
@@ -81,14 +81,14 @@ describe('azure-search-indexer-transcripts handler', () => {
       {
         capture_id: 'cap-A',
         owner_id: 'owner-1',
-        context: {
+        output_json: {
           transcript_id: 'tx-A',
           title: 'Almi konvertibellån diskussion',
           summary: 'Damien presenterade konvertibel-strukturen för Almi Invest. Christina ställde frågor om vesting.',
           decisions: ['Tale Forge tar emot konvertibel'],
           open_questions: ['När triggas konverteringen?'],
         },
-        created_at: new Date('2026-04-24T13:00:00.000Z'),
+        started_at: new Date('2026-04-24T13:00:00.000Z'),
       },
     ];
     const { handler } = await import('../src/handler.js');
@@ -115,8 +115,8 @@ describe('azure-search-indexer-transcripts handler', () => {
       {
         capture_id: 'cap-fallback',
         owner_id: 'owner-1',
-        context: { summary: 'x' },
-        created_at: new Date('2026-04-24T14:00:00.000Z'),
+        output_json: { summary: 'x' },
+        started_at: new Date('2026-04-24T14:00:00.000Z'),
       },
     ];
     const { handler } = await import('../src/handler.js');
@@ -134,8 +134,8 @@ describe('azure-search-indexer-transcripts handler', () => {
       {
         capture_id: 'cap-long',
         owner_id: 'owner-1',
-        context: { transcript_id: 'tx-long', title: 'L', summary: long },
-        created_at: new Date('2026-04-24T15:00:00.000Z'),
+        output_json: { transcript_id: 'tx-long', title: 'L', summary: long },
+        started_at: new Date('2026-04-24T15:00:00.000Z'),
       },
     ];
     const { handler } = await import('../src/handler.js');

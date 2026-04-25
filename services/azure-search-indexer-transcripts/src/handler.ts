@@ -21,24 +21,28 @@ export const handler = wrapHandler(async () => {
   const pool = await getPool();
   const cursor = await readCursor(pool, CURSOR_KEY);
 
+  // CR-03: agent_runs schema has `output_json` (jsonb) and `started_at`
+  // (timestamptz) — NOT `context` or `created_at` (which never existed).
+  // See packages/db/src/schema.ts:114,121 and the migration 0012 SQL
+  // comment explicitly calling out this contract.
   const { rows } = await pool.query<{
     capture_id: string;
     owner_id: string;
-    context: {
+    output_json: {
       transcript_id?: string;
       title?: string | null;
       summary?: string;
       decisions?: string[];
       open_questions?: string[];
-    };
-    created_at: Date;
+    } | null;
+    started_at: Date;
   }>(
-    `SELECT capture_id, owner_id, context, created_at
+    `SELECT capture_id, owner_id, output_json, started_at
        FROM agent_runs
       WHERE agent_name = 'transcript-extractor'
         AND status     = 'ok'
-        AND created_at > $1
-      ORDER BY created_at ASC
+        AND started_at > $1
+      ORDER BY started_at ASC
       LIMIT $2`,
     [cursor ?? new Date(0), BATCH_SIZE],
   );
@@ -46,7 +50,7 @@ export const handler = wrapHandler(async () => {
   if (rows.length === 0) return { read: 0, upserted: 0, errors: 0, cursor };
 
   const batch = rows.map((r) => {
-    const ctx = r.context ?? {};
+    const ctx = r.output_json ?? {};
     const title = ctx.title ?? `Transcript ${ctx.transcript_id ?? r.capture_id}`;
     const decisions = (ctx.decisions ?? []).join(' · ');
     const questions = (ctx.open_questions ?? []).join(' · ');
@@ -60,12 +64,12 @@ export const handler = wrapHandler(async () => {
         .filter(Boolean)
         .join(' | '),
       entity_ids: [],
-      indexed_at: r.created_at.toISOString(),
+      indexed_at: r.started_at.toISOString(),
     };
   });
 
   const res = await upsertDocuments({ documents: batch });
-  const newCursor = rows[rows.length - 1]!.created_at;
+  const newCursor = rows[rows.length - 1]!.started_at;
   await writeCursor(pool, CURSOR_KEY, newCursor);
 
   return {

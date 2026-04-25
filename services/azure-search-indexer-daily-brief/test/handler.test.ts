@@ -15,8 +15,8 @@ const poolState = {
   rows: [] as Array<{
     capture_id: string;
     agent_name: string;
-    context: { brief_body?: string; date?: string; top_priorities?: string[]; slipped_items?: string[] };
-    created_at: Date;
+    output_json: { brief_body?: string; date?: string; top_priorities?: string[]; slipped_items?: string[] };
+    started_at: Date;
   }>,
   cursor: null as Date | null,
   cursorWrites: [] as Array<{ key: string; at: Date }>,
@@ -79,13 +79,13 @@ describe('azure-search-indexer-daily-brief handler', () => {
       {
         capture_id: 'cap-mb-2026-04-24',
         agent_name: 'morning-brief',
-        context: {
+        output_json: {
           date: '2026-04-24',
           brief_body: 'Top priority today: Almi term sheet response. Slipped from yesterday: Skolpilot escalation note.',
           top_priorities: ['Almi term sheet response'],
           slipped_items: ['Skolpilot escalation note'],
         },
-        created_at: new Date('2026-04-24T07:00:00.000Z'),
+        started_at: new Date('2026-04-24T07:00:00.000Z'),
       },
     ];
     const { handler } = await import('../src/handler.js');
@@ -112,14 +112,14 @@ describe('azure-search-indexer-daily-brief handler', () => {
       {
         capture_id: 'cap-dc',
         agent_name: 'day-close',
-        context: { brief_body: 'Day close summary.', date: '2026-04-24' },
-        created_at: new Date('2026-04-24T18:00:00.000Z'),
+        output_json: { brief_body: 'Day close summary.', date: '2026-04-24' },
+        started_at: new Date('2026-04-24T18:00:00.000Z'),
       },
       {
         capture_id: 'cap-wr',
         agent_name: 'weekly-review',
-        context: { brief_body: 'Weekly review.', date: '2026-04-25' },
-        created_at: new Date('2026-04-25T17:00:00.000Z'),
+        output_json: { brief_body: 'Weekly review.', date: '2026-04-25' },
+        started_at: new Date('2026-04-25T17:00:00.000Z'),
       },
     ];
     const { handler } = await import('../src/handler.js');

@@ -20,16 +20,36 @@
  * Reference: .planning/phases/06-granola-semantic-memory/06-05-PLAN.md
  */
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
-// Lightweight ULID-ish id (Crockford-base32 26 chars). The operator path
-// does not need monotonicity guarantees — the dossier-loader handler
-// validates the schema's loose-form capture_id (string), and downstream
-// observability uses our randomUUID() as a fallback if ULID parsing fails.
+// IN-05 hardening (Plan 06-08): Crockford ULID alphabet matching the ULID
+// spec (https://github.com/ulid/spec). Previous implementation used JS's
+// native base-32 numeric conversion which produces 0-9A-V — INVALID per
+// Crockford (excludes I/L/O/U; spec REQUIRES W/X/Y/Z to be present).
+// Downstream EntityMentionDetectedSchema regex /^[0-9A-HJKMNP-TV-Z]{26}$/
+// would reject IDs from the old implementation. Implementation mirrors
+// scripts/verify-extractor-events.mjs:36-58 verbatim.
+const ULID_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 function ulid() {
-  const time = Date.now().toString(32).toUpperCase().padStart(10, '0');
-  const rand = randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase();
-  return (time + rand).slice(0, 26);
+  const time = Date.now();
+  let out = '';
+  // 10-char timestamp (ms-precision).
+  let t = time;
+  for (let i = 9; i >= 0; i--) {
+    out = ULID_ALPHABET[t % 32] + out;
+    t = Math.floor(t / 32);
+  }
+  // 16-char randomness (80 bits).
+  const rand = randomBytes(10);
+  for (let i = 0; i < 16; i++) {
+    // Sample 5 bits per char from the 10-byte buffer.
+    const bit = i * 5;
+    const byte = bit >> 3;
+    const offset = bit & 7;
+    const v = ((rand[byte] << 8) | (rand[byte + 1] ?? 0)) >> (11 - offset);
+    out += ULID_ALPHABET[v & 31];
+  }
+  return out;
 }
 
 function parseArgs(argv) {

@@ -216,10 +216,19 @@ export interface WriteTranscriptIndexedInput {
 
 export async function writeTranscriptIndexed(input: WriteTranscriptIndexedInput): Promise<void> {
   const { pool: p, detail, extraction, recordedAt } = input;
+  // WR-06: no ON CONFLICT clause here. Idempotency is enforced upstream
+  // by findPriorOkRun (handler.ts:126), which short-circuits before the
+  // second write ever reaches this function. A target-less
+  // `ON CONFLICT DO NOTHING` only guards against PK collisions on
+  // agent_runs.id (uuid DEFAULT gen_random_uuid() — astronomically
+  // improbable), so it contributed nothing but misleading semantics for
+  // future readers. Adding a real unique index on
+  // (owner_id, capture_id) WHERE agent_name='transcript-indexed' would
+  // require a schema migration — out of scope for this fix; tracked in
+  // backlog if we later see duplicate transcript-indexed rows.
   await p.query(
     `INSERT INTO agent_runs (owner_id, capture_id, agent_name, status, output_json, finished_at)
-       VALUES ($1, $2, $3, $4, $5::jsonb, NOW())
-       ON CONFLICT DO NOTHING`,
+       VALUES ($1, $2, $3, $4, $5::jsonb, NOW())`,
     [
       detail.owner_id,
       detail.capture_id,

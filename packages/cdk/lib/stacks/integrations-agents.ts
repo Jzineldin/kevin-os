@@ -108,6 +108,17 @@ export interface AgentsWiringProps {
    * AWS Secrets Manager + Lambda env update.
    */
   gmailOauthSecret?: ISecret;
+  /**
+   * Phase 6 AGT-04 gap closure (Plan 06-07): each agent Lambda calls
+   * loadContext({ azureSearch: hybridQuery }) which reads
+   * AZURE_SEARCH_ADMIN_SECRET_ARN at cold start. Optional so existing test
+   * fixtures that pre-date the gap-closure run still synth — when absent,
+   * the Lambda starts but loadContext's Azure path returns empty semantic
+   * chunks (degraded path; matches pre-gap behaviour).
+   */
+  azureSearchAdminSecret?: ISecret;
+  /** Optional override; defaults to 'kos-memory' (matches integrations-azure-indexers default). */
+  azureSearchIndexName?: string;
 }
 
 export interface AgentsWiring {
@@ -180,6 +191,15 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       LANGFUSE_PUBLIC_KEY_SECRET_ARN: p.langfusePublicSecret.secretArn,
       LANGFUSE_SECRET_KEY_SECRET_ARN: p.langfuseSecretSecret.secretArn,
       CLAUDE_CODE_USE_BEDROCK: '1',
+      // Phase 6 AGT-04 gap closure (Plan 06-07): hybridQuery inside loadContext
+      // reads these env vars to call Azure Search REST. When the prop is
+      // absent the Azure path degrades to empty semanticChunks (no failure).
+      ...(p.azureSearchAdminSecret
+        ? {
+            AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+          }
+        : {}),
     },
   });
   grantBedrock(triageFn);
@@ -194,6 +214,23 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
   p.langfusePublicSecret.grantRead(triageFn);
   p.langfuseSecretSecret.grantRead(triageFn);
   p.triageBus.grantPutEventsTo(triageFn);
+  // Phase 6 AGT-04 gap closure (Plan 06-07): hybridQuery inside loadContext
+  // embeds query text via Cohere v4 EU then calls Azure Search REST. Both
+  // require IAM grants. Cohere v4 inference-profile + foundation-model ARN
+  // patterns mirror the entity-resolver Lambda below.
+  if (p.azureSearchAdminSecret) {
+    triageFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          'arn:aws:bedrock:*:*:inference-profile/eu.cohere.embed-v4*',
+          'arn:aws:bedrock:*::foundation-model/cohere.embed-v4*',
+        ],
+      }),
+    );
+    p.azureSearchAdminSecret.grantRead(triageFn);
+  }
 
   // Triage consumes:
   //   - capture.received kind=text  (direct from telegram-bot)
@@ -253,6 +290,13 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       LANGFUSE_PUBLIC_KEY_SECRET_ARN: p.langfusePublicSecret.secretArn,
       LANGFUSE_SECRET_KEY_SECRET_ARN: p.langfuseSecretSecret.secretArn,
       CLAUDE_CODE_USE_BEDROCK: '1',
+      // Phase 6 AGT-04 gap closure (Plan 06-07): see triage block.
+      ...(p.azureSearchAdminSecret
+        ? {
+            AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+          }
+        : {}),
     },
   });
   grantBedrock(voiceCaptureFn);
@@ -269,6 +313,20 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
   p.langfuseSecretSecret.grantRead(voiceCaptureFn);
   p.agentBus.grantPutEventsTo(voiceCaptureFn);
   p.outputBus.grantPutEventsTo(voiceCaptureFn);
+  // Phase 6 AGT-04 gap closure (Plan 06-07): Cohere v4 + Azure Search secret.
+  if (p.azureSearchAdminSecret) {
+    voiceCaptureFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          'arn:aws:bedrock:*:*:inference-profile/eu.cohere.embed-v4*',
+          'arn:aws:bedrock:*::foundation-model/cohere.embed-v4*',
+        ],
+      }),
+    );
+    p.azureSearchAdminSecret.grantRead(voiceCaptureFn);
+  }
 
   const voiceCaptureRule = new Rule(scope, 'VoiceCaptureFromTriageRule', {
     eventBus: p.triageBus,
@@ -311,6 +369,13 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       LANGFUSE_PUBLIC_KEY_SECRET_ARN: p.langfusePublicSecret.secretArn,
       LANGFUSE_SECRET_KEY_SECRET_ARN: p.langfuseSecretSecret.secretArn,
       CLAUDE_CODE_USE_BEDROCK: '1',
+      // Phase 6 AGT-04 gap closure (Plan 06-07): see triage block.
+      ...(p.azureSearchAdminSecret
+        ? {
+            AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+          }
+        : {}),
     },
   });
   grantBedrock(resolverFn);
@@ -344,6 +409,12 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
   // reads from — EventBridge supports self-bus PutEvents, the resolver's
   // own rule filters by detail-type so there's no feedback loop).
   p.agentBus.grantPutEventsTo(resolverFn);
+  // Phase 6 AGT-04 gap closure (Plan 06-07): entity-resolver already has
+  // Cohere v4 InvokeModel grant above (lines 322-331 — used by embedBatch).
+  // Only the Azure Search secret read needs to be added here.
+  if (p.azureSearchAdminSecret) {
+    p.azureSearchAdminSecret.grantRead(resolverFn);
+  }
 
   const resolverRule = new Rule(scope, 'EntityResolverFromAgentRule', {
     eventBus: p.agentBus,
@@ -514,6 +585,13 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       LANGFUSE_PUBLIC_KEY_SECRET_ARN: p.langfusePublicSecret.secretArn,
       LANGFUSE_SECRET_KEY_SECRET_ARN: p.langfuseSecretSecret.secretArn,
       CLAUDE_CODE_USE_BEDROCK: '1',
+      // Phase 6 AGT-04 gap closure (Plan 06-07): see triage block.
+      ...(p.azureSearchAdminSecret
+        ? {
+            AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+          }
+        : {}),
     },
   });
   // Bedrock Sonnet 4.6 (EU CRIS profile + foundation model ARN forms).
@@ -533,6 +611,22 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
   p.langfuseSecretSecret.grantRead(transcriptExtractorFn);
   // PutEvents entity.mention.detected → kos.agent (re-uses Phase 2 resolver).
   p.agentBus.grantPutEventsTo(transcriptExtractorFn);
+  // Phase 6 AGT-04 gap closure (Plan 06-07): grantBedrock above only covers
+  // Sonnet/Haiku — Cohere v4 (used by hybridQuery → embedText) needs its own
+  // statement. Plus the Azure Search admin secret read.
+  if (p.azureSearchAdminSecret) {
+    transcriptExtractorFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          'arn:aws:bedrock:*:*:inference-profile/eu.cohere.embed-v4*',
+          'arn:aws:bedrock:*::foundation-model/cohere.embed-v4*',
+        ],
+      }),
+    );
+    p.azureSearchAdminSecret.grantRead(transcriptExtractorFn);
+  }
 
   const transcriptExtractorRule = new Rule(scope, 'TranscriptExtractorRule', {
     eventBus: p.captureBus,

@@ -147,6 +147,9 @@ const agents = new AgentsStack(app, 'KosAgents', {
   // Plan 02-09 (ENT-06): wire Gmail OAuth secret created in DataStack so the
   // BulkImportGranolaGmail Lambda has a typed grant + ARN-by-Ref binding.
   gmailOauthSecret: data.gmailOauthSecret,
+  // Phase 6 AGT-04 gap closure (Plan 06-07): all 4 agent Lambdas now inject
+  // hybridQuery via loadContext, which reads this secret + Azure index name.
+  azureSearchAdminSecret: data.azureSearchAdminSecret,
 });
 agents.addDependency(data);
 agents.addDependency(events);

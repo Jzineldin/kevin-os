@@ -774,6 +774,76 @@ importers:
         specifier: 2.1.4
         version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
 
+  services/day-close:
+    dependencies:
+      '@anthropic-ai/bedrock-sdk':
+        specifier: ^0.28.1
+        version: 0.28.1(zod@3.23.8)
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/rds-signer':
+        specifier: 3.691.0
+        version: 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))
+      '@kos/context-loader':
+        specifier: workspace:*
+        version: link:../../packages/context-loader
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@kos/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@notionhq/client':
+        specifier: ^2.2.15
+        version: 2.3.0
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+      ulid:
+        specifier: ^2.3.0
+        version: 2.3.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
   services/dossier-loader:
     dependencies:
       '@aws-sdk/client-secrets-manager':
@@ -950,6 +1020,76 @@ importers:
       '@aws-sdk/rds-signer':
         specifier: 3.691.0
         version: 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@kos/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@notionhq/client':
+        specifier: ^2.2.15
+        version: 2.3.0
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+      ulid:
+        specifier: ^2.3.0
+        version: 2.3.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
+  services/morning-brief:
+    dependencies:
+      '@anthropic-ai/bedrock-sdk':
+        specifier: ^0.28.1
+        version: 0.28.1(zod@3.23.8)
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/rds-signer':
+        specifier: 3.691.0
+        version: 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))
+      '@kos/context-loader':
+        specifier: workspace:*
+        version: link:../../packages/context-loader
       '@kos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -1499,7 +1639,7 @@ importers:
         version: link:../../packages/db
       '@langfuse/otel':
         specifier: ^5
-        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
       '@opentelemetry/api':
         specifier: ^1
         version: 1.9.1
@@ -1515,6 +1655,73 @@ importers:
       pg:
         specifier: 8.13.1
         version: 8.13.1
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
+  services/verify-notification-cap:
+    dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
+      '@aws-sdk/client-dynamodb':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: 3.691.0
+        version: 3.691.0(@aws-sdk/client-dynamodb@3.691.0)
+      '@aws-sdk/rds-signer':
+        specifier: 3.691.0
+        version: 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@kos/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+      ulid:
+        specifier: ^2.3.0
+        version: 2.3.0
       zod:
         specifier: 3.23.8
         version: 3.23.8
@@ -1594,6 +1801,76 @@ importers:
       pg:
         specifier: 8.13.1
         version: 8.13.1
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
+  services/weekly-review:
+    dependencies:
+      '@anthropic-ai/bedrock-sdk':
+        specifier: ^0.28.1
+        version: 0.28.1(zod@3.23.8)
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/rds-signer':
+        specifier: 3.691.0
+        version: 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))
+      '@kos/context-loader':
+        specifier: workspace:*
+        version: link:../../packages/context-loader
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@kos/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@notionhq/client':
+        specifier: ^2.2.15
+        version: 2.3.0
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+      ulid:
+        specifier: ^2.3.0
+        version: 2.3.0
       zod:
         specifier: 3.23.8
         version: 3.23.8
@@ -11587,12 +11864,12 @@ snapshots:
   '@aws-sdk/credential-provider-ini@3.972.33':
     dependencies:
       '@aws-sdk/core': 3.974.4
-      '@aws-sdk/credential-provider-env': 3.972.29
-      '@aws-sdk/credential-provider-http': 3.972.31
+      '@aws-sdk/credential-provider-env': 3.972.30
+      '@aws-sdk/credential-provider-http': 3.972.32
       '@aws-sdk/credential-provider-login': 3.972.33
-      '@aws-sdk/credential-provider-process': 3.972.29
-      '@aws-sdk/credential-provider-sso': 3.972.33
-      '@aws-sdk/credential-provider-web-identity': 3.972.33
+      '@aws-sdk/credential-provider-process': 3.972.30
+      '@aws-sdk/credential-provider-sso': 3.972.34
+      '@aws-sdk/credential-provider-web-identity': 3.972.34
       '@aws-sdk/nested-clients': 3.997.1
       '@aws-sdk/types': 3.973.8
       '@smithy/credential-provider-imds': 4.2.14
@@ -13433,14 +13710,6 @@ snapshots:
   '@langfuse/core@5.2.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-
-  '@langfuse/otel@5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))':
-    dependencies:
-      '@langfuse/core': 5.2.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-trace-otlp-http': 0.215.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
 
   '@langfuse/otel@5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))':
     dependencies:
@@ -18099,8 +18368,8 @@ snapshots:
       '@typescript-eslint/parser': 8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3)
       eslint: 9.14.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.10
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.14.0(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1))
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.14.0(jiti@2.6.1))
       eslint-plugin-react: 7.37.5(eslint@9.14.0(jiti@2.6.1))
       eslint-plugin-react-hooks: 5.2.0(eslint@9.14.0(jiti@2.6.1))
@@ -18119,7 +18388,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.14.0(jiti@2.6.1)):
+  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
       debug: 4.4.3
@@ -18130,22 +18399,22 @@ snapshots:
       tinyglobby: 0.2.16
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.14.0(jiti@2.6.1)):
+  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       '@typescript-eslint/parser': 8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3)
       eslint: 9.14.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.10
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.14.0(jiti@2.6.1))
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -18156,7 +18425,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.14.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.14.0(jiti@2.6.1))
+      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1)))(eslint@9.14.0(jiti@2.6.1))
       hasown: 2.0.3
       is-core-module: 2.16.1
       is-glob: 4.0.3
@@ -18168,7 +18437,7 @@ snapshots:
       string.prototype.trimend: 1.0.9
       tsconfig-paths: 3.15.0
     optionalDependencies:
-      '@typescript-eslint/parser': 8.59.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3)
+      '@typescript-eslint/parser': 8.13.0(eslint@9.14.0(jiti@2.6.1))(typescript@5.6.3)
     transitivePeerDependencies:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack

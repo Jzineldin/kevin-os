@@ -6,6 +6,7 @@ on:
       - 'apps/dashboard/**'
       - 'services/dashboard-*/**'
       - 'packages/contracts/**'
+      - '.github/workflows/dashboard-ci.yml'
   push:
     branches:
       - master
@@ -14,6 +15,7 @@ on:
       - 'apps/dashboard/**'
       - 'services/dashboard-*/**'
       - 'packages/contracts/**'
+      - '.github/workflows/dashboard-ci.yml'
 
 jobs:
   quick:

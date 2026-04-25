@@ -111,6 +111,14 @@ const integrations = new IntegrationsStack(app, 'KosIntegrations', {
   // gates on both `blobsBucket` and `iosShortcutWebhookSecret` so absence
   // of either drops the wiring (preserves existing test fixtures).
   iosShortcutWebhookSecret: data.iosShortcutWebhookSecret,
+  // Phase 4 Plan 04-02 (CAP-03): ses-inbound Lambda. Activated by env var
+  // / context flag so existing rollouts that haven't run the operator
+  // runbook (domain verify + bucket + receiving rule in eu-west-1) don't
+  // synth a Lambda whose IAM permission references a not-yet-existing
+  // SES rule. See 04-SES-OPERATOR-RUNBOOK.md.
+  enableSesInbound:
+    (process.env.KOS_ENABLE_SES_INBOUND ??
+      (app.node.tryGetContext('enableSesInbound') as string | undefined)) === 'true',
 });
 integrations.addDependency(safety);
 void integrations;

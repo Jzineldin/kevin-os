@@ -20,7 +20,11 @@
  */
 import type { EventBridgeEvent } from 'aws-lambda';
 import { initSentry, wrapHandler } from '../../_shared/sentry.js';
-import { tagTraceWithCaptureId } from '../../_shared/tracing.js';
+import {
+  setupOtelTracingAsync,
+  tagTraceWithCaptureId,
+  flush as langfuseFlush,
+} from '../../_shared/tracing.js';
 import {
   FullDossierRequestedSchema,
   type FullDossierRequested,
@@ -32,6 +36,11 @@ import { aggregateEntityCorpus } from './aggregate.js';
 
 const MAX_INPUT_TOKENS = 800_000;
 
+// 24-hour TTL is the D-21 fallback ceiling. Normal invalidation happens on
+// mention_events insert via trg_entity_dossiers_cached_invalidate (migration
+// 0012); TTL is the belt-and-braces maximum age for the cached bundle.
+const GEMINI_FULL_DOSSIER_TTL_SECONDS = 24 * 3600;
+
 export const handler = wrapHandler(async (
   event: EventBridgeEvent<'context.full_dossier_requested', unknown>,
 ): Promise<{
@@ -42,70 +51,78 @@ export const handler = wrapHandler(async (
   tokens_output?: number;
   cost_estimate_usd?: number;
 }> => {
+  // WR-04: D-28 Sentry + Langfuse OTel instrumentation. Mirrors
+  // entity-timeline-refresher/src/handler.ts so Vertex generateContent
+  // spans are exported to Langfuse before the Lambda freezes.
   await initSentry();
+  await setupOtelTracingAsync();
 
-  const detail: FullDossierRequested = FullDossierRequestedSchema.parse(event.detail);
-  tagTraceWithCaptureId(detail.capture_id);
+  try {
+    const detail: FullDossierRequested = FullDossierRequestedSchema.parse(event.detail);
+    tagTraceWithCaptureId(detail.capture_id);
 
-  if (detail.entity_ids.length === 0) {
-    return { status: 'skipped', entity_count: 0, elapsed_ms: 0 };
-  }
+    if (detail.entity_ids.length === 0) {
+      return { status: 'skipped', entity_count: 0, elapsed_ms: 0 };
+    }
 
-  const started = Date.now();
-  const pool = await getPool();
+    const started = Date.now();
+    const pool = await getPool();
 
-  const corpus = await aggregateEntityCorpus({
-    pool,
-    ownerId: detail.owner_id,
-    entityIds: detail.entity_ids,
-    maxTokens: MAX_INPUT_TOKENS,
-  });
-
-  const geminiRes = await callGeminiWithCache({
-    corpus,
-    entityIds: detail.entity_ids,
-    captureId: detail.capture_id,
-    intent: detail.intent,
-  });
-
-  // Write to dossier cache with gemini-full: prefix so loadContext()
-  // distinguishes this from the fast-path bundle.
-  for (const entityId of detail.entity_ids) {
-    await writeDossierCache({
+    const corpus = await aggregateEntityCorpus({
       pool,
       ownerId: detail.owner_id,
-      entityId,
-      lastTouchHash: `gemini-full:${Date.now()}`,
-      bundle: {
-        kevin_context: {
-          current_priorities: '',
-          active_deals: '',
-          whos_who: '',
-          blocked_on: '',
-          recent_decisions: '',
-          open_questions: '',
-          last_updated: null,
-        },
-        entity_dossiers: [],
-        recent_mentions: [],
-        semantic_chunks: [],
-        linked_projects: [],
-        assembled_markdown: geminiRes.response_text,
-        elapsed_ms: Date.now() - started,
-        cache_hit: false,
-        partial: false,
-        partial_reasons: [],
-      },
-      ttlSeconds: 24 * 3600,
+      entityIds: detail.entity_ids,
+      maxTokens: MAX_INPUT_TOKENS,
     });
-  }
 
-  return {
-    status: 'ok',
-    entity_count: detail.entity_ids.length,
-    elapsed_ms: Date.now() - started,
-    tokens_input: geminiRes.tokens_input,
-    tokens_output: geminiRes.tokens_output,
-    cost_estimate_usd: geminiRes.cost_estimate_usd,
-  };
+    const geminiRes = await callGeminiWithCache({
+      corpus,
+      entityIds: detail.entity_ids,
+      captureId: detail.capture_id,
+      intent: detail.intent,
+    });
+
+    // Write to dossier cache with gemini-full: prefix so loadContext()
+    // distinguishes this from the fast-path bundle.
+    for (const entityId of detail.entity_ids) {
+      await writeDossierCache({
+        pool,
+        ownerId: detail.owner_id,
+        entityId,
+        lastTouchHash: `gemini-full:${Date.now()}`,
+        bundle: {
+          kevin_context: {
+            current_priorities: '',
+            active_deals: '',
+            whos_who: '',
+            blocked_on: '',
+            recent_decisions: '',
+            open_questions: '',
+            last_updated: null,
+          },
+          entity_dossiers: [],
+          recent_mentions: [],
+          semantic_chunks: [],
+          linked_projects: [],
+          assembled_markdown: geminiRes.response_text,
+          elapsed_ms: Date.now() - started,
+          cache_hit: false,
+          partial: false,
+          partial_reasons: [],
+        },
+        ttlSeconds: GEMINI_FULL_DOSSIER_TTL_SECONDS,
+      });
+    }
+
+    return {
+      status: 'ok',
+      entity_count: detail.entity_ids.length,
+      elapsed_ms: Date.now() - started,
+      tokens_input: geminiRes.tokens_input,
+      tokens_output: geminiRes.tokens_output,
+      cost_estimate_usd: geminiRes.cost_estimate_usd,
+    };
+  } finally {
+    await langfuseFlush();
+  }
 });

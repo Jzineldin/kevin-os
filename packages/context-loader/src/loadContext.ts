@@ -182,14 +182,20 @@ async function fetchDossiers(
   entityIds: string[],
 ): Promise<EntityDossier[]> {
   if (entityIds.length === 0) return [];
+  // CR-02: entity_index PK column is `id`, not `entity_id` (see
+  // packages/db/src/schema.ts:40 and migration 0001:13). Alias to
+  // entity_id in the SELECT so downstream EntityDossier shape is
+  // unchanged. linked_projects is text[] (Notion page ids) on the
+  // shipped schema; alias as linked_project_ids and project-scoped
+  // joins downstream operate on the same alias name.
   const { rows } = await pool.query<EntityDossier & { linked_project_ids: string[] }>(
-    `SELECT entity_id, name, type, aliases, org, role, relationship, status,
+    `SELECT id AS entity_id, name, type, aliases, org, role, relationship, status,
             seed_context, last_touch, manual_notes, confidence, source,
-            COALESCE(linked_project_ids, ARRAY[]::uuid[]) AS linked_project_ids,
+            COALESCE(linked_projects, ARRAY[]::text[]) AS linked_project_ids,
             ARRAY[]::jsonb[] AS recent_mentions
        FROM entity_index
       WHERE owner_id = $1
-        AND entity_id = ANY($2::uuid[])`,
+        AND id = ANY($2::uuid[])`,
     [ownerId, entityIds],
   );
   return rows.map((r) => ({
@@ -235,18 +241,24 @@ async function fetchLinkedProjects(
   entityIds: string[],
 ): Promise<ContextBundle['linked_projects']> {
   if (entityIds.length === 0) return [];
+  // CR-02 / CR-04: project_index PK column is `id` (alias as project_id
+  // for ContextBundle shape stability) and entity_index PK column is `id`
+  // (alias as entity_id). entity_index.linked_projects is text[] of
+  // Notion page IDs; project_index.notion_page_id holds the corresponding
+  // value. Joining via notion_page_id keeps the link contract intact
+  // without requiring a schema migration.
   const { rows } = await pool.query<{
     project_id: string;
     name: string;
     bolag: string | null;
     status: string | null;
   }>(
-    `SELECT DISTINCT p.project_id, p.name, p.bolag, p.status
+    `SELECT DISTINCT p.id AS project_id, p.name, p.bolag, p.status
        FROM project_index p
        JOIN entity_index e ON e.owner_id = p.owner_id
       WHERE e.owner_id = $1
-        AND e.entity_id = ANY($2::uuid[])
-        AND p.project_id = ANY(e.linked_project_ids)`,
+        AND e.id = ANY($2::uuid[])
+        AND p.notion_page_id = ANY(COALESCE(e.linked_projects, ARRAY[]::text[]))`,
     [ownerId, entityIds],
   );
   return rows;

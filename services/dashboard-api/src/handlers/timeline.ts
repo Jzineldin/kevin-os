@@ -87,6 +87,13 @@ async function timelineHandler(ctx: Ctx): Promise<RouteResponse> {
   //          the just-fetched MV slice so a row that already made it into the
   //          MV doesn't appear twice.
   //
+  //   WR-01 fix: dedup MUST compare capture_id, not id. `mv.id` is
+  //   `capture_id::text` (ULID namespace) but `live.id` is
+  //   mention_events.id (row uuid PK) — two disjoint identifier spaces that
+  //   never match, so the original `id::text NOT IN (SELECT id FROM mv)`
+  //   filter was a no-op and every event in the 5-min refresh race window
+  //   appeared twice. `capture_id` is present in both branches.
+  //
   // Both branches enforce owner_id = OWNER_ID + entity_id = $1; cursor
   // pagination uses the (occurred_at, capture_id) keyset for stability under
   // concurrent inserts.
@@ -121,7 +128,7 @@ async function timelineHandler(ctx: Ctx): Promise<RouteResponse> {
         AND entity_id = ${idParam}
         AND occurred_at > now() - interval '10 minutes'
         AND (occurred_at, id::text) < (${cursorTs}::timestamptz, ${cursorId})
-        AND id::text NOT IN (SELECT id FROM mv WHERE id IS NOT NULL)
+        AND capture_id NOT IN (SELECT capture_id FROM mv WHERE capture_id IS NOT NULL)
     )
     SELECT id, kind, occurred_at, source, context, capture_id, is_live_overlay
       FROM mv

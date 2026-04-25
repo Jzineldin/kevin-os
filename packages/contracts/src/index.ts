@@ -13,3 +13,4 @@ export * from './events.js';
 export * from './dashboard.js';
 export * from './context.js';
 export * from './brief.js';
+export * from './email.js';

@@ -18,3 +18,8 @@ export * from './notion.js';
 export * from './granola.js';
 export * from './azure-search.js';
 export * from './vertex.js';
+// Phase 4 Plan 04-00 Task 5 — email + iOS Shortcut fixtures.
+export * from './adversarial-email.js';
+export * from './duplicate-email.js';
+export * from './forwarded-email.js';
+export * from './ios-shortcut.js';

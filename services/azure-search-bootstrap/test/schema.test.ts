@@ -18,11 +18,11 @@ describe('Azure index schema', () => {
     ).toBe('preserveOriginals');
   });
 
-  it('has an owner_id filterable field', () => {
+  it('has a title searchable field (v2 schema replaces owner_id with indexer-output fields)', () => {
     const f = KOS_MEMORY_INDEX_DEFINITION.fields.find(
-      (x) => x.name === 'owner_id',
+      (x) => x.name === 'title',
     );
-    expect(f?.filterable).toBe(true);
+    expect((f as { searchable?: boolean } | undefined)?.searchable).toBe(true);
   });
 
   it('content_vector.dimensions === 1024 (Phase 2 D-06 Cohere Embed Multilingual v3)', () => {
@@ -39,8 +39,8 @@ describe('Azure index schema', () => {
     );
   });
 
-  it('index name is kos-memory-v1 (bump on breaking schema change)', () => {
-    expect(KOS_MEMORY_INDEX_NAME).toBe('kos-memory-v1');
-    expect(KOS_MEMORY_INDEX_DEFINITION.name).toBe('kos-memory-v1');
+  it('index name is kos-memory-v2 (bumped from v1 on 2026-04-25 to align fields with indexer output)', () => {
+    expect(KOS_MEMORY_INDEX_NAME).toBe('kos-memory-v2');
+    expect(KOS_MEMORY_INDEX_DEFINITION.name).toBe('kos-memory-v2');
   });
 });

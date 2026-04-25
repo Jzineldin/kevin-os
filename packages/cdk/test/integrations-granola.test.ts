@@ -2,8 +2,8 @@
  * Plan 06-01 synth-level assertions for the Granola pipeline wiring.
  *
  * Asserts:
- *   - CfnSchedule resource named 'granola-poller-15min' exists.
- *   - ScheduleExpression === 'rate(15 minutes)' + Europe/Stockholm + OFF.
+ *   - CfnSchedule resource named 'granola-poller-1min' exists.
+ *   - ScheduleExpression === 'rate(1 minute)' + Europe/Stockholm + OFF.
  *   - Lambda role has rds-db:connect (for RDS Proxy IAM auth).
  *   - Lambda role has events:PutEvents (for kos.capture publish).
  *   - Lambda role has secretsmanager:GetSecretValue (for NOTION_TOKEN).
@@ -50,23 +50,23 @@ describe('IntegrationsStack — Granola pipeline (Plan 06-01)', () => {
     return { tpl: Template.fromStack(integrations) };
   }
 
-  it('creates a Scheduler::Schedule named granola-poller-15min', () => {
+  it('creates a Scheduler::Schedule named granola-poller-1min', () => {
     const { tpl } = synth();
     tpl.hasResourceProperties(
       'AWS::Scheduler::Schedule',
       Match.objectLike({
-        Name: 'granola-poller-15min',
+        Name: 'granola-poller-1min',
       }),
     );
   });
 
-  it('granola schedule uses rate(15 minutes) + Europe/Stockholm + OFF', () => {
+  it('granola schedule uses rate(1 minute) + Europe/Stockholm + OFF', () => {
     const { tpl } = synth();
     tpl.hasResourceProperties(
       'AWS::Scheduler::Schedule',
       Match.objectLike({
-        Name: 'granola-poller-15min',
-        ScheduleExpression: 'rate(15 minutes)',
+        Name: 'granola-poller-1min',
+        ScheduleExpression: 'rate(1 minute)',
         ScheduleExpressionTimezone: 'Europe/Stockholm',
         FlexibleTimeWindow: Match.objectLike({ Mode: 'OFF' }),
       }),

@@ -1,0 +1,29 @@
+{
+  "name": "@kos/service-ios-webhook",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/handler.ts",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.691.0",
+    "@aws-sdk/client-eventbridge": "3.691.0",
+    "@aws-sdk/client-s3": "3.691.0",
+    "@aws-sdk/client-secrets-manager": "3.691.0",
+    "@kos/contracts": "workspace:*",
+    "@opentelemetry/api": "^1",
+    "@sentry/aws-serverless": "^8",
+    "ulid": "^2.3.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@kos/test-fixtures": "workspace:*",
+    "@types/node": "22.9.0",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}

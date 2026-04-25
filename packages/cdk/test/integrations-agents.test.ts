@@ -54,7 +54,7 @@ describe('AGT-04 gap closure: Azure Search wiring on consumer Lambdas (Plan 06-0
     // Sanity check the index name default also flows through.
     const indexNameCount = Object.values(lambdas).filter(
       (l: any) =>
-        l.Properties?.Environment?.Variables?.AZURE_SEARCH_INDEX_NAME === 'kos-memory',
+        l.Properties?.Environment?.Variables?.AZURE_SEARCH_INDEX_NAME === 'kos-memory-v2',
     ).length;
     expect(indexNameCount).toBeGreaterThanOrEqual(4);
   });

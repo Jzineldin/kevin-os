@@ -10,7 +10,8 @@
     "./events": "./src/events.ts",
     "./dashboard": "./src/dashboard.ts",
     "./context": "./src/context.ts",
-    "./brief": "./src/brief.ts"
+    "./brief": "./src/brief.ts",
+    "./email": "./src/email.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

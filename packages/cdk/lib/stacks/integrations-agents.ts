@@ -117,7 +117,7 @@ export interface AgentsWiringProps {
    * chunks (degraded path; matches pre-gap behaviour).
    */
   azureSearchAdminSecret?: ISecret;
-  /** Optional override; defaults to 'kos-memory' (matches integrations-azure-indexers default). */
+  /** Optional override; defaults to 'kos-memory-v2' (matches integrations-azure-indexers default). */
   azureSearchIndexName?: string;
 }
 
@@ -197,7 +197,7 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       ...(p.azureSearchAdminSecret
         ? {
             AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
-            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory-v2',
           }
         : {}),
     },
@@ -294,7 +294,7 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       ...(p.azureSearchAdminSecret
         ? {
             AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
-            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory-v2',
           }
         : {}),
     },
@@ -373,7 +373,7 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       ...(p.azureSearchAdminSecret
         ? {
             AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
-            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory-v2',
           }
         : {}),
     },
@@ -589,7 +589,7 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       ...(p.azureSearchAdminSecret
         ? {
             AZURE_SEARCH_ADMIN_SECRET_ARN: p.azureSearchAdminSecret.secretArn,
-            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory',
+            AZURE_SEARCH_INDEX_NAME: p.azureSearchIndexName ?? 'kos-memory-v2',
           }
         : {}),
     },

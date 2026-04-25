@@ -68,7 +68,7 @@ export const handler = wrapHandler(async (): Promise<{
       .filter(Boolean)
       .join(' | ');
     return {
-      id: `entity:${r.entity_id}`,
+      id: `entity_${r.entity_id}`,
       source: 'entity' as const,
       title: `${r.name}${r.type ? ` (${r.type})` : ''}`,
       snippet: snippet || `${r.name}${r.org ? ` @ ${r.org}` : ''}${r.role ? ` — ${r.role}` : ''}`,

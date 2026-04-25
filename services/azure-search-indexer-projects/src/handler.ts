@@ -42,7 +42,7 @@ export const handler = wrapHandler(async () => {
   if (rows.length === 0) return { read: 0, upserted: 0, errors: 0, cursor };
 
   const batch = rows.map((r) => ({
-    id: `project:${r.project_id}`,
+    id: `project_${r.project_id}`,
     source: 'project' as const,
     title: `${r.name}${r.bolag ? ` · ${r.bolag}` : ''}`,
     snippet: (r.description ?? r.seed_context ?? '').slice(0, 600),

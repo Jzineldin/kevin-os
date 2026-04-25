@@ -100,7 +100,7 @@ describe('azure-search-indexer-projects handler', () => {
     expect(out.upserted).toBe(2);
     const docs = upsertCalls[0]!.documents as Array<{ id: string; source: string; title: string; content_for_embedding: string }>;
     expect(docs[0]!.source).toBe('project');
-    expect(docs[0]!.id).toBe('project:proj-tf');
+    expect(docs[0]!.id).toBe('project_proj-tf');
     // title includes bolag separator
     expect(docs[0]!.title).toContain('Tale Forge');
     expect(docs[0]!.title).toContain('Tale Forge AB');

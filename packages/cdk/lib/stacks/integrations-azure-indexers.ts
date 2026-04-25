@@ -78,7 +78,11 @@ export function wireAzureIndexers(
 ): AzureIndexerWiring {
   const stack = Stack.of(scope);
   const rdsDbConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${props.rdsProxyDbiResourceId}/kos_agent_writer`;
-  const indexName = props.azureIndexName ?? 'kos-memory';
+  // azure-search-bootstrap creates the index as `kos-memory-v2` (versioning
+  // convention for schema migrations — see services/azure-search-bootstrap/
+  // src/index-schema.ts::KOS_MEMORY_INDEX_NAME). Indexers + queriers must
+  // match. When schema changes, bump v1→v2 in BOTH places.
+  const indexName = props.azureIndexName ?? 'kos-memory-v2';
 
   const vpcConfig = {
     vpc: props.vpc,

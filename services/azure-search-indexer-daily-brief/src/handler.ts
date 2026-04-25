@@ -54,7 +54,7 @@ export const handler = wrapHandler(async () => {
     const priorities = (ctx.top_priorities ?? []).join(' · ');
     const slipped = (ctx.slipped_items ?? []).join(' · ');
     return {
-      id: `brief:${r.capture_id}`,
+      id: `brief_${r.capture_id}`,
       source: 'daily_brief' as const,
       title,
       snippet: body.slice(0, 600),

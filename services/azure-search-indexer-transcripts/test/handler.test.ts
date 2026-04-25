@@ -75,7 +75,7 @@ describe('azure-search-indexer-transcripts handler', () => {
     expect(poolState.cursorWrites).toHaveLength(0);
   });
 
-  it('happy path: agent_runs row with transcript_id → id prefix transcript: + summary as snippet', async () => {
+  it('happy path: agent_runs row with transcript_id → id prefix transcript_ + summary as snippet', async () => {
     upsertResult = { succeeded: 1, failed: 0, errors: [] };
     poolState.rows = [
       {
@@ -96,7 +96,7 @@ describe('azure-search-indexer-transcripts handler', () => {
     expect(out.read).toBe(1);
     expect(out.upserted).toBe(1);
     const docs = upsertCalls[0]!.documents as Array<{ id: string; source: string; title: string; snippet: string; content_for_embedding: string }>;
-    expect(docs[0]!.id).toBe('transcript:tx-A');
+    expect(docs[0]!.id).toBe('transcript_tx-A');
     expect(docs[0]!.source).toBe('transcript');
     expect(docs[0]!.title).toBe('Almi konvertibellån diskussion');
     // snippet is the summary (truncated to 600 chars).
@@ -122,7 +122,7 @@ describe('azure-search-indexer-transcripts handler', () => {
     const { handler } = await import('../src/handler.js');
     await (handler as unknown as () => Promise<unknown>)();
     const docs = upsertCalls[0]!.documents as Array<{ id: string; title: string }>;
-    expect(docs[0]!.id).toBe('transcript:cap-fallback');
+    expect(docs[0]!.id).toBe('transcript_cap-fallback');
     // title falls back to "Transcript <capture_id>" when ctx.title is missing
     expect(docs[0]!.title).toContain('Transcript');
   });

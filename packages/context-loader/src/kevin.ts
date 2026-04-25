@@ -9,6 +9,7 @@
 import type { Pool as PgPool } from 'pg';
 import type { KevinContextBlock } from '@kos/contracts/context';
 
+// Logical section keys (returned in KevinContextBlock).
 const EXPECTED_SECTIONS = [
   'current_priorities',
   'active_deals',
@@ -17,6 +18,22 @@ const EXPECTED_SECTIONS = [
   'recent_decisions',
   'open_questions',
 ] as const;
+
+// Map logical section keys → Notion `section_heading` values populated by
+// notion-indexer for the Kevin Context page (`kevin_context.section_heading`).
+// Keys above match the KevinContextBlock contract; values match Kevin's actual
+// Notion section headings. CR-01: SQL filters on section_heading (the actual
+// schema column — see packages/db/src/schema.ts:183), not the legacy logical
+// key.
+const SECTION_HEADINGS_BY_KEY: Record<(typeof EXPECTED_SECTIONS)[number], string> = {
+  current_priorities: 'Current priorities',
+  active_deals: 'Active deals',
+  whos_who: "Who's who",
+  blocked_on: 'Blocked on',
+  recent_decisions: 'Recent decisions',
+  open_questions: 'Open questions',
+};
+const EXPECTED_SECTION_HEADINGS = Object.values(SECTION_HEADINGS_BY_KEY);
 
 export interface LoadKevinContextOptions {
   pool: PgPool;
@@ -36,29 +53,32 @@ export async function loadKevinContextBlock(
   const { pool, ownerId } = opts;
 
   const { rows } = await pool.query<{
-    section: string;
-    body: string;
+    section_heading: string;
+    section_body: string;
     updated_at: Date;
   }>(
-    `SELECT section, body, updated_at
+    `SELECT section_heading, section_body, updated_at
        FROM kevin_context
       WHERE owner_id = $1
-        AND section = ANY($2::text[])`,
-    [ownerId, [...EXPECTED_SECTIONS]],
+        AND section_heading = ANY($2::text[])`,
+    [ownerId, EXPECTED_SECTION_HEADINGS],
   );
 
-  const bySection = new Map(rows.map((r) => [r.section, r]));
+  const byHeading = new Map(rows.map((r) => [r.section_heading, r]));
   const lastUpdated = rows
     .map((r) => r.updated_at)
     .reduce<Date | null>((acc, cur) => (acc && acc > cur ? acc : cur), null);
 
+  const lookup = (key: (typeof EXPECTED_SECTIONS)[number]): string =>
+    byHeading.get(SECTION_HEADINGS_BY_KEY[key])?.section_body ?? '';
+
   return {
-    current_priorities: bySection.get('current_priorities')?.body ?? '',
-    active_deals: bySection.get('active_deals')?.body ?? '',
-    whos_who: bySection.get('whos_who')?.body ?? '',
-    blocked_on: bySection.get('blocked_on')?.body ?? '',
-    recent_decisions: bySection.get('recent_decisions')?.body ?? '',
-    open_questions: bySection.get('open_questions')?.body ?? '',
+    current_priorities: lookup('current_priorities'),
+    active_deals: lookup('active_deals'),
+    whos_who: lookup('whos_who'),
+    blocked_on: lookup('blocked_on'),
+    recent_decisions: lookup('recent_decisions'),
+    open_questions: lookup('open_questions'),
     last_updated: lastUpdated ? lastUpdated.toISOString() : null,
   };
 }

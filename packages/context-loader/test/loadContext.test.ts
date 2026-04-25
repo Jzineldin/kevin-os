@@ -24,7 +24,7 @@ interface MockPool {
 }
 
 function makeMockPool(opts: {
-  kevinRows?: Array<{ section: string; body: string; updated_at: Date }>;
+  kevinRows?: Array<{ section_heading: string; section_body: string; updated_at: Date }>;
   cachedRows?: unknown[];
   dossierRows?: unknown[];
   mentionRows?: unknown[];
@@ -107,7 +107,7 @@ describe('loadContext — happy path', () => {
   it('returns ContextBundle with all 9 fields populated when entityIds present', async () => {
     const pool = makeMockPool({
       kevinRows: [
-        { section: 'current_priorities', body: 'Tale Forge launch', updated_at: new Date() },
+        { section_heading: 'Current priorities', section_body: 'Tale Forge launch', updated_at: new Date() },
       ],
       dossierRows: [SAMPLE_DOSSIER_ROW],
       mentionRows: [
@@ -177,7 +177,7 @@ describe('loadContext — degraded paths', () => {
   it('empty entityIds + no rawText → semantic_chunks empty; kevin_context still loaded', async () => {
     const pool = makeMockPool({
       kevinRows: [
-        { section: 'current_priorities', body: 'Tale Forge launch', updated_at: new Date() },
+        { section_heading: 'Current priorities', section_body: 'Tale Forge launch', updated_at: new Date() },
       ],
     });
 

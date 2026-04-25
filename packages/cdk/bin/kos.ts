@@ -35,8 +35,8 @@ const env: Environment = RESOLVED_ENV;
 //   NetworkStack      — Plan 01
 //   DataStack         — Plan 02
 //   EventsStack       — Plan 03
-//   IntegrationsStack — Plans 04, 05, 06
-//   SafetyStack       — Plan 07
+//   SafetyStack       — Plan 02-06 (push-telegram + cap table + alarmTopic)
+//   IntegrationsStack — Plans 04, 05, 06, 07 (07 reads SafetyStack refs)
 //   CaptureStack      — Plan 02-01 (CAP-01 Telegram ingress)
 const network = new NetworkStack(app, 'KosNetwork', { env });
 const events = new EventsStack(app, 'KosEvents', { env });
@@ -45,6 +45,27 @@ const data = new DataStack(app, 'KosData', {
   vpc: network.vpc,
   s3Endpoint: network.s3GatewayEndpoint,
 });
+
+// SafetyStack moved BEFORE IntegrationsStack so Phase 7 lifecycle wiring
+// can pass `telegramCapTable` + `alarmTopic` into IntegrationsStack
+// (verify-notification-cap reads the cap table and emits via alarmTopic).
+const safety = new SafetyStack(app, 'KosSafety', {
+  env,
+  rdsSecret: data.rdsCredentialsSecret,
+  rdsProxyEndpoint: data.rdsProxyEndpoint,
+  // 2026-04-22: push-telegram now in VPC for RDS Proxy access.
+  vpc: network.vpc,
+  rdsSecurityGroup: data.rdsSecurityGroup,
+  rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
+  telegramBotTokenSecret: data.telegramBotTokenSecret,
+  // Plan 02-06: push-telegram consumes output.push events from kos.output.
+  outputBus: events.buses.output,
+});
+// Plan 02-06: SafetyStack now takes a reference to the kos.output bus,
+// so it depends on EventsStack. addDependency keeps `cdk deploy` order
+// correct (EventsStack provisions the bus before SafetyStack's rule).
+safety.addDependency(events);
+
 const integrations = new IntegrationsStack(app, 'KosIntegrations', {
   env,
   vpc: network.vpc,
@@ -79,25 +100,16 @@ const integrations = new IntegrationsStack(app, 'KosIntegrations', {
     process.env.GCP_PROJECT_ID ??
     (app.node.tryGetContext('gcpProjectId') as string | undefined),
   agentBus: events.buses.agent,
-});
-void integrations;
-
-const safety = new SafetyStack(app, 'KosSafety', {
-  env,
-  rdsSecret: data.rdsCredentialsSecret,
-  rdsProxyEndpoint: data.rdsProxyEndpoint,
-  // 2026-04-22: push-telegram now in VPC for RDS Proxy access.
-  vpc: network.vpc,
-  rdsSecurityGroup: data.rdsSecurityGroup,
-  rdsProxyDbiResourceId: data.rdsProxyDbiResourceId,
-  telegramBotTokenSecret: data.telegramBotTokenSecret,
-  // Plan 02-06: push-telegram consumes output.push events from kos.output.
+  // Phase 7 Plan 07-00: lifecycle automation wiring (morning-brief + day-
+  // close + weekly-review + verify-notification-cap). Capture-table +
+  // alarmTopic come from SafetyStack; outputBus from EventsStack. Plans
+  // 07-01..07-04 attach schedules + IAM grants by re-extending the helper.
+  telegramCapTable: safety.capTable,
+  alarmTopic: safety.alarmTopic,
   outputBus: events.buses.output,
 });
-// Plan 02-06: SafetyStack now takes a reference to the kos.output bus,
-// so it depends on EventsStack. addDependency keeps `cdk deploy` order
-// correct (EventsStack provisions the bus before SafetyStack's rule).
-safety.addDependency(events);
+integrations.addDependency(safety);
+void integrations;
 void safety;
 
 // CaptureStack — Plan 02-01 (CAP-01 Telegram ingress).

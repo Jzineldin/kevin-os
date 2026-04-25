@@ -19,6 +19,8 @@ import type { IVpc, ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
 import type { IBucket } from 'aws-cdk-lib/aws-s3';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
+import type { ITopic } from 'aws-cdk-lib/aws-sns';
 import { createHash } from 'node:crypto';
 import type { KosLambda } from '../constructs/kos-lambda.js';
 import { wireNotionIntegrations, type NotionWiring } from './integrations-notion.js';
@@ -28,6 +30,10 @@ import { wireGranolaPipeline } from './integrations-granola.js';
 import { wireAzureSearchIndexers } from './integrations-azure-indexers.js';
 import { wireMvRefresher } from './integrations-mv-refresher.js';
 import { wireDossierLoader } from './integrations-vertex.js';
+import {
+  wireLifecycleAutomation,
+  type LifecycleAutomationWiring,
+} from './integrations-lifecycle.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -62,12 +68,28 @@ export interface IntegrationsStackProps extends StackProps {
   gcpVertexSaSecret?: ISecret;
   gcpProjectId?: string;
   agentBus?: EventBus;
+  // Phase 7 Plan 07-00 — lifecycle automation wiring (morning-brief +
+  // day-close + weekly-review + verify-notification-cap). Optional so
+  // existing test fixtures synth without supplying SafetyStack refs;
+  // production deploy passes both `telegramCapTable` and `alarmTopic`
+  // (from SafetyStack) plus `outputBus` (from EventsStack) to activate
+  // the brief Lambdas. Schedulers + IAM grants accrete in 07-01..07-04.
+  telegramCapTable?: ITable;
+  alarmTopic?: ITopic;
+  outputBus?: EventBus;
 }
 
 export class IntegrationsStack extends Stack {
   public readonly notionIndexer: KosLambda;
   public readonly notionIndexerBackfill: KosLambda;
   public readonly notionReconcile: KosLambda;
+  /**
+   * Phase 7 lifecycle automation wiring — populated only when
+   * `telegramCapTable`, `alarmTopic`, and `outputBus` are all supplied
+   * (production deploy). Plans 07-01..07-04 attach schedules + IAM grants
+   * to the Lambdas inside this struct.
+   */
+  public readonly lifecycle?: LifecycleAutomationWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -185,6 +207,32 @@ export class IntegrationsStack extends Stack {
           langfuseSecretKeySecret: props.langfuseSecretKeySecret,
         });
       }
+    }
+
+    // Plan 07-00 (Phase 7 lifecycle automation): morning-brief + day-close +
+    // weekly-review + verify-notification-cap Lambdas + 2 scheduler roles.
+    // Schedulers + IAM grants accrete in Plans 07-01..07-04. Skipped at
+    // synth time when SafetyStack-derived props (cap table, alarm topic) +
+    // outputBus are unset; production deploy supplies all three.
+    if (props.telegramCapTable && props.alarmTopic && props.outputBus) {
+      this.lifecycle = wireLifecycleAutomation(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        notionTokenSecret: props.notionTokenSecret,
+        azureSearchAdminSecret: props.azureSearchAdminSecret,
+        telegramCapTable: props.telegramCapTable,
+        alarmTopic: props.alarmTopic,
+        captureBus: props.captureBus,
+        // agentBus is optional on IntegrationsStackProps; lifecycle helper
+        // requires it for symmetry with future event sources. Use captureBus
+        // as a synth-time fallback when agentBus is unset.
+        agentBus: props.agentBus ?? props.captureBus,
+        outputBus: props.outputBus,
+        systemBus: props.systemBus,
+        scheduleGroupName: props.scheduleGroupName,
+      });
     }
   }
 }

@@ -113,8 +113,8 @@ describe('loadDroppedThreads', () => {
       entity_ids: ['e-1'],
       last_mentioned_at: lastTime.toISOString(),
     });
-    expect(out[1].last_mentioned_at).toBeNull();
-    const sql = pool.query.mock.calls[0][0] as string;
+    expect(out[1]!.last_mentioned_at).toBeNull();
+    const sql = pool.query.mock.calls[0]![0] as string;
     expect(sql).toMatch(/dropped_threads_v/);
   });
 });
@@ -150,6 +150,6 @@ describe('loadDraftsReady', () => {
     ]);
     const out = await loadDraftsReady(pool, 'o-1', 10);
     expect(out).toHaveLength(1);
-    expect(out[0].classification).toBe('urgent');
+    expect(out[0]!.classification).toBe('urgent');
   });
 });

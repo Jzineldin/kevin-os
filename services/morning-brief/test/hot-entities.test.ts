@@ -31,7 +31,7 @@ describe('loadHotEntities', () => {
     // SQL passed correct bind params (owner, hoursBack, limit).
     const { query } = pool as unknown as { query: ReturnType<typeof vi.fn> };
     expect(query).toHaveBeenCalledTimes(1);
-    const callArgs = query.mock.calls[0];
+    const callArgs = query.mock.calls[0]!;
     const sql = callArgs[0] as string;
     expect(sql).toMatch(/mention_events/);
     expect(sql).toMatch(/GROUP BY/i);

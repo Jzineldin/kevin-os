@@ -95,7 +95,7 @@ describe('runMorningBriefAgent', () => {
       usage: { input_tokens: 1000, output_tokens: 500 },
     });
     await runMorningBriefAgent(baseInput);
-    const callArgs = create.mock.calls[0][0];
+    const callArgs = create.mock.calls[0]![0];
     const system = callArgs.system as Array<{ type: string; text: string; cache_control: unknown }>;
     expect(Array.isArray(system)).toBe(true);
     expect(system.length).toBe(3);

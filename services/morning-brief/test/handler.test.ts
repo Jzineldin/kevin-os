@@ -130,6 +130,7 @@ beforeEach(() => {
   appendDailyBriefLogPageMock.mockResolvedValue({ pageId: 'page-1' });
   writeTop3MembershipMock.mockResolvedValue(undefined);
   updateAgentRunSuccessMock.mockResolvedValue(undefined);
+  updateAgentRunErrorMock.mockResolvedValue(undefined);
 
   process.env.KEVIN_OWNER_ID = 'owner-test';
   process.env.NOTION_TODAY_PAGE_ID = 'today-page-id';
@@ -139,7 +140,7 @@ beforeEach(() => {
 describe('morning-brief handler', () => {
   it('happy path: invokes Bedrock once, writes top3_membership, emits ONE output.push, agent_runs ok', async () => {
     const { handler } = await import('../src/handler.js');
-    const result = await handler({});
+    const result = await (handler as unknown as (e: unknown) => Promise<unknown>)({});
     expect(result).toMatchObject({ top3_count: 1 });
     expect(bedrockCreate).toHaveBeenCalledTimes(1);
     expect(writeTop3MembershipMock).toHaveBeenCalledTimes(1);
@@ -160,7 +161,7 @@ describe('morning-brief handler', () => {
   it('idempotent: insertAgentRunStarted returns false → no Bedrock call, returns { skipped: duplicate }', async () => {
     insertAgentRunStartedMock.mockResolvedValueOnce(false);
     const { handler } = await import('../src/handler.js');
-    const result = await handler({});
+    const result = await (handler as unknown as (e: unknown) => Promise<unknown>)({});
     expect(result).toEqual({ skipped: 'duplicate' });
     expect(bedrockCreate).not.toHaveBeenCalled();
     expect(writeTop3MembershipMock).not.toHaveBeenCalled();
@@ -171,7 +172,7 @@ describe('morning-brief handler', () => {
     bedrockCreate.mockReset();
     bedrockCreate.mockRejectedValueOnce(new Error('bedrock unavailable'));
     const { handler } = await import('../src/handler.js');
-    const result = await handler({});
+    const result = await (handler as unknown as (e: unknown) => Promise<unknown>)({});
     expect((result as any).status).toBe('error');
     expect(updateAgentRunErrorMock).toHaveBeenCalledTimes(1);
 
@@ -189,7 +190,7 @@ describe('morning-brief handler', () => {
   it('Notion today write failure: agent_runs error path; Telegram still attempted (best-effort)', async () => {
     replaceTodayPageBlocksMock.mockRejectedValueOnce(new Error('Notion 429'));
     const { handler } = await import('../src/handler.js');
-    const result = await handler({});
+    const result = await (handler as unknown as (e: unknown) => Promise<unknown>)({});
     // Promise.allSettled means notion-fail is captured but pipeline continues.
     // top3_membership written before Notion (durable side); Telegram emitted.
     expect(writeTop3MembershipMock).toHaveBeenCalledTimes(1);

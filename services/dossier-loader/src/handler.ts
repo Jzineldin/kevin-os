@@ -18,7 +18,6 @@
  *
  * Spec: .planning/phases/06-granola-semantic-memory/06-05-PLAN.md
  */
-import type { EventBridgeEvent } from 'aws-lambda';
 import { initSentry, wrapHandler } from '../../_shared/sentry.js';
 import {
   setupOtelTracingAsync,
@@ -34,6 +33,17 @@ import { getPool } from './persist.js';
 import { callGeminiWithCache } from './vertex.js';
 import { aggregateEntityCorpus } from './aggregate.js';
 
+// IN-04 hardening (Plan 06-08): local EBEvent interface — peer Phase 6
+// Lambdas (granola-poller, transcript-extractor, entity-timeline-refresher)
+// avoid the aws-lambda type import to keep the package free of an
+// optional @types/* dependency. Mirror the same pattern here.
+interface EBEvent {
+  source?: string;
+  'detail-type'?: string;
+  detail: unknown;
+  time?: string;
+}
+
 const MAX_INPUT_TOKENS = 800_000;
 
 // 24-hour TTL is the D-21 fallback ceiling. Normal invalidation happens on
@@ -41,9 +51,7 @@ const MAX_INPUT_TOKENS = 800_000;
 // 0012); TTL is the belt-and-braces maximum age for the cached bundle.
 const GEMINI_FULL_DOSSIER_TTL_SECONDS = 24 * 3600;
 
-export const handler = wrapHandler(async (
-  event: EventBridgeEvent<'context.full_dossier_requested', unknown>,
-): Promise<{
+export const handler = wrapHandler(async (event: EBEvent): Promise<{
   // WR-05: 'skipped' removed — FullDossierRequestedSchema.min(1) makes
   // empty entity_ids unreachable (Zod.parse throws first).
   status: 'ok';

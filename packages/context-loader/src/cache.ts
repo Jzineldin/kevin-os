@@ -69,10 +69,15 @@ export async function writeDossierCache(opts: {
   ttlSeconds?: number;
 }): Promise<void> {
   const { pool, ownerId, entityId, lastTouchHash, bundle, ttlSeconds = 3600 } = opts;
+  // IN-02 hardening (Plan 06-08): use make_interval(secs => $5::int) instead
+  // of `($5 || ' seconds')::interval`. The latter relies on implicit int→text
+  // coercion via the `anyelement || text` operator path — works today, but
+  // future Postgres versions may tighten operator resolution and break this.
+  // make_interval is type-explicit and PG-version-resilient.
   await pool.query(
     `INSERT INTO entity_dossiers_cached
            (entity_id, owner_id, last_touch_hash, bundle, expires_at)
-      VALUES ($1, $2, $3, $4::jsonb, now() + ($5 || ' seconds')::interval)
+      VALUES ($1, $2, $3, $4::jsonb, now() + make_interval(secs => $5::int))
       ON CONFLICT (entity_id, owner_id) DO UPDATE
          SET last_touch_hash = EXCLUDED.last_touch_hash,
              bundle          = EXCLUDED.bundle,

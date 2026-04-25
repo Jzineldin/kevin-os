@@ -93,7 +93,7 @@ describe('azure-search-indexer-daily-brief handler', () => {
     expect(out.read).toBe(1);
     expect(out.upserted).toBe(1);
     const docs = upsertCalls[0]!.documents as Array<{ id: string; source: string; title: string; snippet: string; content_for_embedding: string }>;
-    expect(docs[0]!.id).toBe('brief:cap-mb-2026-04-24');
+    expect(docs[0]!.id).toBe('brief_cap-mb-2026-04-24');
     expect(docs[0]!.source).toBe('daily_brief');
     // title prefixed by agent_name + date
     expect(docs[0]!.title).toContain('morning-brief');

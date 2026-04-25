@@ -51,7 +51,7 @@ export interface AgentsStackProps extends StackProps {
    * chunks (degraded path; matches pre-gap behaviour).
    */
   azureSearchAdminSecret?: ISecret;
-  /** Optional override; defaults to 'kos-memory' (matches integrations-azure-indexers default). */
+  /** Optional override; defaults to 'kos-memory-v2' (matches integrations-azure-indexers default). */
   azureSearchIndexName?: string;
 }
 

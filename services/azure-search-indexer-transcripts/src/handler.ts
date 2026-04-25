@@ -56,7 +56,7 @@ export const handler = wrapHandler(async () => {
     const questions = (ctx.open_questions ?? []).join(' · ');
     const snippet = ctx.summary?.slice(0, 600) ?? '';
     return {
-      id: `transcript:${ctx.transcript_id ?? r.capture_id}`,
+      id: `transcript_${ctx.transcript_id ?? r.capture_id}`,
       source: 'transcript' as const,
       title,
       snippet,

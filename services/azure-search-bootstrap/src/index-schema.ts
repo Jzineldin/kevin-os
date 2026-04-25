@@ -15,15 +15,25 @@
  * the CDK stack (synth-time SHA-256 fingerprint on file content). Keep it a
  * single exported `as const` object so the fingerprint is deterministic.
  */
-export const KOS_MEMORY_INDEX_NAME = 'kos-memory-v1';
+// v2: schema bumped to match what Phase 6 indexers actually write (title +
+// snippet + indexed_at instead of single `content` + `occurred_at`).
+// Indexer output shape lives in @kos/azure-search/src/upsert.ts withVectors
+// → AzureSearchDoc. Bumping the version forces bootstrap to recreate the
+// index since `mergeOrUploadDocuments` cannot add fields atomically.
+export const KOS_MEMORY_INDEX_NAME = 'kos-memory-v2';
 
 export const KOS_MEMORY_INDEX_DEFINITION = {
   name: KOS_MEMORY_INDEX_NAME,
   fields: [
     { name: 'id', type: 'Edm.String', key: true, filterable: true },
-    { name: 'owner_id', type: 'Edm.String', filterable: true },
     {
-      name: 'content',
+      name: 'title',
+      type: 'Edm.String',
+      searchable: true,
+      analyzer: 'standard.lucene',
+    },
+    {
+      name: 'snippet',
       type: 'Edm.String',
       searchable: true,
       analyzer: 'standard.lucene',
@@ -40,7 +50,7 @@ export const KOS_MEMORY_INDEX_DEFINITION = {
       facetable: true,
     },
     {
-      name: 'occurred_at',
+      name: 'indexed_at',
       type: 'Edm.DateTimeOffset',
       filterable: true,
       sortable: true,
@@ -99,8 +109,8 @@ export const KOS_MEMORY_INDEX_DEFINITION = {
           // (error confirmed 2026-04-22: "Cannot find nested property
           // 'contentFields' on the resource type
           // 'Microsoft.Azure.Search.V2025_09_01.PrioritizedFields'").
-          prioritizedContentFields: [{ fieldName: 'content' }],
-          prioritizedKeywordsFields: [{ fieldName: 'entity_ids' }],
+          prioritizedContentFields: [{ fieldName: 'snippet' }],
+          prioritizedKeywordsFields: [{ fieldName: 'title' }],
         },
       },
     ],

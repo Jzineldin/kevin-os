@@ -119,7 +119,7 @@ describe('azure-search-indexer-entities handler', () => {
     const docs = upsertCalls[0]!.documents as Array<{ id: string; source: string; title: string; content_for_embedding: string; entity_ids: string[] }>;
     expect(docs).toHaveLength(2);
     expect(docs[0]!.source).toBe('entity');
-    expect(docs[0]!.id).toBe('entity:ent-1');
+    expect(docs[0]!.id).toBe('entity_ent-1');
     expect(docs[0]!.entity_ids).toEqual(['ent-1']);
     // content_for_embedding includes the relationship fields.
     expect(docs[0]!.content_for_embedding).toContain('Damien Mathiot');
@@ -132,7 +132,7 @@ describe('azure-search-indexer-entities handler', () => {
   });
 
   it('upsert per-doc failures → errors counter reported, cursor still advances', async () => {
-    upsertResult = { succeeded: 0, failed: 1, errors: ['entity:ent-bad: index full'] };
+    upsertResult = { succeeded: 0, failed: 1, errors: ['entity_ent-bad: index full'] };
     poolState.rows = [
       {
         entity_id: 'ent-bad',

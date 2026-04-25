@@ -43,7 +43,7 @@ function getClient(): AnthropicBedrock {
 
 // EU inference profile alias for Sonnet 4.6 (matches packages/cdk/lib/stacks
 // IAM grant pattern `arn:aws:bedrock:*:*:inference-profile/eu.anthropic.claude-sonnet-4-6*`).
-export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6-20250929-v1:0';
+export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
 
 export const EXTRACTOR_BASE_PROMPT = `# Role
 You are the KOS transcript-extractor agent. You read a Granola meeting transcript and extract:

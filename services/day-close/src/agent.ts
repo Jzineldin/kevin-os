@@ -14,7 +14,7 @@
  * day-close at 18:00) hit the 5-min Bedrock prompt cache when the dossier
  * snapshot is unchanged.
  *
- * EU inference profile: eu.anthropic.claude-sonnet-4-6-20250929-v1:0
+ * EU inference profile: eu.anthropic.claude-sonnet-4-6
  * (matches morning-brief; the Phase 6 SDK update aligned model IDs).
  */
 import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
@@ -30,7 +30,7 @@ function getClient(): AnthropicBedrock {
   return client;
 }
 
-export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6-20250929-v1:0';
+export const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
 
 export const DAY_CLOSE_BASE_PROMPT = `# Role
 You are KOS Day Close agent for Kevin — calm end-of-day reflection. Prose-first, zero emoji fatigue.

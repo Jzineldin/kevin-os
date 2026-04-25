@@ -34,6 +34,7 @@ import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import type { ITopic } from 'aws-cdk-lib/aws-sns';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { CfnSchedule } from 'aws-cdk-lib/aws-scheduler';
 import { KosLambda } from '../constructs/kos-lambda.js';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -175,7 +176,66 @@ export function wireLifecycleAutomation(
   const emailTriageSchedulerRole = new Role(scope, 'EmailTriageSchedulerRole', {
     assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
   });
-  // grantPutEventsTo on systemBus added in Plan 07-03.
+
+  // --- AUTO-02 email-triage every-2h scheduler (Plan 07-03) ---------------
+  //
+  // Phase 4 (Plan 04-04 Task 4) owns the email-triage Lambda + an
+  // EventBridge Rule on `kos.system / scan_emails_now` → email-triage. Phase
+  // 7 contributes ZERO Lambda code for AUTO-02; only this scheduler. When
+  // Phase 4 ships its rule, the wire connects automatically.
+  //
+  // Per Plan 07-03 must_haves truths + 07-CONTEXT D-16:
+  //   - Schedule cron(0 8/2 ? * MON-FRI *) Europe/Stockholm fires 6x/weekday
+  //     (08, 10, 12, 14, 16, 18 Stockholm) → ~30 fires/week → ~120/month.
+  //   - Target = systemBus (EventBridge) via the templated PutEvents target;
+  //     `target.eventBridgeParameters` carries `detailType=scan_emails_now`
+  //     and `source=kos.system`; `target.input` is the Detail JSON matching
+  //     the shape produced by `scripts/fire-scan-emails-now.mjs` (Plan 04-05).
+  //   - emailTriageSchedulerRole has ONLY `events:PutEvents` on systemBus
+  //     (structural least-privilege; no Lambda invoke; no other surfaces).
+  //   - flexibleTimeWindow OFF — fire on the exact wall-clock minute.
+  //
+  // Phase 4 independence note: targeting the EventBridge bus (NOT the
+  // email-triage Lambda directly) keeps Phase 7 deployable BEFORE Phase 4
+  // ships. The Phase 4 Lambda + rule become the consumer when they land;
+  // until then the events fan out to zero subscribers (ignored, no failure).
+  props.systemBus.grantPutEventsTo(emailTriageSchedulerRole);
+  new CfnSchedule(scope, 'EmailTriageEvery2hSchedule', {
+    name: 'email-triage-every-2h',
+    groupName: props.scheduleGroupName,
+    scheduleExpression: 'cron(0 8/2 ? * MON-FRI *)',
+    scheduleExpressionTimezone: 'Europe/Stockholm',
+    flexibleTimeWindow: { mode: 'OFF' },
+    target: {
+      // Templated EventBridge PutEvents target — `target.arn = bus ARN` and
+      // `eventBridgeParameters` carry DetailType+Source. The Detail body
+      // (target.input) matches the operator-trigger envelope from Plan 04-05
+      // (`scripts/fire-scan-emails-now.mjs`): `requested_by: 'scheduler'`
+      // distinguishes scheduled fires from manual operator runs.
+      //
+      // capture_id is a placeholder — the email-triage Lambda generates its
+      // own per-row ULID when processing a scan_emails_now batch. If Plan
+      // 04-04 doesn't already do this, the gap is documented in 07-03-SUMMARY
+      // for Phase 4's next revision.
+      arn: props.systemBus.eventBusArn,
+      roleArn: emailTriageSchedulerRole.roleArn,
+      eventBridgeParameters: {
+        detailType: 'scan_emails_now',
+        source: 'kos.system',
+      },
+      input: JSON.stringify({
+        capture_id: '01SCHEDULER000000000000000',
+        // `<aws.scheduler.scheduled-time>` is an EventBridge Scheduler
+        // context attribute — expanded at fire time to the scheduled ISO
+        // timestamp. AWS Scheduler User Guide:
+        // https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-schedule-context-attributes.html
+        requested_at: '<aws.scheduler.scheduled-time>',
+        requested_by: 'scheduler',
+      }),
+      retryPolicy: { maximumRetryAttempts: 2, maximumEventAgeInSeconds: 300 },
+    },
+    state: 'ENABLED',
+  });
 
   return {
     morningBrief,

@@ -118,6 +118,65 @@ describe('IntegrationsStack — lifecycle automation (Plan 07-00)', () => {
     expect(props.Timeout).toBe(180);
   });
 
+  // --- Plan 07-03: AUTO-02 email-triage every-2h scheduler --------------
+  it('Plan 07-03: CfnSchedule email-triage-every-2h with cron + Stockholm + OFF', () => {
+    const { tpl } = synth();
+    tpl.hasResourceProperties(
+      'AWS::Scheduler::Schedule',
+      Match.objectLike({
+        Name: 'email-triage-every-2h',
+        ScheduleExpression: 'cron(0 8/2 ? * MON-FRI *)',
+        ScheduleExpressionTimezone: 'Europe/Stockholm',
+        FlexibleTimeWindow: Match.objectLike({ Mode: 'OFF' }),
+        State: 'ENABLED',
+        Target: Match.objectLike({
+          // Templated EventBridge target carries DetailType + Source.
+          EventBridgeParameters: Match.objectLike({
+            DetailType: 'scan_emails_now',
+            Source: 'kos.system',
+          }),
+          // Detail body matches Plan 04-05 fire-scan-emails-now.mjs envelope.
+          Input: Match.stringLikeRegexp('"requested_by":"scheduler"'),
+        }),
+      }),
+    );
+  });
+
+  it('Plan 07-03: emailTriageSchedulerRole has events:PutEvents on systemBus (and NOT lambda:InvokeFunction)', () => {
+    const { tpl } = synth();
+
+    // Locate the EmailTriageSchedulerRole and its inline policy.
+    const roles = tpl.findResources('AWS::IAM::Role');
+    const triageRoleEntry = Object.entries(roles).find(([logicalId]) =>
+      /^EmailTriageSchedulerRole/.test(logicalId),
+    );
+    expect(triageRoleEntry).toBeDefined();
+    const [triageRoleLogicalId] = triageRoleEntry!;
+
+    const policies = tpl.findResources('AWS::IAM::Policy');
+    // Inline policy attached only to the triage scheduler role.
+    const triagePolicies = Object.values(policies).filter((p) => {
+      const roleRefs =
+        ((p as { Properties?: { Roles?: Array<{ Ref?: string }> } }).Properties?.Roles ?? []);
+      return roleRefs.some((r) => r.Ref === triageRoleLogicalId);
+    });
+    expect(triagePolicies.length).toBeGreaterThanOrEqual(1);
+
+    const collectedActions = new Set<string>();
+    for (const p of triagePolicies) {
+      const stmts =
+        ((p as { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }).Properties
+          ?.PolicyDocument?.Statement) ?? [];
+      for (const s of stmts as Array<{ Action?: string | string[] }>) {
+        const actions = Array.isArray(s.Action) ? s.Action : s.Action ? [s.Action] : [];
+        for (const a of actions) collectedActions.add(a);
+      }
+    }
+    // Structural least-privilege: ONLY events:PutEvents; explicitly NO Lambda invoke.
+    expect(collectedActions.has('events:PutEvents')).toBe(true);
+    expect(collectedActions.has('lambda:InvokeFunction')).toBe(false);
+  });
+
   it('IntegrationsStack synthesises with NO Phase 7 Lambdas when SafetyStack refs are unset', () => {
     // Regression: existing test fixtures (mv-refresher, granola, etc.) must
     // continue to synth without the new SafetyStack/outputBus props.

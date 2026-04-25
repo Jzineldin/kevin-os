@@ -40,6 +40,10 @@ import { writeCommandCenterRow } from './notion.js';
 // Phase 6 AGT-04: explicit loadContext() call replaces the abandoned SDK
 // pre-call hook (Locked Decision #3 revised 2026-04-23).
 import { loadContext } from '@kos/context-loader';
+// Phase 6 AGT-04 gap closure (Plan 06-07): inject hybridQuery as the Azure
+// semantic search callable. Without this injection semanticChunks is always
+// []. The wrapper projects HybridQueryResult.hits → SearchHit[].
+import { hybridQuery } from '@kos/azure-search';
 
 process.env.CLAUDE_CODE_USE_BEDROCK = '1';
 if (!process.env.AWS_REGION) process.env.AWS_REGION = 'eu-north-1';
@@ -87,6 +91,8 @@ export const handler = wrapHandler(async (event: EBEvent) => {
           rawText: d.source_text,
           maxSemanticChunks: 8,
           pool,
+          azureSearch: ({ rawText: rt, entityIds: eids, topK }) =>
+            hybridQuery({ rawText: rt, entityIds: eids, topK }).then((r) => r.hits),
         });
         contextMarkdown = bundle.assembled_markdown;
       } catch (err) {

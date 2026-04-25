@@ -13,9 +13,13 @@ export interface AzureSearchConfig {
   apiKey: string;
 }
 
-let cached: Map<string, SearchClient<unknown>> = new Map();
+// SearchClient<TModel extends object> in @azure/search-documents v12.2 — the
+// generic must satisfy the object constraint. Use a default Record<string, unknown>
+// so callers that don't supply T (i.e. test fixtures) still typecheck.
+type AnyDoc = Record<string, unknown>;
+let cached: Map<string, SearchClient<AnyDoc>> = new Map();
 
-export async function getAzureSearchClient<T = unknown>(
+export async function getAzureSearchClient<T extends object = AnyDoc>(
   indexName: string,
 ): Promise<SearchClient<T>> {
   const cacheKey = `index:${indexName}`;
@@ -29,7 +33,7 @@ export async function getAzureSearchClient<T = unknown>(
     new AzureKeyCredential(config.apiKey),
     { apiVersion: '2025-09-01' as unknown as undefined },
   );
-  cached.set(cacheKey, client as unknown as SearchClient<unknown>);
+  cached.set(cacheKey, client as unknown as SearchClient<AnyDoc>);
   return client;
 }
 

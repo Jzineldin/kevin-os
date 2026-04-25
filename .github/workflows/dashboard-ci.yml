@@ -30,13 +30,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @kos/contracts typecheck
       - run: pnpm --filter @kos/dashboard typecheck
-      - run: pnpm --filter @kos/dashboard test --run
+      - run: pnpm --filter @kos/dashboard test
       - run: pnpm --filter @kos/dashboard-api typecheck
-      - run: pnpm --filter @kos/dashboard-api test --run
+      - run: pnpm --filter @kos/dashboard-api test
       - run: pnpm --filter @kos/dashboard-listen-relay typecheck
-      - run: pnpm --filter @kos/dashboard-listen-relay test --run
+      - run: pnpm --filter @kos/dashboard-listen-relay test
       - run: pnpm --filter @kos/dashboard-notify typecheck
-      - run: pnpm --filter @kos/dashboard-notify test --run
+      - run: pnpm --filter @kos/dashboard-notify test
 
   full:
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'

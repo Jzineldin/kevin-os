@@ -26,17 +26,19 @@
  * with rdsSecurityGroup so RDS Proxy + Secrets Manager VPC endpoint are
  * reachable.
  */
-import { Duration } from 'aws-cdk-lib';
+import { Duration, Stack } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import { SubnetType, type IVpc, type ISecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import type { ITopic } from 'aws-cdk-lib/aws-sns';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
-import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Role, ServicePrincipal, PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
+import { CfnSchedule } from 'aws-cdk-lib/aws-scheduler';
 import { KosLambda } from '../constructs/kos-lambda.js';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadNotionIds } from './_notion-ids.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,14 +111,98 @@ export function wireLifecycleAutomation(
     SYSTEM_BUS_NAME: props.systemBus.eventBusName,
   };
 
+  // Notion IDs (Plan 07-01: Today page + Daily Brief Log DB).
+  const notionIds = loadNotionIds();
+  const stack = Stack.of(scope);
+  const rdsDbConnectArn = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${props.rdsProxyDbiResourceId}/kos_admin`;
+
+  // --- Scheduler roles (declared early so per-Lambda schedules can grantInvoke) ---
+  //
+  // Two roles intentionally — the brief schedulerRole has lambda:InvokeFunction
+  // on the 4 brief Lambdas (added per-plan via grantInvoke as Plans 07-01..07-04
+  // accrete); the emailTriageSchedulerRole has events:PutEvents on kos.system
+  // (Plan 07-03). Splitting roles keeps the AUTO-02 path's IAM surface narrow
+  // (no Lambda invoke privileges).
+  //
+  // Trust policy = scheduler.amazonaws.com without an aws:SourceArn condition,
+  // mirroring `integrations-notion.ts` SchedulerRole pattern (live-discovered
+  // 2026-04-22; AWS Scheduler validates the role at schedule-creation time
+  // BEFORE the schedule ARN exists).
+  const schedulerRole = new Role(scope, 'LifecycleSchedulerRole', {
+    assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
+  });
+  const emailTriageSchedulerRole = new Role(scope, 'EmailTriageSchedulerRole', {
+    assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
+  });
+
   // --- morning-brief Lambda (AUTO-01) -------------------------------------
-  // 1024 MB / 10 min per D-11.
+  // 1024 MB / 10 min per D-11. Adds NOTION_TODAY_PAGE_ID +
+  // NOTION_DAILY_BRIEF_LOG_DB_ID + DASH_URL to the common env (Plan 07-01).
   const morningBrief = new KosLambda(scope, 'MorningBrief', {
     entry: svcEntry('morning-brief'),
     memory: 1024,
     timeout: Duration.minutes(10),
     ...vpcConfig,
-    environment: { ...commonEnv },
+    environment: {
+      ...commonEnv,
+      NOTION_TODAY_PAGE_ID: notionIds.todayPage,
+      NOTION_DAILY_BRIEF_LOG_DB_ID: notionIds.dailyBriefLog,
+      DASH_URL: 'https://kevin-os.vercel.app',
+    },
+  });
+
+  // --- Morning brief IAM grants (Plan 07-01 D-12) ------------------------
+  //
+  // Bedrock InvokeModel on the EU Sonnet 4.6 inference profile + the
+  // foundation-model fan-out ARNs (AnthropicBedrock SDK resolves both at
+  // call time).
+  morningBrief.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        'arn:aws:bedrock:*:*:inference-profile/eu.anthropic.claude-sonnet-4-6*',
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*',
+      ],
+    }),
+  );
+  // RDS Proxy IAM auth on kos_admin (top3_membership writes + agent_runs +
+  // dropped_threads_v reads + email_drafts graceful-degrade query).
+  morningBrief.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['rds-db:connect'],
+      resources: [rdsDbConnectArn],
+    }),
+  );
+  // Notion (replace-in-place 🏠 Today + Daily Brief Log append).
+  props.notionTokenSecret.grantRead(morningBrief);
+  // Azure Search admin secret (loadContext.azureSearch hybridQuery).
+  props.azureSearchAdminSecret.grantRead(morningBrief);
+  // Output bus — the single output.push event per brief run (1-of-3 cap).
+  props.outputBus.grantPutEventsTo(morningBrief);
+  // System bus — brief.generation_failed on Bedrock/Notion failure path.
+  props.systemBus.grantPutEventsTo(morningBrief);
+
+  // --- Morning brief schedule (D-18: 08:00 Stockholm Mon-Fri) ------------
+  //
+  // 08:00 NOT 07:00 — D-18 honours the 20:00–08:00 quiet-hours invariant
+  // cleanly (push-telegram's isQuietHour returns false at 08:00). The
+  // 07:00 → 08:00 drift from the original AUTO-01 spec is documented in
+  // 07-01-SUMMARY.md.
+  morningBrief.grantInvoke(schedulerRole);
+  new CfnSchedule(scope, 'MorningBriefSchedule', {
+    name: 'morning-brief-weekdays-08',
+    groupName: props.scheduleGroupName,
+    scheduleExpression: 'cron(0 8 ? * MON-FRI *)',
+    scheduleExpressionTimezone: 'Europe/Stockholm',
+    flexibleTimeWindow: { mode: 'OFF' },
+    target: {
+      arn: morningBrief.functionArn,
+      roleArn: schedulerRole.roleArn,
+      input: JSON.stringify({ kind: 'morning-brief' }),
+    },
+    state: 'ENABLED',
   });
 
   // --- day-close Lambda (AUTO-03) ----------------------------------------
@@ -154,28 +240,65 @@ export function wireLifecycleAutomation(
     },
   });
 
-  // --- Scheduler roles ---------------------------------------------------
+  // --- AUTO-02 email-triage every-2h scheduler (Plan 07-03) ---------------
   //
-  // Two roles intentionally — the brief schedulerRole has lambda:InvokeFunction
-  // on the 4 brief Lambdas (added by Plans 07-01..07-04 via grantInvoke);
-  // the emailTriageSchedulerRole has events:PutEvents on kos.system bus
-  // (added by Plan 07-03). Splitting roles keeps the AUTO-02 path's IAM
-  // surface narrow (no Lambda invoke privileges).
+  // Phase 4 (Plan 04-04 Task 4) owns the email-triage Lambda + an
+  // EventBridge Rule on `kos.system / scan_emails_now` → email-triage. Phase
+  // 7 contributes ZERO Lambda code for AUTO-02; only this scheduler. When
+  // Phase 4 ships its rule, the wire connects automatically.
   //
-  // Trust policy = scheduler.amazonaws.com without an aws:SourceArn condition,
-  // mirroring `integrations-notion.ts` SchedulerRole pattern (live-discovered
-  // 2026-04-22; AWS Scheduler validates the role at schedule-creation time
-  // BEFORE the schedule ARN exists).
-  const schedulerRole = new Role(scope, 'LifecycleSchedulerRole', {
-    assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
+  // Per Plan 07-03 must_haves truths + 07-CONTEXT D-16:
+  //   - Schedule cron(0 8/2 ? * MON-FRI *) Europe/Stockholm fires 6x/weekday
+  //     (08, 10, 12, 14, 16, 18 Stockholm) → ~30 fires/week → ~120/month.
+  //   - Target = systemBus (EventBridge) via the templated PutEvents target;
+  //     `target.eventBridgeParameters` carries `detailType=scan_emails_now`
+  //     and `source=kos.system`; `target.input` is the Detail JSON matching
+  //     the shape produced by `scripts/fire-scan-emails-now.mjs` (Plan 04-05).
+  //   - emailTriageSchedulerRole has ONLY `events:PutEvents` on systemBus
+  //     (structural least-privilege; no Lambda invoke; no other surfaces).
+  //   - flexibleTimeWindow OFF — fire on the exact wall-clock minute.
+  //
+  // Phase 4 independence note: targeting the EventBridge bus (NOT the
+  // email-triage Lambda directly) keeps Phase 7 deployable BEFORE Phase 4
+  // ships. The Phase 4 Lambda + rule become the consumer when they land;
+  // until then the events fan out to zero subscribers (ignored, no failure).
+  props.systemBus.grantPutEventsTo(emailTriageSchedulerRole);
+  new CfnSchedule(scope, 'EmailTriageEvery2hSchedule', {
+    name: 'email-triage-every-2h',
+    groupName: props.scheduleGroupName,
+    scheduleExpression: 'cron(0 8/2 ? * MON-FRI *)',
+    scheduleExpressionTimezone: 'Europe/Stockholm',
+    flexibleTimeWindow: { mode: 'OFF' },
+    target: {
+      // Templated EventBridge PutEvents target — `target.arn = bus ARN` and
+      // `eventBridgeParameters` carry DetailType+Source. The Detail body
+      // (target.input) matches the operator-trigger envelope from Plan 04-05
+      // (`scripts/fire-scan-emails-now.mjs`): `requested_by: 'scheduler'`
+      // distinguishes scheduled fires from manual operator runs.
+      //
+      // capture_id is a placeholder — the email-triage Lambda generates its
+      // own per-row ULID when processing a scan_emails_now batch. If Plan
+      // 04-04 doesn't already do this, the gap is documented in 07-03-SUMMARY
+      // for Phase 4's next revision.
+      arn: props.systemBus.eventBusArn,
+      roleArn: emailTriageSchedulerRole.roleArn,
+      eventBridgeParameters: {
+        detailType: 'scan_emails_now',
+        source: 'kos.system',
+      },
+      input: JSON.stringify({
+        capture_id: '01SCHEDULER000000000000000',
+        // `<aws.scheduler.scheduled-time>` is an EventBridge Scheduler
+        // context attribute — expanded at fire time to the scheduled ISO
+        // timestamp. AWS Scheduler User Guide:
+        // https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-schedule-context-attributes.html
+        requested_at: '<aws.scheduler.scheduled-time>',
+        requested_by: 'scheduler',
+      }),
+      retryPolicy: { maximumRetryAttempts: 2, maximumEventAgeInSeconds: 300 },
+    },
+    state: 'ENABLED',
   });
-  // grantInvoke calls land in Plans 07-01 (morning), 07-02 (day + weekly),
-  // 07-04 (verify-cap).
-
-  const emailTriageSchedulerRole = new Role(scope, 'EmailTriageSchedulerRole', {
-    assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
-  });
-  // grantPutEventsTo on systemBus added in Plan 07-03.
 
   return {
     morningBrief,

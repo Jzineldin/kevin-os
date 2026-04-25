@@ -146,7 +146,10 @@ describe('callGeminiWithCache', () => {
     expect(args.systemInstruction.parts[0]!.text).toContain('KOS dossier-loader');
     expect(args.contents[0]!.role).toBe('user');
     expect(args.contents[0]!.parts[0]!.text).toContain('Intent: load Damien dossier');
-    expect(args.contents[0]!.parts[0]!.text).toContain('CORPUS START');
+    // WR-02 hardening: untrusted corpus is wrapped in <corpus>...</corpus>
+    // delimiters (prompt-injection mitigation, T-06-EXTRACTOR-01).
+    expect(args.contents[0]!.parts[0]!.text).toContain('<corpus>');
+    expect(args.contents[0]!.parts[0]!.text).toContain('</corpus>');
   });
 
   it('throws actionable error when GCP_SA_JSON_SECRET_ARN env missing', async () => {

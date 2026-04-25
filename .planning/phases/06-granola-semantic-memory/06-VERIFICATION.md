@@ -247,5 +247,50 @@ Additionally, each Lambda's CDK IAM policy must include `bedrock:InvokeModel` on
 
 ---
 
+## Re-verification (Plan 06-09)
+
+**Re-verified:** 2026-04-25T02:26:16Z
+**Trigger:** Plans 06-07 (AGT-04 azureSearch wiring) and 06-08 (REVIEW INFO hardening) shipped.
+
+### What changed since initial verification
+
+- **AGT-04 PARTIAL → VERIFIED.** Plan 06-07 wired `hybridQuery` from `@kos/azure-search` into all 4 consumer Lambdas (triage, voice-capture, entity-resolver, transcript-extractor) by passing `azureSearch` as a callable to `loadContext()`. CDK `integrations-agents.ts` injects `AZURE_SEARCH_ADMIN_SECRET_ARN` + `AZURE_SEARCH_INDEX_NAME` and grants `bedrock:InvokeModel` on Cohere v4 EU + `secretsmanager:GetSecretValue` on the Azure Search admin secret per consumer Lambda. 4 new wiring tests prevent regression.
+- **REVIEW INFO findings closed.** Plan 06-08 closed IN-01 (UUID validation in `hybridQuery`), IN-02 (`make_interval` instead of `||' seconds'::interval`), IN-04 (local `EBEvent` interface in dossier-loader handler), IN-05 (Crockford ULID alphabet in `trigger-full-dossier.mjs`), IN-06 (verified `GEMINI_FULL_DOSSIER_TTL_SECONDS` constant — already in place per 06-REVIEW-FIX.md WR-04). IN-03 (RDS `rejectUnauthorized`) explicitly skipped per REVIEW.md "No action required for Phase 6".
+
+### Re-verification harnesses re-run (2026-04-25)
+
+| Harness | Command | Result |
+|---------|---------|--------|
+| Gate verifier | `node scripts/verify-phase-6-gate.mjs --mock` | exit 0 (0 FAIL, 7 PASS-auto, 5 HUMAN-pending) |
+| E2E quality multiplier | `node scripts/verify-phase-6-e2e.mjs --mock` | exit 0 (13/13 PASS) |
+| MEM-03 latency | `node scripts/verify-mem-03-latency.mjs --mock` | exit 0 (samples=50 p95=476ms < 600ms budget) |
+| `@kos/azure-search` tests | `pnpm --filter @kos/azure-search test` | exit 0 (19/19 pass) |
+| `@kos/context-loader` tests | `pnpm --filter @kos/context-loader test` | exit 0 (30/30 pass; budget test p95 < 800ms across 50 iter) |
+| `@kos/service-dossier-loader` tests | `pnpm --filter @kos/service-dossier-loader test` | exit 0 (9/9 pass) [test repaired — see "Re-verification deviations" below] |
+| `@kos/service-triage` tests | `pnpm --filter @kos/service-triage test` | exit 0 (6/6 pass) |
+| `@kos/service-voice-capture` tests | `pnpm --filter @kos/service-voice-capture test` | exit 0 (5/5 pass) |
+| `@kos/service-entity-resolver` tests | `pnpm --filter @kos/service-entity-resolver test` | exit 0 (11/11 pass; loadcontext-wiring 3/3) |
+| `@kos/service-transcript-extractor` tests | `pnpm --filter @kos/service-transcript-extractor test` | exit 0 (21/21 pass) |
+| `@kos/service-granola-poller` tests | `pnpm --filter @kos/service-granola-poller test` | exit 0 (9/9 pass) |
+| `@kos/service-entity-timeline-refresher` tests | `pnpm --filter @kos/service-entity-timeline-refresher test` | exit 0 (4/4 pass) |
+| `@kos/cdk` tests | `pnpm --filter @kos/cdk test` | exit 0 (138/138 pass) |
+| `@kos/db` tests | `pnpm --filter @kos/db test` | exit 0 (48/48 pass) |
+
+### Re-verification deviations
+
+- **[Rule 1 — stale test fixture]** `services/dossier-loader/test/vertex.test.ts:149` asserted the user prompt contained `'CORPUS START'`, but Plan 06-08 commit `0b52b36` ("WR-02 wrap dossier corpus in `<corpus>` delimiters") changed the prompt-injection mitigation to use `<corpus>...</corpus>` XML-style delimiters. Test assertion was updated to verify the new delimiter pair (preserving original test intent — that untrusted corpus is wrapped/framed, not concatenated raw). Fix is test-only; no implementation change.
+- **[Rule 3 — environmental blocker]** `pnpm --filter @kos/cdk test` initially failed with `ENOSPC: no space left on device, mkdtemp '/tmp/cdk.outXXXXXX'`. Root cause: 8,176 leftover `/tmp/cdk.out*` directories from prior CDK synth runs filled the root filesystem (48G/48G, 100% used). Cleared `/tmp/cdk.out*` (CDK ephemeral synth artifacts only — safe to remove). Disk usage 100% → 76%. Re-ran the CDK suite; 138/138 passed in 267s. Not a regression — environmental hygiene issue.
+
+### Remaining items
+
+The 5 HUMAN-flagged items (AGT-06 action item quality, AGT-04 p95 latency, MEM-04 p95 at 100k rows, INF-10 cost per call, SC7 dossier cache hit rate) are all post-deploy live-traffic measurements. They are documented in `06-06-GATE-evidence-template.md` for Kevin to fill in after deploy + 1 day of production traffic. They are NOT gaps — they are expected human acceptance steps.
+
+**Phase 6 status: VERIFIED.** Ready for production deploy + post-deploy human acceptance.
+
+---
+
 _Verified: 2026-04-25T00:13:04Z_
 _Verifier: Claude (gsd-verifier)_
+
+_Re-verified: 2026-04-25T02:26:16Z_
+_Re-verifier: Claude (Plan 06-09)_

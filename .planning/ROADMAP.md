@@ -230,7 +230,7 @@
 - [ ] 07-01-PLAN.md — Wave 1: services/morning-brief (AUTO-01) — Sonnet 4.6 tool_use `record_morning_brief` via AnthropicBedrock + shared `services/_shared/brief-renderer.ts` + Notion 🏠 Today replace-in-place + Daily Brief Log append + top3_membership writes + dropped_threads_v reads + EventBridge Scheduler cron(0 8 ? * MON-FRI *) Europe/Stockholm (D-18 08:00 drift)
 - [ ] 07-02-PLAN.md — Wave 1 parallel: services/day-close (AUTO-03) + services/weekly-review (AUTO-04) — reuse brief-renderer; day-close updates Kevin Context (Recent decisions + Slipped items); weekly-review overwrites Kevin Context Active Threads section; crons 0 18 MON-FRI + 0 19 SUN Europe/Stockholm
 - [ ] 07-03-PLAN.md — Wave 2: AUTO-02 scheduler-only CDK addition (cron 0 8/2 ? * MON-FRI * Europe/Stockholm) targeting Phase-4 `scan_emails_now` (zero Lambda code — Phase 4 email-triage consumes)
-- [ ] 07-04-PLAN.md — Wave 3: services/verify-notification-cap Lambda + cron(0 3 ? * SUN *) Europe/Stockholm weekly compliance + scripts/verify-notification-cap-14day.mjs + scripts/verify-quiet-hours-invariant.mjs + scripts/verify-phase-7-e2e.mjs (all 5 ROADMAP SCs)
+- [x] 07-04-PLAN.md — Wave 3: services/verify-notification-cap Lambda + cron(0 3 ? * SUN *) Europe/Stockholm weekly compliance + scripts/verify-notification-cap-14day.mjs + scripts/verify-quiet-hours-invariant.mjs + scripts/verify-phase-7-e2e.mjs (all 5 ROADMAP SCs) ✅ DONE 2026-04-25
 
 **UI hint**: no
 

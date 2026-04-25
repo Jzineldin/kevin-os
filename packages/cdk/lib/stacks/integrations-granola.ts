@@ -160,13 +160,18 @@ export function wireGranolaPipeline(
     });
   granolaPoller.grantInvoke(schedulerRole);
 
-  // --- Scheduler entry: granola-poller-15min --------------------------------
-  // D-02: rate(15 minutes), Europe/Stockholm, flexibleTimeWindow OFF.
+  // --- Scheduler entry: granola-poller-1min ---------------------------------
+  // Original D-02 cadence was rate(15 minutes); lowered to 1 minute on
+  // 2026-04-25 so Granola transcripts surface in Command Center within ~1
+  // minute of the meeting ending (Kevin's UX expectation for "automatic").
+  // Notion rate limit is 3 RPS per integration → 1 poll/min ≈ 0.017 RPS,
+  // well below cap. The cursor-based query is idempotent so duplicate
+  // polls between transcripts don't double-process.
   // Retry policy mirrors Phase 1 patterns (2 retries, 5-min event age).
   const schedule = new CfnSchedule(scope, 'GranolaPollerSchedule', {
-    name: 'granola-poller-15min',
+    name: 'granola-poller-1min',
     groupName: props.scheduleGroupName,
-    scheduleExpression: 'rate(15 minutes)',
+    scheduleExpression: 'rate(1 minute)',
     scheduleExpressionTimezone: 'Europe/Stockholm',
     flexibleTimeWindow: { mode: 'OFF' },
     target: {

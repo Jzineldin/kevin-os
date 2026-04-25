@@ -81,7 +81,8 @@ All v1 requirements are hypotheses until shipped and validated. Requirements map
 ### Lifecycle Automation (AUTO)
 
 - [ ] **AUTO-01**: 07:00 Stockholm — Morning brief agent writes 3-5 sentence prose brief + Top 3 + Calendar + Drafts ready + Dropped threads to 🏠 Today and Telegram
-- [ ] **AUTO-02**: Every 2h weekdays 08:00-18:00 — Email triage runs on both accounts, drafts replies for urgent
+- [x] **AUTO-02
+**: Every 2h weekdays 08:00-18:00 — Email triage runs on both accounts, drafts replies for urgent
 - [ ] **AUTO-03**: 18:00 Stockholm — Day close: writes Daily Brief Log entry, updates Kevin Context, flags slipped items, posts evening summary to Telegram
 - [ ] **AUTO-04**: Sunday 19:00 — Weekly review: full week recap + next-week candidates → Kevin Context + Telegram
 - [ ] **AUTO-05**: Every 15 min — Transcript watcher polls Transkripten DB for new entries, runs extractor

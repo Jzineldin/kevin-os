@@ -200,10 +200,41 @@ export class DataStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
+    // Phase 4 — email-triage role. Used by the email-triage Lambda to write
+    // drafts + read entity context. Migration 0018 creates the role; this
+    // secret + RDS Proxy auth registration unblock the Lambda's connection.
+    const emailTriageDbSecret = new Secret(this, 'EmailTriageDbSecret', {
+      secretName: 'kos/db/kos_email_triage',
+      description: 'Postgres credentials for kos_email_triage role (RDS Proxy AS-auth, Phase 4 email-triage Lambda).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'kos_email_triage' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
+    // Phase 4 — email-sender role. Used by the email-sender Lambda to mark
+    // email_send_authorizations consumed. Migration 0017 creates the role.
+    const emailSenderDbSecret = new Secret(this, 'EmailSenderDbSecret', {
+      secretName: 'kos/db/kos_email_sender',
+      description: 'Postgres credentials for kos_email_sender role (RDS Proxy AS-auth, Phase 4 email-sender Lambda).',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'kos_email_sender' }),
+        generateStringKey: 'password',
+        excludePunctuation: true,
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
     dashboardRelayDbSecret.grantRead(proxyRole);
     dashboardApiDbSecret.grantRead(proxyRole);
     dashboardNotifyDbSecret.grantRead(proxyRole);
     agentWriterDbSecret.grantRead(proxyRole);
+    emailTriageDbSecret.grantRead(proxyRole);
+    emailSenderDbSecret.grantRead(proxyRole);
 
     this.rdsProxy = new DatabaseProxy(this, 'RdsProxy', {
       proxyTarget: ProxyTarget.fromInstance(rds.instance),
@@ -213,6 +244,8 @@ export class DataStack extends Stack {
         dashboardApiDbSecret,
         dashboardNotifyDbSecret,
         agentWriterDbSecret,
+        emailTriageDbSecret,
+        emailSenderDbSecret,
       ],
       vpc: props.vpc,
       // Pin proxy to PRIVATE_ISOLATED only so adding new subnet types

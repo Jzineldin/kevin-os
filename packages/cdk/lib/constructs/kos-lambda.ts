@@ -68,11 +68,14 @@ export class KosLambda extends NodejsFunction {
         // grammY) crash at Lambda INIT with
         // "Error: Dynamic require of \"http\" is not supported".
         banner:
-          "import{createRequire as _cr}from'module';" +
-          'const _origReq=_cr(import.meta.url);' +
+          // Renamed from `_cr` — esbuild generates `_cr` for some bundled
+          // workspace deps causing "Identifier '_cr' has already been declared"
+          // at Lambda INIT. Use `__kosBannerCR` to avoid the collision.
+          "import{createRequire as __kosBannerCR}from'module';" +
+          'const __kosBannerOrigReq=__kosBannerCR(import.meta.url);' +
           // Shim node-fetch → native fetch (grammY v1.42 hard-requires
           // node-fetch@2 which doesn't support native AbortSignal on Node 22).
-          "const require=(id)=>id==='node-fetch'?Object.assign(globalThis.fetch,{default:globalThis.fetch}):id==='abort-controller'?{AbortController:globalThis.AbortController}:_origReq(id);",
+          "const require=(id)=>id==='node-fetch'?Object.assign(globalThis.fetch,{default:globalThis.fetch}):id==='abort-controller'?{AbortController:globalThis.AbortController}:__kosBannerOrigReq(id);",
         // Pass esbuild `--alias:<from>=<to>` pairs for each override. NOTE:
         // aws-lambda-nodejs bundling does NOT have a top-level `alias` prop —
         // the supported escape hatch is `esbuildArgs`. A previous iteration

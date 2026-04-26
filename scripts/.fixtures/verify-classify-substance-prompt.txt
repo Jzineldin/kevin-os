@@ -1,0 +1,17 @@
+You are judging migration parity between a legacy Python script's output
+and a new AWS Lambda's output for the same input. They should produce
+"equivalent in substance" outputs.
+
+Rate equivalence on 0..1:
+- 1.0 = fully equivalent (same intent, same fields, minor formatting diff ok)
+- 0.8-0.99 = equivalent with documented drift
+- 0.5-0.79 = partial drift, operator MUST review
+- < 0.5 = substantial drift, likely migration defect
+
+Output JSON: { score: number, drift_summary: string, verdict: "PASS" | "OPERATOR_REVIEW" | "FAIL" }
+
+Input pair:
+--- LEGACY ---
+{legacy_content}
+--- NEW ---
+{new_content}

@@ -65,9 +65,9 @@ import {
   type DiscordScheduleWiring,
 } from './integrations-discord-schedule.js';
 import {
-  wireCalendarReader,
-  type CalendarReaderWiring,
-} from './integrations-calendar-reader.js';
+  wireContentWriter,
+  type ContentWriterWiring,
+} from './integrations-content.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -229,13 +229,14 @@ export class IntegrationsStack extends Stack {
    */
   public readonly emailAgents?: EmailAgentsWiring;
   /**
-   * Phase 8 Plan 08-01 (CAP-09) calendar-reader wiring. Populated only when
-   * `kevinOwnerId` is supplied (production deploy). The OAuth secrets are
-   * resolved by name (`kos/gcal-oauth-kevin-{elzarka,taleforge}`) and must
-   * be operator-seeded via `scripts/bootstrap-gcal-oauth.mjs` before the
-   * Lambda's first scheduled invocation succeeds.
+   * Phase 8 Plan 08-02 (AGT-07) content-writer wiring — orchestrator Lambda
+   * + per-platform Sonnet 4.6 worker + Step Functions Map state machine
+   * (`kos-content-writer-5platform`) + EventBridge rule on
+   * `content.topic_submitted`. Populated only when `agentBus` and
+   * `kevinOwnerId` are both supplied (production deploy). Structural
+   * Approve gate: NEITHER Lambda has postiz:* / ses:* (CDK tests assert).
    */
-  public readonly calendarReader?: CalendarReaderWiring;
+  public readonly contentWriter?: ContentWriterWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -328,25 +329,6 @@ export class IntegrationsStack extends Stack {
         rdsProxyEndpoint: props.rdsProxyEndpoint,
         rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
         scheduleGroupName: props.scheduleGroupName,
-        schedulerRole: notion.schedulerRole,
-        sentryDsnSecret: props.sentryDsnSecret,
-        langfusePublicKeySecret: props.langfusePublicKeySecret,
-        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
-      });
-
-      // Plan 08-01 (Phase 8 CAP-09): calendar-reader Lambda + 30-min
-      // EventBridge Scheduler entry. Re-uses notion.schedulerRole so all
-      // schedules share one trust policy. The two OAuth secrets
-      // (kos/gcal-oauth-kevin-{elzarka,taleforge}) are operator-seeded
-      // by scripts/bootstrap-gcal-oauth.mjs and resolved by name here.
-      this.calendarReader = wireCalendarReader(this, {
-        vpc: props.vpc,
-        rdsSecurityGroup: props.rdsSecurityGroup,
-        rdsProxyEndpoint: props.rdsProxyEndpoint,
-        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
-        captureBus: props.captureBus,
-        scheduleGroupName: props.scheduleGroupName,
-        kevinOwnerId: props.kevinOwnerId,
         schedulerRole: notion.schedulerRole,
         sentryDsnSecret: props.sentryDsnSecret,
         langfusePublicKeySecret: props.langfusePublicKeySecret,
@@ -517,6 +499,25 @@ export class IntegrationsStack extends Stack {
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,
         notionTokenSecret: props.notionTokenSecret,
         azureSearchAdminSecret: props.azureSearchAdminSecret,
+      });
+    }
+
+    // Plan 08-02 (Phase 8 AGT-07): content-writer orchestrator + per-platform
+    // Sonnet 4.6 worker + Step Functions Map. Synth-gated on `agentBus` and
+    // `kevinOwnerId` so existing test fixtures stay green; production deploy
+    // supplies both. Structural Approve gate: NEITHER Lambda has postiz:* /
+    // ses:* (CDK test integrations-content.test.ts asserts).
+    if (props.agentBus && props.kevinOwnerId) {
+      this.contentWriter = wireContentWriter(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        agentBus: props.agentBus,
+        kevinOwnerId: props.kevinOwnerId,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
     }
 

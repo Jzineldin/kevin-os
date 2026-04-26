@@ -22,6 +22,7 @@ import {
   Inbox as InboxIcon,
   Calendar,
   MessageSquare,
+  Activity,
   Users,
   Folder,
   Search,
@@ -116,6 +117,15 @@ export function Sidebar({
           icon={<Calendar size={14} />}
           label="Calendar"
           kbd="C"
+        />
+        {/* Phase 11 Plan 11-06 — D-07 channel-health surface entry.
+            data-testid="nav-integrations-health" passes through NavItem
+            for the Phase 11 button-audit Playwright spec. */}
+        <NavItem
+          href="/integrations-health"
+          icon={<Activity size={14} />}
+          label="Health"
+          testId="nav-integrations-health"
         />
         <NavItem
           href="/chat"

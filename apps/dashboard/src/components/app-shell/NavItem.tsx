@@ -31,6 +31,8 @@ export interface NavItemProps {
   count?: number;
   disabled?: boolean;
   disabledTooltip?: string;
+  /** Optional data-testid for parametric Playwright button-audit tests (Phase 11). */
+  testId?: string;
 }
 
 const BASE =
@@ -50,6 +52,7 @@ export function NavItem({
   count,
   disabled,
   disabledTooltip,
+  testId,
 }: NavItemProps) {
   const pathname = usePathname();
   // `pathname` is null during testing environments or initial SSR hydration.
@@ -108,6 +111,7 @@ export function NavItem({
       href={href as never}
       data-slot="nav-item"
       data-active={active ? 'true' : 'false'}
+      data-testid={testId}
       className={`${BASE} ${active ? ACTIVE : IDLE}`}
       // Motion rule 8: instant active state toggle — no background transition.
       style={{ transition: active ? 'none' : undefined }}

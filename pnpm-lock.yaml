@@ -1811,6 +1811,67 @@ importers:
         specifier: 2.1.4
         version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
 
+  services/gmail-poller:
+    dependencies:
+      '@arizeai/openinference-instrumentation-claude-agent-sdk':
+        specifier: ^0.2
+        version: 0.2.3
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/rds-signer':
+        specifier: 3.691.0
+        version: 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@kos/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@langfuse/otel':
+        specifier: ^5
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+      '@opentelemetry/api':
+        specifier: ^1
+        version: 1.9.1
+      '@opentelemetry/instrumentation':
+        specifier: ^0.215
+        version: 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2
+        version: 2.7.0(@opentelemetry/api@1.9.1)
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+      ulid:
+        specifier: 2.3.0
+        version: 2.3.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
   services/granola-poller:
     dependencies:
       '@arizeai/openinference-instrumentation-claude-agent-sdk':
@@ -14042,7 +14103,7 @@ snapshots:
 
   '@aws-sdk/middleware-user-agent@3.972.33':
     dependencies:
-      '@aws-sdk/core': 3.974.3
+      '@aws-sdk/core': 3.974.4
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.8
       '@smithy/core': 3.23.16
@@ -14331,7 +14392,7 @@ snapshots:
 
   '@aws-sdk/util-user-agent-node@3.973.19':
     dependencies:
-      '@aws-sdk/middleware-user-agent': 3.972.33
+      '@aws-sdk/middleware-user-agent': 3.972.34
       '@aws-sdk/types': 3.973.8
       '@smithy/node-config-provider': 4.3.14
       '@smithy/types': 4.14.1

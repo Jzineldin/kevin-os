@@ -39,6 +39,11 @@ import {
   type IosWebhookWiring,
 } from './integrations-ios-webhook.js';
 import { wireSesInbound, type SesInboundWiring } from './integrations-ses-inbound.js';
+import {
+  wireEmailEngine,
+  type EmailEngineWiring,
+} from './integrations-emailengine.js';
+import type { ICluster } from 'aws-cdk-lib/aws-ecs';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -93,6 +98,19 @@ export interface IntegrationsStackProps extends StackProps {
   // alongside `kevinOwnerId` (which the helper requires for dead-letter rows).
   enableSesInbound?: boolean;
   sesInboundBucketName?: string;
+  // Phase 4 Plan 04-03 (CAP-07): EmailEngine on Fargate + ElastiCache. All
+  // five secrets + the kos-cluster + an `enableEmailEngine` opt-in flag are
+  // required to activate the wiring. Until then existing tests + deploys
+  // are unaffected. The flag prevents accidentally synthesising a Fargate
+  // service before the operator has procured an EE license + Gmail app
+  // passwords (see 04-EMAILENGINE-OPERATOR-RUNBOOK.md).
+  enableEmailEngine?: boolean;
+  ecsCluster?: ICluster;
+  emailEngineLicenseSecret?: ISecret;
+  emailEngineImapElzarkaSecret?: ISecret;
+  emailEngineImapTaleforgeSecret?: ISecret;
+  emailEngineWebhookSecret?: ISecret;
+  emailEngineApiKeySecret?: ISecret;
 }
 
 export class IntegrationsStack extends Stack {
@@ -119,6 +137,14 @@ export class IntegrationsStack extends Stack {
    * SES receiving rule are operator-provisioned (see runbook).
    */
   public readonly sesInbound?: SesInboundWiring;
+  /**
+   * Phase 4 Plan 04-03 (CAP-07) EmailEngine wiring. Populated only when
+   * `enableEmailEngine === true` AND all five EE secrets + `ecsCluster` are
+   * supplied. EmailEngine is hardcoded to `desiredCount=1` — horizontal
+   * scaling is forbidden by the upstream project (single Redis-backed
+   * state store).
+   */
+  public readonly emailEngine?: EmailEngineWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -248,6 +274,36 @@ export class IntegrationsStack extends Stack {
         blobsBucket: props.blobsBucket,
         iosShortcutWebhookSecret: props.iosShortcutWebhookSecret,
         sentryDsnSecret: props.sentryDsnSecret,
+      });
+    }
+
+    // Plan 04-03 (Phase 4 CAP-07): EmailEngine on Fargate + ElastiCache
+    // Serverless Redis + 2 Lambdas. Activated only when the opt-in flag is
+    // set AND all 5 EE secrets + the kos-cluster are supplied. Production
+    // deploys MUST first run the operator runbook (license, app passwords,
+    // secret seeding) before flipping `enableEmailEngine=true`.
+    if (
+      props.enableEmailEngine === true &&
+      props.ecsCluster &&
+      props.emailEngineLicenseSecret &&
+      props.emailEngineImapElzarkaSecret &&
+      props.emailEngineImapTaleforgeSecret &&
+      props.emailEngineWebhookSecret &&
+      props.emailEngineApiKeySecret
+    ) {
+      this.emailEngine = wireEmailEngine(this, {
+        vpc: props.vpc,
+        cluster: props.ecsCluster,
+        captureBus: props.captureBus,
+        licenseSecret: props.emailEngineLicenseSecret,
+        imapElzarkaSecret: props.emailEngineImapElzarkaSecret,
+        imapTaleforgeSecret: props.emailEngineImapTaleforgeSecret,
+        webhookSecret: props.emailEngineWebhookSecret,
+        apiKeySecret: props.emailEngineApiKeySecret,
+        kevinOwnerId: props.kevinOwnerId,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
     }
 

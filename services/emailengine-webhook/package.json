@@ -10,9 +10,14 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2",
     "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/client-secrets-manager": "3.691.0",
     "@kos/contracts": "workspace:*",
+    "@langfuse/otel": "^5",
+    "@opentelemetry/api": "^1",
+    "@opentelemetry/instrumentation": "^0.215",
+    "@opentelemetry/sdk-trace-node": "^2",
     "@sentry/aws-serverless": "^8",
     "ulid": "^2.3.0",
     "zod": "3.23.8"

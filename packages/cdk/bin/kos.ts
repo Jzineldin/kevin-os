@@ -269,6 +269,13 @@ const migration = new MigrationStack(app, 'KosMigration', {
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
   })(),
+  // Plan 10-04: single canonical channel id per `05-06-DISCORD-CONTRACT.md`.
+  // Env-var-driven for ad-hoc operator override; falls through to the first
+  // entry of `discordChannelIds` if unset, then to '' (handler refuses to run
+  // without DISCORD_BRAIN_DUMP_CHANNEL_ID — by design).
+  discordBrainDumpChannelId:
+    process.env.DISCORD_BRAIN_DUMP_CHANNEL_ID ??
+    (app.node.tryGetContext('discordBrainDumpChannelId') as string | undefined),
 });
 migration.addDependency(events);
 void migration;

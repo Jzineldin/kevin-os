@@ -64,10 +64,6 @@ import {
   wireDiscordSchedule,
   type DiscordScheduleWiring,
 } from './integrations-discord-schedule.js';
-import {
-  wireContentWriter,
-  type ContentWriterWiring,
-} from './integrations-content.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -228,15 +224,6 @@ export class IntegrationsStack extends Stack {
    * Populated only when `outputBus` and `kevinOwnerId` are both supplied.
    */
   public readonly emailAgents?: EmailAgentsWiring;
-  /**
-   * Phase 8 Plan 08-02 (AGT-07) content-writer wiring — orchestrator Lambda
-   * + per-platform Sonnet 4.6 worker + Step Functions Map state machine
-   * (`kos-content-writer-5platform`) + EventBridge rule on
-   * `content.topic_submitted`. Populated only when `agentBus` and
-   * `kevinOwnerId` are both supplied (production deploy). Structural
-   * Approve gate: NEITHER Lambda has postiz:* / ses:* (CDK tests assert).
-   */
-  public readonly contentWriter?: ContentWriterWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -499,25 +486,6 @@ export class IntegrationsStack extends Stack {
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,
         notionTokenSecret: props.notionTokenSecret,
         azureSearchAdminSecret: props.azureSearchAdminSecret,
-      });
-    }
-
-    // Plan 08-02 (Phase 8 AGT-07): content-writer orchestrator + per-platform
-    // Sonnet 4.6 worker + Step Functions Map. Synth-gated on `agentBus` and
-    // `kevinOwnerId` so existing test fixtures stay green; production deploy
-    // supplies both. Structural Approve gate: NEITHER Lambda has postiz:* /
-    // ses:* (CDK test integrations-content.test.ts asserts).
-    if (props.agentBus && props.kevinOwnerId) {
-      this.contentWriter = wireContentWriter(this, {
-        vpc: props.vpc,
-        rdsSecurityGroup: props.rdsSecurityGroup,
-        rdsProxyEndpoint: props.rdsProxyEndpoint,
-        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
-        agentBus: props.agentBus,
-        kevinOwnerId: props.kevinOwnerId,
-        sentryDsnSecret: props.sentryDsnSecret,
-        langfusePublicKeySecret: props.langfusePublicKeySecret,
-        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
     }
 

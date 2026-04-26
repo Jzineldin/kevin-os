@@ -150,4 +150,94 @@ describe('MigrationStack — Phase 10 Plan 10-00 scaffold', () => {
     expect(archEnv).toHaveProperty('ARCHIVE_PREFIX');
     expect(archEnv).toHaveProperty('KMS_KEY_ID');
   });
+
+  // --- Plan 10-04 additions ------------------------------------------------
+
+  it('Plan 10-04: Discord Lambda env includes DISCORD_BRAIN_DUMP_CHANNEL_ID and KEVIN_OWNER_ID', () => {
+    const { tpl } = synth();
+    const fns = tpl.findResources('AWS::Lambda::Function');
+    const discFn = Object.entries(fns).find(([id]) => id.startsWith('DiscordBrainDump'));
+    expect(discFn).toBeDefined();
+    const env = (
+      discFn![1] as { Properties: { Environment: { Variables: Record<string, unknown> } } }
+    ).Properties.Environment.Variables;
+    expect(env).toHaveProperty('DISCORD_BRAIN_DUMP_CHANNEL_ID');
+    expect(env).toHaveProperty('KEVIN_OWNER_ID');
+    // Fallback: the synth() helper sets discordChannelIds = ['9876...'], so
+    // when no explicit discordBrainDumpChannelId is supplied, the env value
+    // falls back to the first id from the array.
+    expect(env.DISCORD_BRAIN_DUMP_CHANNEL_ID).toBe('9876543210987654321');
+  });
+
+  it('Plan 10-04: SSM parameter /kos/discord/brain-dump-lambda-arn is created and pinned to the Lambda ARN', () => {
+    const { tpl } = synth();
+    tpl.hasResourceProperties(
+      'AWS::SSM::Parameter',
+      Match.objectLike({
+        Name: '/kos/discord/brain-dump-lambda-arn',
+        Type: 'String',
+        // Value is a CFN intrinsic (Fn::GetAtt on the Lambda) — assert it
+        // resolves through GetAtt, not a literal string.
+        Value: Match.objectLike({
+          'Fn::GetAtt': Match.arrayWith([
+            Match.stringLikeRegexp('^DiscordBrainDump'),
+            'Arn',
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('Plan 10-04: Discord Scheduler has a SQS DLQ deadLetterConfig + 2 retries', () => {
+    const { tpl } = synth();
+    // SQS DLQ exists and is KMS-encrypted with the SQS-managed key.
+    tpl.hasResourceProperties(
+      'AWS::SQS::Queue',
+      Match.objectLike({
+        QueueName: 'discord-brain-dump-scheduler-dlq',
+        SqsManagedSseEnabled: true,
+        MessageRetentionPeriod: 4 * 24 * 60 * 60,
+      }),
+    );
+    // Scheduler target carries DeadLetterConfig pointing at the queue ARN.
+    tpl.hasResourceProperties(
+      'AWS::Scheduler::Schedule',
+      Match.objectLike({
+        Name: 'discord-brain-dump-poll',
+        Target: Match.objectLike({
+          DeadLetterConfig: Match.objectLike({
+            Arn: Match.objectLike({
+              'Fn::GetAtt': Match.arrayWith([
+                Match.stringLikeRegexp('^DiscordBrainDumpSchedulerDlq'),
+                'Arn',
+              ]),
+            }),
+          }),
+          RetryPolicy: Match.objectLike({
+            MaximumRetryAttempts: 2,
+            MaximumEventAgeInSeconds: 300,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('Plan 10-04: explicit discordBrainDumpChannelId prop wins over the legacy multi-id array', () => {
+    const app = new App();
+    const events = new EventsStack(app, 'KosEvents2', { env });
+    const migration = new MigrationStack(app, 'KosMigration2', {
+      env,
+      captureBus: events.buses.capture,
+      kevinOwnerId: '7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c',
+      discordChannelIds: ['multi-1', 'multi-2'],
+      discordBrainDumpChannelId: 'canonical-brain-dump-channel',
+    });
+    const tpl = Template.fromStack(migration);
+    const fns = tpl.findResources('AWS::Lambda::Function');
+    const discFn = Object.entries(fns).find(([id]) => id.startsWith('DiscordBrainDump'));
+    const env2 = (
+      discFn![1] as { Properties: { Environment: { Variables: Record<string, unknown> } } }
+    ).Properties.Environment.Variables;
+    expect(env2.DISCORD_BRAIN_DUMP_CHANNEL_ID).toBe('canonical-brain-dump-channel');
+  });
 });

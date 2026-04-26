@@ -63,6 +63,34 @@ importers:
         specifier: 2.1.4
         version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
 
+  apps/chrome-extension:
+    dependencies:
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/chrome':
+        specifier: ^0.0.270
+        version: 0.0.270
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      esbuild:
+        specifier: 0.24.0
+        version: 0.24.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
   apps/dashboard:
     dependencies:
       '@kos/contracts':
@@ -424,7 +452,7 @@ importers:
         version: link:../../packages/db
       '@langfuse/otel':
         specifier: ^5
-        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
       '@opentelemetry/api':
         specifier: ^1
         version: 1.9.1
@@ -613,6 +641,83 @@ importers:
         specifier: 2.1.4
         version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
 
+  services/baileys-fargate:
+    dependencies:
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@sentry/node':
+        specifier: ^8
+        version: 8.55.1
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
+  services/baileys-sidecar:
+    dependencies:
+      '@aws-sdk/client-cloudwatch':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-s3':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      ulid:
+        specifier: ^2.3.0
+        version: 2.3.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/aws-lambda':
+        specifier: 8.10.145
+        version: 8.10.145
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
   services/bulk-import-granola-gmail:
     dependencies:
       '@arizeai/openinference-instrumentation-claude-agent-sdk':
@@ -728,6 +833,46 @@ importers:
       '@types/pg':
         specifier: 8.11.10
         version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
+  services/chrome-webhook:
+    dependencies:
+      '@aws-sdk/client-cloudwatch':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      ulid:
+        specifier: ^2.3.0
+        version: 2.3.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/aws-lambda':
+        specifier: 8.10.145
+        version: 8.10.145
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
       typescript:
         specifier: 5.6.3
         version: 5.6.3
@@ -1146,7 +1291,7 @@ importers:
         version: link:../../packages/contracts
       '@langfuse/otel':
         specifier: ^5
-        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
       '@opentelemetry/api':
         specifier: ^1
         version: 1.9.1
@@ -1413,6 +1558,46 @@ importers:
       '@kos/test-fixtures':
         specifier: workspace:*
         version: link:../../packages/test-fixtures
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
+  services/linkedin-webhook:
+    dependencies:
+      '@aws-sdk/client-cloudwatch':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      ulid:
+        specifier: ^2.3.0
+        version: 2.3.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/aws-lambda':
+        specifier: 8.10.145
+        version: 8.10.145
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0
@@ -1723,7 +1908,7 @@ importers:
         version: link:../../packages/contracts
       '@langfuse/otel':
         specifier: ^5
-        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))
+        version: 5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
       '@opentelemetry/api':
         specifier: ^1
         version: 1.9.1
@@ -2085,6 +2270,43 @@ importers:
       '@types/pg':
         specifier: 8.11.10
         version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.4
+        version: 2.1.4(@types/node@22.9.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.9.0)(typescript@5.6.3))(terser@5.46.2)
+
+  services/verify-gate-5-baileys:
+    dependencies:
+      '@aws-sdk/client-cloudwatch':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-eventbridge':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: 3.691.0
+        version: 3.691.0
+      '@kos/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@sentry/aws-serverless':
+        specifier: ^8
+        version: 8.55.1
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@kos/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
+      '@types/aws-lambda':
+        specifier: 8.10.145
+        version: 8.10.145
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
       typescript:
         specifier: 5.6.3
         version: 5.6.3
@@ -2464,6 +2686,10 @@ packages:
 
   '@aws-sdk/client-cloudwatch-logs@3.691.0':
     resolution: {integrity: sha512-YU/OzHH5F2dTR5uUbx2RUX3iIagpPJUYp08NEoSHFvNydzK4z0VwX4JLxLRy4NhsWrmhC+2GRZT0YDj6LRIe+A==}
+    engines: {node: '>=16.0.0'}
+
+  '@aws-sdk/client-cloudwatch@3.691.0':
+    resolution: {integrity: sha512-w4WhO83FyHbY6lCGts646OK2r5yMM5LmR7sfhsNd56ubOTK602vgfipQlDqhpgFWRjE28Y+nfIf0drJceTk0/w==}
     engines: {node: '>=16.0.0'}
 
   '@aws-sdk/client-cognito-identity@3.1035.0':
@@ -6205,6 +6431,10 @@ packages:
   '@smithy/md5-js@3.0.11':
     resolution: {integrity: sha512-3NM0L3i2Zm4bbgG6Ymi9NBcxXhryi3uE8fIfHJZIOfZVxOkGdjdgjR9A06SFIZCfnEIWKXZdm6Yq5/aPXFFhsQ==}
 
+  '@smithy/middleware-compression@3.1.7':
+    resolution: {integrity: sha512-MCv7lz4PRArQ8vjhg6GocI/ARLP/EinzMs7RfVvgXYCEnpg8LULd6fDC3FbIxPpm2qTX7GMttcD98yFEZy7yXg==}
+    engines: {node: '>=16.0.0'}
+
   '@smithy/middleware-content-length@3.0.13':
     resolution: {integrity: sha512-zfMhzojhFpIX3P5ug7jxTjfUcIPcGjcQYzB9t+rv0g1TX7B0QdwONW+ATouaLoD7h7LOw/ZlXfkq4xJ/g2TrIw==}
     engines: {node: '>=16.0.0'}
@@ -6771,6 +7001,9 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
+  '@types/chrome@0.0.270':
+    resolution: {integrity: sha512-ADvkowV7YnJfycZZxL2brluZ6STGW+9oKG37B422UePf2PCXuFA/XdERI0T18wtuWPx0tmFeZqq6MOXVk1IC+Q==}
+
   '@types/connect@3.4.36':
     resolution: {integrity: sha512-P63Zd/JUGq+PdrM1lv0Wv5SBYeA2+CORvbrXbngriYY0jzLUWfQMQQxOhjONEz/wlHOAxOdY7CY65rgQdTjq2w==}
 
@@ -6785,6 +7018,15 @@ packages:
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+
+  '@types/filesystem@0.0.36':
+    resolution: {integrity: sha512-vPDXOZuannb9FZdxgHnqSwAG/jvdGM8Wq+6N4D/d80z+D4HWH+bItqsZaVRQykAn6WEVeEkLm2oQigyHtgb0RA==}
+
+  '@types/filewriter@0.0.33':
+    resolution: {integrity: sha512-xFU8ZXTw4gd358lb2jw25nxY9QAgqn2+bKKjKOYfNCzN4DKCFetK7sPtrlpg66Ywe3vWY9FNxprZawAh9wfJ3g==}
+
+  '@types/har-format@1.2.16':
+    resolution: {integrity: sha512-fluxdy7ryD3MV6h8pTfTYpy/xQzCFC7m89nOH9y94cNqJ1mDIDPut7MnRHI3F6qRmh/cT2fUjG1MLdCNb4hE9A==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -8525,6 +8767,9 @@ packages:
   fetch-blob@3.2.0:
     resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
     engines: {node: ^12.20 || >= 14.13}
+
+  fflate@0.8.1:
+    resolution: {integrity: sha512-/exOvEuc+/iaUm105QIiOt4LpBdMTWsXxqR0HDF35vx3fmaKzw7354gTilCh5rkzEt8WYyG//ku3h3nRmd7CHQ==}
 
   figures@2.0.0:
     resolution: {integrity: sha512-Oa2M9atig69ZkfwiApY8F2Yy+tzMbazyvqv21R0NsSC8floSOC09BbT1ITWAdoMGQvJ/aZnR1KMwdx9tvHnTNA==}
@@ -11702,6 +11947,54 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
+  '@aws-sdk/client-cloudwatch@3.691.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/client-sso-oidc': 3.691.0(@aws-sdk/client-sts@3.691.0)
+      '@aws-sdk/client-sts': 3.691.0
+      '@aws-sdk/core': 3.691.0
+      '@aws-sdk/credential-provider-node': 3.691.0(@aws-sdk/client-sso-oidc@3.691.0(@aws-sdk/client-sts@3.691.0))(@aws-sdk/client-sts@3.691.0)
+      '@aws-sdk/middleware-host-header': 3.686.0
+      '@aws-sdk/middleware-logger': 3.686.0
+      '@aws-sdk/middleware-recursion-detection': 3.686.0
+      '@aws-sdk/middleware-user-agent': 3.691.0
+      '@aws-sdk/region-config-resolver': 3.686.0
+      '@aws-sdk/types': 3.686.0
+      '@aws-sdk/util-endpoints': 3.686.0
+      '@aws-sdk/util-user-agent-browser': 3.686.0
+      '@aws-sdk/util-user-agent-node': 3.691.0
+      '@smithy/config-resolver': 3.0.13
+      '@smithy/core': 2.5.7
+      '@smithy/fetch-http-handler': 4.1.3
+      '@smithy/hash-node': 3.0.11
+      '@smithy/invalid-dependency': 3.0.11
+      '@smithy/middleware-compression': 3.1.7
+      '@smithy/middleware-content-length': 3.0.13
+      '@smithy/middleware-endpoint': 3.2.8
+      '@smithy/middleware-retry': 3.0.34
+      '@smithy/middleware-serde': 3.0.11
+      '@smithy/middleware-stack': 3.0.11
+      '@smithy/node-config-provider': 3.1.12
+      '@smithy/node-http-handler': 3.3.3
+      '@smithy/protocol-http': 4.1.8
+      '@smithy/smithy-client': 3.7.0
+      '@smithy/types': 3.7.2
+      '@smithy/url-parser': 3.0.11
+      '@smithy/util-base64': 3.0.0
+      '@smithy/util-body-length-browser': 3.0.0
+      '@smithy/util-body-length-node': 3.0.0
+      '@smithy/util-defaults-mode-browser': 3.0.34
+      '@smithy/util-defaults-mode-node': 3.0.34
+      '@smithy/util-endpoints': 2.1.7
+      '@smithy/util-middleware': 3.0.11
+      '@smithy/util-retry': 3.0.11
+      '@smithy/util-utf8': 3.0.0
+      '@smithy/util-waiter': 3.2.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - aws-crt
+
   '@aws-sdk/client-cognito-identity@3.1035.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
@@ -14321,14 +14614,6 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
 
-  '@langfuse/otel@5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))':
-    dependencies:
-      '@langfuse/core': 5.2.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-trace-otlp-http': 0.215.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
-
   '@langfuse/otel@5.2.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@langfuse/core': 5.2.0(@opentelemetry/api@1.9.1)
@@ -16688,6 +16973,19 @@ snapshots:
       '@smithy/util-utf8': 3.0.0
       tslib: 2.8.1
 
+  '@smithy/middleware-compression@3.1.7':
+    dependencies:
+      '@smithy/core': 2.5.7
+      '@smithy/is-array-buffer': 3.0.0
+      '@smithy/node-config-provider': 3.1.12
+      '@smithy/protocol-http': 4.1.8
+      '@smithy/types': 3.7.2
+      '@smithy/util-config-provider': 3.0.0
+      '@smithy/util-middleware': 3.0.11
+      '@smithy/util-utf8': 3.0.0
+      fflate: 0.8.1
+      tslib: 2.8.1
+
   '@smithy/middleware-content-length@3.0.13':
     dependencies:
       '@smithy/protocol-http': 4.1.8
@@ -17428,6 +17726,11 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.0
 
+  '@types/chrome@0.0.270':
+    dependencies:
+      '@types/filesystem': 0.0.36
+      '@types/har-format': 1.2.16
+
   '@types/connect@3.4.36':
     dependencies:
       '@types/node': 22.9.0
@@ -17447,6 +17750,14 @@ snapshots:
       '@types/json-schema': 7.0.15
 
   '@types/estree@1.0.8': {}
+
+  '@types/filesystem@0.0.36':
+    dependencies:
+      '@types/filewriter': 0.0.33
+
+  '@types/filewriter@0.0.33': {}
+
+  '@types/har-format@1.2.16': {}
 
   '@types/json-schema@7.0.15': {}
 
@@ -19468,6 +19779,8 @@ snapshots:
     dependencies:
       node-domexception: 1.0.0
       web-streams-polyfill: 3.3.3
+
+  fflate@0.8.1: {}
 
   figures@2.0.0:
     dependencies:

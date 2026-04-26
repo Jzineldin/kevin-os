@@ -23,3 +23,6 @@ export * from './adversarial-email.js';
 export * from './duplicate-email.js';
 export * from './forwarded-email.js';
 export * from './ios-shortcut.js';
+// Phase 5 Plan 05-00 Task 4 — messaging-channel fixtures (Chrome MV3 stub +
+// LinkedIn Voyager + Baileys WhatsApp).
+export * from './phase-5/index.js';

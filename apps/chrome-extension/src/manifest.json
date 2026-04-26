@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Kevin OS Capture",
+  "version": "0.0.1",
+  "description": "KOS browser capture: highlight any text and send it to your KOS inbox; mirror LinkedIn DMs into your KOS entity graph.",
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "alarms",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://*.linkedin.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-highlight.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.linkedin.com/messaging/*",
+        "https://www.linkedin.com/*"
+      ],
+      "js": ["content-linkedin.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "Kevin OS Capture"
+  }
+}

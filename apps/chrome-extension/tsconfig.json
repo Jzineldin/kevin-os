@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["chrome", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@kos/*": ["./node_modules/@kos/*/src/index.ts", "./node_modules/@kos/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

@@ -24,6 +24,7 @@
  */
 import type { LambdaFunctionURLHandler } from 'aws-lambda';
 import { route } from './router.js';
+import { assertNoSeedPollution } from './seed-pollution-guard.js';
 import './handlers/today.js';
 import './handlers/entities.js';
 import './handlers/timeline.js';
@@ -71,6 +72,21 @@ export const handler: LambdaFunctionURLHandler = async (event) => {
       statusCode: 401,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ error: 'unauthorized' }),
+    };
+  }
+
+  // Phase 11 Plan 11-01 D-04 — fail-loud if any of the D-03 seed names
+  // are present in inbox_index. Cached after first cold-start probe.
+  // Returns 503 (NOT 500) so Sentry alerts can grep `seed_pollution`
+  // independently of generic Lambda errors.
+  try {
+    await assertNoSeedPollution();
+  } catch (err) {
+    console.error('[dashboard-api] seed pollution guard tripped', err);
+    return {
+      statusCode: 503,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ error: 'service_unavailable', detail: 'seed_pollution' }),
     };
   }
 

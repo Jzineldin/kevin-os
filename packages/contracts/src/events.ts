@@ -256,7 +256,10 @@ export const TriageRoutedSchema = z.object({
   route: z.enum(['voice-capture', 'inbox-review', 'drop']),
   detected_type: z.enum(['task', 'meeting', 'note', 'question', 'other']).optional(),
   urgency: z.enum(['low', 'med', 'high', 'none']).optional(),
-  reason: z.string().max(200),
+  // Truncate verbose reasons to 500 chars rather than rejecting the entire
+  // capture. Dropping a real voice memo because the LLM was wordy is far worse
+  // than logging a long reason.
+  reason: z.string().transform((s) => (s.length > 500 ? s.slice(0, 500) : s)),
   sender: z
     .object({
       id: z.number().int(),

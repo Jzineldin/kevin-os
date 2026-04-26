@@ -212,10 +212,13 @@ export async function runIndexer(event: IndexerEvent, deps: Deps = {}): Promise<
       else if (outcome.action === 'skipped') stats.skipped += 1;
       stats.cursorAdvancedTo = maxSeenEditedAt.toISOString();
       await db.query(
-        `INSERT INTO notion_indexer_cursor (db_id, last_cursor_at)
-         VALUES ($1, $2)
-         ON CONFLICT (db_id) DO UPDATE SET last_cursor_at = EXCLUDED.last_cursor_at`,
-        [event.dbId, maxSeenEditedAt],
+        `INSERT INTO notion_indexer_cursor (db_id, db_kind, last_cursor_at, last_run_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (db_id) DO UPDATE SET
+           last_cursor_at = GREATEST(EXCLUDED.last_cursor_at, notion_indexer_cursor.last_cursor_at),
+           db_kind = EXCLUDED.db_kind,
+           last_run_at = now()`,
+        [event.dbId, event.dbKind, maxSeenEditedAt],
       );
     } catch (err) {
       console.error('[notion-indexer] kevin_context page retrieve failed', err);
@@ -262,7 +265,12 @@ export async function runIndexer(event: IndexerEvent, deps: Deps = {}): Promise<
                        jsonb_build_object('notion_page_id', $1::text, 'kind', $2::text),
                        'notion-indexer',
                        $3::uuid)`,
-              [page.id, event.dbKind, process.env.KEVIN_OWNER_ID ?? ''],
+              [
+                page.id,
+                event.dbKind,
+                process.env.KEVIN_OWNER_ID ||
+                  '7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c',
+              ],
             );
             outcome = { action: 'inserted' as const };
           }

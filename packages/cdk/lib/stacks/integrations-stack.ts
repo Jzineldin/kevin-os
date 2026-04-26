@@ -69,6 +69,10 @@ import {
   type CalendarReaderWiring,
 } from './integrations-calendar-reader.js';
 import {
+  wireGmailPoller,
+  type GmailPollerWiring,
+} from './integrations-gmail-poller.js';
+import {
   wireContentWriter,
   type ContentWriterWiring,
 } from './integrations-content.js';
@@ -270,6 +274,14 @@ export class IntegrationsStack extends Stack {
    * Lambda's first scheduled invocation succeeds.
    */
   public readonly calendarReader?: CalendarReaderWiring;
+  /**
+   * Gmail-poller wiring (replaces EmailEngine for inbound email). Populated
+   * only when `kevinOwnerId` is supplied. Reuses the same OAuth secrets
+   * (`kos/gcal-oauth-kevin-{elzarka,taleforge}`) as calendar-reader; the
+   * bootstrap script (`scripts/bootstrap-google-oauth.mjs`) consents to
+   * both `calendar.readonly` and `gmail.readonly` scopes.
+   */
+  public readonly gmailPoller?: GmailPollerWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -394,6 +406,26 @@ export class IntegrationsStack extends Stack {
       // (kos/gcal-oauth-kevin-{elzarka,taleforge}) are operator-seeded
       // by scripts/bootstrap-gcal-oauth.mjs and resolved by name here.
       this.calendarReader = wireCalendarReader(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        captureBus: props.captureBus,
+        scheduleGroupName: props.scheduleGroupName,
+        kevinOwnerId: props.kevinOwnerId,
+        schedulerRole: notion.schedulerRole,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
+
+      // gmail-poller — replaces EmailEngine for inbound email. Same OAuth
+      // secrets as calendar-reader (consented to gmail.readonly +
+      // calendar.readonly via scripts/bootstrap-google-oauth.mjs). Polls
+      // every 5 min on its own EventBridge Scheduler entry, emits
+      // capture.received / kind=email_inbox to kos.capture so email-triage
+      // + Approve gate + email-sender chain works UNCHANGED.
+      this.gmailPoller = wireGmailPoller(this, {
         vpc: props.vpc,
         rdsSecurityGroup: props.rdsSecurityGroup,
         rdsProxyEndpoint: props.rdsProxyEndpoint,

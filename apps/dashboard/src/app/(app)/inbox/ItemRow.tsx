@@ -56,6 +56,7 @@ export function ItemRow({
       onClick={onClick}
       aria-pressed={selected}
       data-selected={selected || undefined}
+      data-testid="inbox-row-click"
       className="w-full text-left grid items-start"
       style={{
         gridTemplateColumns: '20px 1fr auto',

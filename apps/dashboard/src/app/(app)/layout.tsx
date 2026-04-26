@@ -25,6 +25,7 @@ import { LiveRegionProvider } from '@/components/system/LiveRegion';
 import { OfflineBanner } from '@/components/system/OfflineBanner';
 import { SseProvider } from '@/components/system/SseProvider';
 import { CommandPaletteProvider } from '@/components/palette/CommandPalette';
+import { ChatBubble } from '@/components/chat/ChatBubble';
 import { callApi } from '@/lib/dashboard-api';
 
 const SidebarCountsSchema = z.object({
@@ -84,6 +85,10 @@ export default async function AppLayout({
         </div>
 
         <Toaster position="top-right" />
+        {/* Phase 11 Plan 11-07 — ChatBubble mounted globally below Toaster.
+            Visible bottom-right on every (app) route. Visual-only — full
+            chat surface ships with Phase 11-ter. */}
+        <ChatBubble />
         </SseProvider>
        </CommandPaletteProvider>
       </TooltipProvider>

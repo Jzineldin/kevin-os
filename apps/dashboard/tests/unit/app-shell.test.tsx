@@ -1,13 +1,14 @@
 /**
  * App-shell unit tests — covers the Sidebar invariants enumerated in the
- * Plan 03-06 Task 1 acceptance criteria:
+ * Plan 03-06 Task 1 acceptance criteria, updated for Phase 11 Plan 11-07
+ * (button audit; Settings entry removed; Chat link enabled):
  *
  *   1. Sidebar renders under a CommandPaletteProvider.
  *   2. NavItem active state applies inline `transition: none` (motion rule
  *      8 — instant toggle).
- *   3. Chat item is rendered disabled with aria-disabled="true" and the
- *      UI-SPEC tooltip copy "Ships with Phase 4" is in the DOM.
- *   4. The sidebar width class w-[220px] is present (UI-SPEC §Sidebar).
+ *   3. (Phase 11) Chat item is enabled — no longer disabled.
+ *   4. (Phase 11) Settings nav entry has been removed.
+ *   5. The sidebar width class w-[220px] is present (UI-SPEC §Sidebar).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -52,7 +53,8 @@ describe('Sidebar', () => {
     expect(screen.getByText('Chat')).toBeInTheDocument();
     expect(screen.getByText('People')).toBeInTheDocument();
     expect(screen.getByText('Projects')).toBeInTheDocument();
-    expect(screen.getByText('Settings')).toBeInTheDocument();
+    // Phase 11 Plan 11-07: Settings nav entry removed (D-06).
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument();
     expect(screen.getByText('Logout')).toBeInTheDocument();
   });
 
@@ -76,17 +78,23 @@ describe('Sidebar', () => {
     expect(active!.getAttribute('style') ?? '').toMatch(/transition:\s*none/);
   });
 
-  it('renders the Chat item disabled with UI-SPEC tooltip copy', () => {
+  it('renders the Chat item enabled (Phase 11 Plan 11-07 flipped from disabled)', () => {
     renderSidebar();
-    const chatNode = document.querySelector(
+    // No nav-item should remain in the disabled state after Phase 11
+    // Plan 11-07: Chat link is wired to /chat shell; Settings is removed.
+    const disabledNode = document.querySelector(
       '[data-slot="nav-item"][data-disabled="true"]',
-    ) as HTMLElement | null;
-    expect(chatNode).not.toBeNull();
-    expect(chatNode!.getAttribute('aria-disabled')).toBe('true');
-    expect(chatNode!.textContent).toContain('Chat');
-    // Tooltip content is rendered into the Radix portal when hovered; we
-    // just assert the prop flows by checking the trigger wrapping markup.
-    expect(chatNode!.textContent).not.toContain('Ships with Phase 4');
+    );
+    expect(disabledNode).toBeNull();
+
+    // The Chat link itself renders with data-testid="nav-chat" and a real
+    // href, not a span placeholder.
+    const chatLink = document.querySelector(
+      '[data-testid="nav-chat"]',
+    ) as HTMLAnchorElement | null;
+    expect(chatLink).not.toBeNull();
+    expect(chatLink!.textContent).toContain('Chat');
+    expect(chatLink!.getAttribute('href')).toBe('/chat');
   });
 
   it('renders keyboard badges (Kbd) for T / I / C', () => {

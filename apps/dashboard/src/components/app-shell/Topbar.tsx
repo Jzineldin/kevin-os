@@ -19,12 +19,14 @@ import { Kbd } from '@/components/ui/kbd';
 import { useCommandPalette } from '@/components/palette/palette-context';
 
 // Mapping of first-segment → human label. Extra segments stay verbatim.
+// Phase 11 Plan 11-07: `settings` removed (D-06; the route no longer exists).
 const SEGMENT_LABEL: Record<string, string> = {
   today: 'Today',
   inbox: 'Inbox',
   calendar: 'Calendar',
   entities: 'Entities',
-  settings: 'Settings',
+  chat: 'Chat',
+  'integrations-health': 'Integrations Health',
 };
 
 function buildCrumbs(pathname: string | null): string[] {
@@ -86,6 +88,7 @@ export function Topbar() {
         type="button"
         onClick={openPalette}
         data-slot="palette-trigger-topbar"
+        data-testid="topbar-cmdk"
         aria-label="Search entities and views"
         className="flex h-8 w-[280px] items-center gap-2 rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 text-[13px] text-[color:var(--color-text-3)] hover:border-[color:var(--color-border-hover)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
       >
@@ -99,6 +102,7 @@ export function Topbar() {
         type="button"
         onClick={emitNewCapture}
         data-slot="new-capture"
+        data-testid="topbar-new-capture"
         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 text-[13px] text-[color:var(--color-text-2)] hover:border-[color:var(--color-border-hover)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
       >
         <Plus size={14} />

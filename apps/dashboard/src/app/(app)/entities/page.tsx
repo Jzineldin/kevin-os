@@ -113,6 +113,7 @@ export default async function EntitiesPage({
               key={chip.type}
               href={`/entities?type=${chip.type}`}
               className="inline-flex items-center gap-2 rounded-md border border-[color:var(--color-border)] px-3 py-1.5 text-[12px] text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-hover)] transition-colors"
+              data-testid={`entity-filter-${chip.type}`}
             >
               <EntityIcon type={chip.type} />
               <span>{chip.label}</span>

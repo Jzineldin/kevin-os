@@ -5,10 +5,11 @@
  * Structure mirrors 03-UI-SPEC.md §Sidebar verbatim:
  *
  *   1. Brand row (BrandMark + wordmark + pulsing success status dot)
- *   2. Views group: Today [T] · Inbox [I] + count · Calendar [C] · Chat (disabled)
+ *   2. Views group: Today [T] · Inbox [I] + count · Calendar [C] · Health · Chat
+ *      (Phase 11 Plan 11-07: Chat enabled, Settings entry removed per D-06)
  *   3. Entities label + People / Projects (with counts)
  *   4. Quick label + Search trigger (opens command palette, ⌘K badge)
- *   5. Bottom-pinned: Settings · Logout
+ *   5. Bottom-pinned: Logout
  *
  * Fixed width 220px, --color-surface-1 background, border-right.
  *
@@ -26,7 +27,6 @@ import {
   Users,
   Folder,
   Search,
-  Settings,
   LogOut,
 } from 'lucide-react';
 
@@ -104,6 +104,7 @@ export function Sidebar({
           icon={<Home size={14} />}
           label="Today"
           kbd="T"
+          testId="nav-today"
         />
         <NavItem
           href="/inbox"
@@ -111,12 +112,14 @@ export function Sidebar({
           label="Inbox"
           kbd="I"
           count={entityCounts.inbox}
+          testId="nav-inbox"
         />
         <NavItem
           href="/calendar"
           icon={<Calendar size={14} />}
           label="Calendar"
           kbd="C"
+          testId="nav-calendar"
         />
         {/* Phase 11 Plan 11-06 — D-07 channel-health surface entry.
             data-testid="nav-integrations-health" passes through NavItem
@@ -127,12 +130,14 @@ export function Sidebar({
           label="Health"
           testId="nav-integrations-health"
         />
+        {/* Phase 11 Plan 11-07 — Chat link enabled. Backend ships with
+            Phase 11-ter; this link points at the visual-only /chat shell
+            so the global ChatBubble has a deep-link counterpart. */}
         <NavItem
           href="/chat"
           icon={<MessageSquare size={14} />}
           label="Chat"
-          disabled
-          disabledTooltip="Ships with Phase 4"
+          testId="nav-chat"
         />
       </nav>
 
@@ -146,12 +151,14 @@ export function Sidebar({
           icon={<Users size={14} />}
           label="People"
           count={entityCounts.people}
+          testId="nav-people"
         />
         <NavItem
           href="/entities?type=project"
           icon={<Folder size={14} />}
           label="Projects"
           count={entityCounts.projects}
+          testId="nav-projects"
         />
       </nav>
 
@@ -164,6 +171,7 @@ export function Sidebar({
           type="button"
           onClick={openPalette}
           data-slot="palette-trigger-sidebar"
+          data-testid="sidebar-cmdk"
           className="flex items-center gap-[10px] rounded-md px-[10px] py-[6px] text-[13px] text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-hover)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
         >
           <Search size={14} />
@@ -172,17 +180,14 @@ export function Sidebar({
         </button>
       </nav>
 
-      {/* Bottom pinned */}
+      {/* Bottom pinned — Settings entry removed in Phase 11 Plan 11-07
+          (D-06: no half-implemented buttons). Phase 12 reintroduces. */}
       <div className="mt-auto flex flex-col gap-1">
-        <NavItem
-          href="/settings"
-          icon={<Settings size={14} />}
-          label="Settings"
-        />
         <button
           type="button"
           onClick={handleLogout}
           data-slot="logout"
+          data-testid="sidebar-logout"
           className="flex items-center gap-[10px] rounded-md px-[10px] py-[6px] text-[13px] text-[color:var(--color-text-3)] hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-text-2)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
         >
           <LogOut size={14} />

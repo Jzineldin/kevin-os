@@ -101,7 +101,7 @@ export function Composer() {
             type="submit"
             size="sm"
             disabled={pending || !text.trim()}
-            data-testid="composer-submit"
+            data-testid="today-composer-send"
           >
             {SUBMIT_LABEL}
           </Button>

@@ -253,10 +253,20 @@ function Editor({
         autoFocus
       />
       <div className="flex gap-2">
-        <Button onClick={onSave} disabled={pending} size="sm">
+        <Button
+          onClick={onSave}
+          disabled={pending}
+          size="sm"
+          data-testid="inbox-edit-save"
+        >
           Save edit
         </Button>
-        <Button variant="ghost" onClick={onDone} size="sm">
+        <Button
+          variant="ghost"
+          onClick={onDone}
+          size="sm"
+          data-testid="inbox-edit-cancel"
+        >
           Cancel
         </Button>
       </div>

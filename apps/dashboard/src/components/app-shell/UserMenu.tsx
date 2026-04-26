@@ -40,6 +40,7 @@ export function UserMenu({ initial = 'K' }: { initial?: string }) {
           type="button"
           aria-label="Open user menu"
           data-slot="user-menu-trigger"
+          data-testid="topbar-user-menu"
           className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-[11px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface-1)]"
           style={{
             background:

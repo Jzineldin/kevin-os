@@ -81,13 +81,19 @@ export function DraftsCard({ drafts }: { drafts: TodayDraft[] }) {
                 </p>
                 <div className="flex items-center gap-2">
                   <Button asChild size="sm" variant="default">
-                    <Link href="/inbox">Approve</Link>
+                    <Link href="/inbox" data-testid="drafts-approve">
+                      Approve
+                    </Link>
                   </Button>
                   <Button asChild size="sm" variant="outline">
-                    <Link href="/inbox">Edit</Link>
+                    <Link href="/inbox" data-testid="drafts-edit">
+                      Edit
+                    </Link>
                   </Button>
                   <Button asChild size="sm" variant="ghost">
-                    <Link href="/inbox">Skip</Link>
+                    <Link href="/inbox" data-testid="drafts-skip">
+                      Skip
+                    </Link>
                   </Button>
                 </div>
               </motion.article>

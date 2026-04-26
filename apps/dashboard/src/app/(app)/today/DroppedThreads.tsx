@@ -45,6 +45,7 @@ export function DroppedThreads({ items }: { items: TodayDroppedThread[] }) {
                 <Link
                   href={`/entities/${t.entity_id}` as Route}
                   className="thread-row"
+                  data-testid="dropped-row"
                 >
                   <span className="thread-avatar" aria-hidden="true">
                     {initials(t.entity)}

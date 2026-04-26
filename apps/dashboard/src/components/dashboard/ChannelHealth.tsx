@@ -76,6 +76,7 @@ export function ChannelHealth({
           href="/integrations-health"
           className="mc-channel-bar"
           data-channel={ch.name}
+          data-testid="mc-channel-bar"
           style={{
             display: 'flex',
             alignItems: 'center',

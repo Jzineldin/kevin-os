@@ -46,6 +46,8 @@ import { Key } from 'aws-cdk-lib/aws-kms';
 import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import type { EventBus } from 'aws-cdk-lib/aws-events';
+import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { KosLambda } from '../constructs/kos-lambda.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -87,6 +89,16 @@ export interface MigrationStackProps extends StackProps {
    * deploy (acceptable for KOS single-user volume).
    */
   discordChannelIds?: string[];
+  /**
+   * Single Discord channel snowflake for the brain-dump poller (Plan 10-04).
+   * Per `05-06-DISCORD-CONTRACT.md`, the Phase 5 Scheduler input does NOT
+   * carry the channel id — the Lambda owns it via env var. If both
+   * `discordChannelIds` (Wave-0 multi-channel input) and `discordBrainDumpChannelId`
+   * are set, the env-var route wins for the contract-canonical Phase 5
+   * Scheduler invoke; the Wave-0 Scheduler input remains as a fallback for
+   * manual ad-hoc invocations.
+   */
+  discordBrainDumpChannelId?: string;
 }
 
 export class MigrationStack extends Stack {
@@ -98,6 +110,8 @@ export class MigrationStack extends Stack {
   public readonly archiveKey: IKey;
   public readonly schedulerRole: Role;
   public readonly discordSchedule: CfnSchedule;
+  public readonly discordSchedulerDlq: Queue;
+  public readonly discordBrainDumpLambdaArnParam: StringParameter;
   public readonly vpsClassifyHmacSecret: ISecret;
   public readonly discordBotTokenSecret: ISecret;
   public readonly archivePrefix: string;
@@ -182,6 +196,16 @@ export class MigrationStack extends Stack {
     });
 
     // ----- Lambda 2: DiscordBrainDump (CAP-10) -------------------------------
+    // Plan 10-04 fills in the handler body. Env wires:
+    //   - DISCORD_BOT_TOKEN_SECRET_ARN   → operator-seeded bot token
+    //   - CURSOR_TABLE_NAME              → DynamoDB cursor table (Wave-0)
+    //   - KOS_CAPTURE_BUS_NAME           → kos.capture EventBridge bus
+    //   - DISCORD_BRAIN_DUMP_CHANNEL_ID  → single channel snowflake; the
+    //     Phase 5 Scheduler input is channel-agnostic (`channel: 'brain-dump'`)
+    //     so the Lambda resolves the actual Discord channel id from env per
+    //     05-06-DISCORD-CONTRACT.md.
+    //   - KEVIN_OWNER_ID                 → fallback owner_id when an ad-hoc
+    //     manual invoke arrives without a payload.
     this.discordBrainDump = new KosLambda(this, 'DiscordBrainDump', {
       entry: svcEntry('discord-brain-dump'),
       timeout: Duration.seconds(60),
@@ -190,14 +214,61 @@ export class MigrationStack extends Stack {
         DISCORD_BOT_TOKEN_SECRET_ARN: this.discordBotTokenSecret.secretArn,
         CURSOR_TABLE_NAME: this.cursorTable.tableName,
         KOS_CAPTURE_BUS_NAME: props.captureBus.eventBusName,
+        DISCORD_BRAIN_DUMP_CHANNEL_ID:
+          props.discordBrainDumpChannelId ?? props.discordChannelIds?.[0] ?? '',
+        KEVIN_OWNER_ID: props.kevinOwnerId,
       },
     });
     this.discordBotTokenSecret.grantRead(this.discordBrainDump);
     this.cursorTable.grantReadWriteData(this.discordBrainDump);
     props.captureBus.grantPutEventsTo(this.discordBrainDump);
 
+    // ----- SSM parameter — Plan 05-06 hand-off ------------------------------
+    // The Phase 5 Scheduler in `integrations-discord-schedule.ts` reads its
+    // target Lambda ARN from `/kos/discord/brain-dump-lambda-arn`. Once
+    // Plan 10-04's Lambda lands, the SSM param MUST point at the real ARN.
+    // We seed it from CDK so deploy ordering is symmetric:
+    //
+    //   - if MigrationStack deploys first: SSM param holds the real ARN; a
+    //     subsequent deploy of IntegrationsStack pins the Phase 5 Scheduler
+    //     onto the real Lambda automatically.
+    //   - if IntegrationsStack deploys first against an operator-seeded
+    //     no-op ARN: this CFN update overwrites the param with the real
+    //     ARN, then a redeploy of IntegrationsStack repins the Scheduler.
+    //
+    // Per `05-06-DISCORD-CONTRACT.md`, Scheduler-target ARN is resolved at
+    // rule-creation time (NOT runtime), so the IntegrationsStack repoint
+    // remains a manual operator step — but seeding the param here removes
+    // the previous burden of operator-side `aws ssm put-parameter` calls.
+    this.discordBrainDumpLambdaArnParam = new StringParameter(
+      this,
+      'DiscordBrainDumpLambdaArnParam',
+      {
+        parameterName: '/kos/discord/brain-dump-lambda-arn',
+        stringValue: this.discordBrainDump.functionArn,
+        description:
+          'ARN of the Phase-10 Plan 10-04 DiscordBrainDump Lambda. Read by the Phase 5 Plan 05-06 EventBridge Scheduler (kos-discord-poll) at synth time. Re-deploy IntegrationsStack to repoint the Scheduler after MigrationStack updates.',
+      },
+    );
+
+    // ----- DLQ for the Wave-0 internal Scheduler ----------------------------
+    // Plan 10-04 adds an SQS DLQ so a 3-strike retry burst (e.g., transient
+    // 5xx from Discord that exceeds the Scheduler's retryPolicy) lands on a
+    // queue instead of being silently dropped. The queue is short-lived
+    // (4-day retention) and KMS-encrypted with the AWS-managed key (free).
+    this.discordSchedulerDlq = new Queue(this, 'DiscordBrainDumpSchedulerDlq', {
+      queueName: 'discord-brain-dump-scheduler-dlq',
+      encryption: QueueEncryption.SQS_MANAGED,
+      retentionPeriod: Duration.days(4),
+      visibilityTimeout: Duration.seconds(60),
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+
     // EventBridge Scheduler — every 5 minutes. Static input payload encodes
-    // owner_id + channel_ids per the 05-06-DISCORD-CONTRACT.md shape.
+    // owner_id + channel_ids per the (legacy Wave-0) MigrationStack shape.
+    // The canonical Phase 5 Scheduler in IntegrationsStack uses a different
+    // payload (`{ channel: 'brain-dump', owner_id, trigger_source }`) —
+    // the handler accepts both shapes for deploy resilience.
     this.schedulerRole = new Role(this, 'DiscordBrainDumpSchedulerRole', {
       assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
       description:
@@ -210,6 +281,9 @@ export class MigrationStack extends Stack {
         resources: [this.discordBrainDump.functionArn],
       }),
     );
+    // DLQ send permission — Scheduler delivers failed events to the queue
+    // after exhausting retries.
+    this.discordSchedulerDlq.grantSendMessages(this.schedulerRole);
 
     const schedulerInput = JSON.stringify({
       owner_id: props.kevinOwnerId,
@@ -228,6 +302,9 @@ export class MigrationStack extends Stack {
         retryPolicy: {
           maximumEventAgeInSeconds: 300,
           maximumRetryAttempts: 2,
+        },
+        deadLetterConfig: {
+          arn: this.discordSchedulerDlq.queueArn,
         },
       },
     });
@@ -274,6 +351,18 @@ export class MigrationStack extends Stack {
       exportName: 'KosMigrationDiscordCursorTable',
       description:
         'DynamoDB cursor table for the Phase-10 Discord brain-dump poller (CAP-10).',
+    });
+    new CfnOutput(this, 'DiscordBrainDumpLambdaArn', {
+      value: this.discordBrainDump.functionArn,
+      exportName: 'KosMigrationDiscordBrainDumpArn',
+      description:
+        'ARN of the Phase-10 Plan 10-04 DiscordBrainDump Lambda. Mirrors the SSM /kos/discord/brain-dump-lambda-arn parameter — the SSM param is what Phase 5 reads at synth time.',
+    });
+    new CfnOutput(this, 'DiscordBrainDumpSchedulerDlqUrl', {
+      value: this.discordSchedulerDlq.queueUrl,
+      exportName: 'KosMigrationDiscordDlqUrl',
+      description:
+        'SQS DLQ for the Phase-10 Discord brain-dump Scheduler. Failed retries (after 2 attempts + 5-min event-age cutoff) land here.',
     });
   }
 }

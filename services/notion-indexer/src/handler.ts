@@ -196,6 +196,34 @@ export async function runIndexer(event: IndexerEvent, deps: Deps = {}): Promise<
   let startCursor: string | undefined;
   const pendingEvents: PutEventsRequestEntry[] = [];
 
+  // kevin_context's dbId is a PAGE id (not a database). databases.query would
+  // 400 with "Provided ID ... is a page, not a database". Bypass the
+  // database-query loop entirely and walk the single page via
+  // indexKevinContextPage which uses the blocks API.
+  if (event.dbKind === 'kevin_context') {
+    try {
+      const page: any = await notion.pages.retrieve({ page_id: event.dbId });
+      stats.pagesSeen = 1;
+      const editedAt = new Date(page.last_edited_time);
+      maxSeenEditedAt = editedAt;
+      const outcome = await indexKevinContextPage(db, notion, page);
+      if (outcome.action === 'inserted') stats.inserted += 1;
+      else if (outcome.action === 'updated') stats.updated += 1;
+      else if (outcome.action === 'skipped') stats.skipped += 1;
+      stats.cursorAdvancedTo = maxSeenEditedAt.toISOString();
+      await db.query(
+        `INSERT INTO notion_indexer_cursor (db_id, last_cursor_at)
+         VALUES ($1, $2)
+         ON CONFLICT (db_id) DO UPDATE SET last_cursor_at = EXCLUDED.last_cursor_at`,
+        [event.dbId, maxSeenEditedAt],
+      );
+    } catch (err) {
+      console.error('[notion-indexer] kevin_context page retrieve failed', err);
+      throw err;
+    }
+    return stats;
+  }
+
   try {
     do {
       const res: any = await notion.databases.query({
@@ -220,18 +248,21 @@ export async function runIndexer(event: IndexerEvent, deps: Deps = {}): Promise<
             outcome = await upsertEntity(db, page);
           } else if (event.dbKind === 'projects') {
             outcome = await upsertProject(db, page);
-          } else if (event.dbKind === 'kevin_context') {
-            // For kevin_context, indexer walks the *page* to find heading_2 +
-            // following paragraph pairs and upserts each as a section row.
-            outcome = await indexKevinContextPage(db, notion, page);
           } else {
+            // kevin_context is handled in the page-retrieval branch above
+            // (databases.query would 400 since the dbId is a page).
+            // This branch handles command_center: Phase 2+ takes over full
+            // processing. For now we record the observation so dashboards
+            // can count pages.
             // command_center: Phase 2+ takes over full processing. For now we
             // record the observation so dashboards can count pages.
             await db.query(
-              `INSERT INTO event_log (kind, detail)
+              `INSERT INTO event_log (kind, detail, actor, owner_id)
                VALUES ('notion-indexed-other',
-                       jsonb_build_object('notion_page_id', $1::text, 'kind', $2::text))`,
-              [page.id, event.dbKind],
+                       jsonb_build_object('notion_page_id', $1::text, 'kind', $2::text),
+                       'notion-indexer',
+                       $3::uuid)`,
+              [page.id, event.dbKind, process.env.KEVIN_OWNER_ID ?? ''],
             );
             outcome = { action: 'inserted' as const };
           }

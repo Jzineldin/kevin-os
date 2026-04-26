@@ -31,6 +31,9 @@ import './handlers/inbox.js';
 import './handlers/merge.js';
 import './handlers/capture.js';
 import './handlers/calendar.js';
+// Phase 4 Plan 04-05: Approve / Edit / Skip Route Handlers + merged inbox.
+import './routes/email-drafts.js';
+import './routes/inbox.js';
 
 /**
  * Constant-time string compare — prevents timing oracles on the shared

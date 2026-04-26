@@ -1,9 +1,23 @@
 /**
- * CalendarWeekView — Plan 03-10 Task 3.
+ * CalendarWeekView — Plan 03-10 Task 3 + Phase 11 Plan 11-05 Task 2.
  *
  * Maps to UI-SPEC §View 4 + TFOS-ui.html §05. Renders a 7-column × hourly
- * grid for the current Stockholm week with Command Center Deadline + Idag
- * events bar-positioned over their hour cells.
+ * grid for the current Stockholm week with both:
+ *   - Notion Command Center deadlines (source: command_center_*)
+ *   - Real Google Calendar meetings (source: google_calendar) from
+ *     calendar_events_cache via the calendar-reader Lambda.
+ *
+ * Visual distinction (Plan 11-05 D-07):
+ *   - Notion CC deadlines retain their bolag-tinted accent via the
+ *     existing `.cal-event.tf|.ob|.pe` classes in globals.css.
+ *   - Google meetings show a left-border accent in `var(--color-info)`
+ *     (sky-blue) via inline style + `data-source="google_calendar"`.
+ *   - Legend at the top of the grid maps colour → kind for first-time
+ *     orientation. Tooltip on each Google event carries the account
+ *     label so Kevin can disambiguate kevin-elzarka vs kevin-taleforge.
+ *
+ * Empty state (D-12): "No meetings or deadlines this week — your
+ * calendar is clear." replaces the previous "Nothing scheduled" copy.
  *
  * Binding rules:
  *   - Today column: `border-top: 2px solid var(--color-accent)` via the
@@ -12,13 +26,13 @@
  *     (UI-SPEC line 428). The `.cal-event` rule in globals.css owns it;
  *     no other selector may carry `transform: translateY(...)` on hover.
  *   - Month tab is disabled with Tooltip copy "Month view ships with Phase 8".
- *   - Empty state: "Nothing scheduled this week." + meta body verbatim.
  *   - Click event with linked_entity_id routes to /entities/[id].
  *   - SSE timeline_event → re-fetch the week (router.refresh is cheap at
  *     single-user volume).
  */
 'use client';
 
+import type { CSSProperties } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -100,21 +114,43 @@ function EventBar({ ev, day }: { ev: CalendarEvent; day: Date }) {
   if (!pos) return null;
   const bolagCls = getBolagClass(ev.bolag);
   const mod = bolagModifier(bolagCls);
+
+  // Plan 11-05 Task 2: Google meetings get a sky-blue left-border accent
+  // distinct from the bolag-tinted Notion CC deadlines. The bolag class
+  // is still applied (default 'pe') so non-bolag tinting is consistent;
+  // the inline style overrides the left-border colour for google_calendar
+  // events specifically. Notion CC deadlines override with the warning
+  // colour so meetings/deadlines are immediately distinguishable.
+  const isGoogle = ev.source === 'google_calendar';
+  const accentColor = isGoogle ? 'var(--color-info)' : 'var(--color-warning)';
   const classes = `cal-event ${mod}`;
+  const tooltipTitle = isGoogle && ev.account
+    ? `${ev.title} · ${ev.account}`
+    : ev.title;
+
+  const baseStyle: CSSProperties = {
+    top: pos.top,
+    height: pos.height,
+    borderLeft: `3px solid ${accentColor}`,
+  };
+
   const inner = (
     <>
       <div className="cal-event-title">{ev.title}</div>
       <div className="cal-event-meta">{formatTimeRange(ev.start_at, ev.end_at)}</div>
     </>
   );
+
   if (ev.linked_entity_id) {
     return (
       <Link
         href={`/entities/${ev.linked_entity_id}` as never}
         className={classes}
-        style={{ top: pos.top, height: pos.height }}
+        style={baseStyle}
         data-testid="calendar-event"
         data-bolag={bolagCls}
+        data-source={ev.source}
+        title={tooltipTitle}
       >
         {inner}
       </Link>
@@ -123,9 +159,11 @@ function EventBar({ ev, day }: { ev: CalendarEvent; day: Date }) {
   return (
     <div
       className={classes}
-      style={{ top: pos.top, height: pos.height }}
+      style={baseStyle}
       data-testid="calendar-event"
       data-bolag={bolagCls}
+      data-source={ev.source}
+      title={tooltipTitle}
     >
       {inner}
     </div>
@@ -187,35 +225,79 @@ export function CalendarWeekView({ initial }: { initial: CalendarWeekResponse })
       </div>
 
       {hasEvents ? (
-        <div className="week-grid">
-          {/* Header row: time gutter + 7 day headers */}
-          <div className="week-th" aria-hidden />
-          {days.map((d) => {
-            const isToday = sameDay(d, today);
-            return (
-              <div
-                key={`th-${d.toISOString()}`}
-                className={`week-th${isToday ? ' today-col' : ''}`}
-                data-testid={isToday ? 'today-col-header' : 'day-col-header'}
-              >
-                {DAY_LABELS_SV[(d.getDay() + 6) % 7]}
-                <div className="day-num">{d.getDate()}</div>
-              </div>
-            );
-          })}
+        <>
+          {/* Plan 11-05 Task 2: Legend mapping accent colour → event kind. */}
+          <div
+            data-testid="cal-legend"
+            style={{
+              display: 'flex',
+              gap: 16,
+              fontSize: 11,
+              color: 'var(--color-text-3)',
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  background: 'var(--color-info)',
+                  borderRadius: 2,
+                }}
+              />
+              Meetings (Google)
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  background: 'var(--color-warning)',
+                  borderRadius: 2,
+                }}
+              />
+              Deadlines (Command Center)
+            </span>
+          </div>
 
-          {/* Hourly rows: time label + 7 day cells */}
-          {HOURS.map((hour) => (
-            <Hour key={hour} hour={hour} days={days} today={today} events={data.events} />
-          ))}
-        </div>
+          <div className="week-grid">
+            {/* Header row: time gutter + 7 day headers */}
+            <div className="week-th" aria-hidden />
+            {days.map((d) => {
+              const isToday = sameDay(d, today);
+              return (
+                <div
+                  key={`th-${d.toISOString()}`}
+                  className={`week-th${isToday ? ' today-col' : ''}`}
+                  data-testid={isToday ? 'today-col-header' : 'day-col-header'}
+                >
+                  {DAY_LABELS_SV[(d.getDay() + 6) % 7]}
+                  <div className="day-num">{d.getDate()}</div>
+                </div>
+              );
+            })}
+
+            {/* Hourly rows: time label + 7 day cells */}
+            {HOURS.map((hour) => (
+              <Hour key={hour} hour={hour} days={days} today={today} events={data.events} />
+            ))}
+          </div>
+        </>
       ) : (
-        <div className="flex flex-col items-center justify-center gap-2 py-20">
+        <div
+          className="flex flex-col items-center justify-center gap-2 py-20"
+          data-testid="cal-empty"
+        >
           <p className="text-[14px] text-[color:var(--color-text-2)]">
-            Nothing scheduled this week.
+            No meetings or deadlines this week — your calendar is clear.
           </p>
           <p className="text-[12px] text-[color:var(--color-text-3)]">
-            Events from Command Center Deadline and Idag columns appear here.
+            Google Calendar meetings and Command Center deadlines surface here as they arrive.
           </p>
         </div>
       )}

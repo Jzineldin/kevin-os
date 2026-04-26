@@ -14,3 +14,14 @@ Verified via `git stash` round-trip on master: the errors reproduce without 11-0
 ### Notes for verifier
 - Plan 11-05 changes (calendar.ts handler + tests, contracts/dashboard.ts CalendarEventSchema additive) compile cleanly. The typecheck failures above are not caused by this plan.
 
+
+### Pre-existing apps/dashboard typecheck errors (NOT introduced by 11-05)
+
+`pnpm -F @kos/dashboard typecheck` reports 3 errors all pre-dating 11-05:
+
+- `src/app/(app)/today/page.tsx:16` — Plan 11-04 introduced captures_today/channels with `default([])` (always-present at runtime), but `EMPTY` literal is typed without those fields. Fix is to add `captures_today: []` and `channels: []` to EMPTY.
+- `src/app/(app)/today/page.tsx:27` — Same root cause. The Schema applies defaults so the parsed object is required, but the `data` value type is the input shape with `optional/.default` interpreted as optional.
+- `src/components/dashboard/ChannelHealth.tsx:76` — Next.js typed-routes refusal of `/integrations-health` because Plan 11-06 hasn't yet added the `(app)/integrations-health/page.tsx` file (which materialises the route). Will resolve when 11-06 lands.
+
+Verified pre-existing via `git stash --keep-index` round-trip on master. Out of scope for 11-05 (deviation rule scope-boundary).
+

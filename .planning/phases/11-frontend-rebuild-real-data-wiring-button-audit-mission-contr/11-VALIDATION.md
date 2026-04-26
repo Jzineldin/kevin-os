@@ -44,7 +44,7 @@ created: 2026-04-26
 | 11-00-T1 | 00 | 0 | REQ-3 | T-11-00-02 | Visual baselines captured pre-rebuild | smoke | `ls -la apps/dashboard/tests/visual-baseline/*.png` | ❌ Wave 0 | ⬜ pending |
 | 11-00-T2 | 00 | 0 | REQ-1/3/12 | — | Test scaffolds laid for Waves 1-4 | unit | `pnpm -F @kos/dashboard test --run && pnpm -F @kos/dashboard-api test --run` | ❌ Wave 0 | ⬜ pending |
 | 11-01-T1 | 01 | 1 | REQ-12 | T-11-01-01,02 | Startup guard fails-loud on seed pollution | unit | `pnpm -F @kos/dashboard-api test --run seed-pollution-guard` | ❌ Wave 0 | ⬜ pending |
-| 11-01-T2 | 01 | 1 | REQ-12 | T-11-01-01 | Dashboard-api returns 503 when guard tripped | smoke | `node scripts/verify-startup-guard.mjs` | ❌ Wave 0 | ⬜ pending |
+| 11-01-T2 | 01 | 1 | REQ-12 | T-11-01-01 | Dashboard-api returns 503 when guard tripped | unit | `pnpm -F @kos/dashboard-api test --run seed-pollution-handler` | ❌ Wave 0 | ⬜ pending |
 | 11-01-T3 | 01 | 1 | REQ-12 | T-11-01-01 | Demo names absent from prod RDS | smoke | `bash scripts/verify-phase-11-wipe.sh` | ❌ Wave 0 | ⬜ pending |
 | 11-02-T1 | 02 | 1 | REQ-3 | T-11-02-02 | shadcn primitives installed + design-tokens typed | unit | `pnpm -F @kos/dashboard typecheck` | ✅ exists | ⬜ pending |
 | 11-02-T2 | 02 | 1 | REQ-3 | T-11-02-01,03 | Pill+StatTile+ChannelHealth+PriorityRow render | unit | `pnpm -F @kos/dashboard test --run dashboard` | ❌ Wave 0 | ⬜ pending |
@@ -103,3 +103,5 @@ created: 2026-04-26
 - [ ] `nyquist_compliant: true` set in frontmatter (after planner fills the per-task map)
 
 **Approval:** pending
+</content>
+</invoke>

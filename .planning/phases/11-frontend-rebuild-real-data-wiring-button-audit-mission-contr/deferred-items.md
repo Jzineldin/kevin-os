@@ -25,3 +25,25 @@ Verified via `git stash` round-trip on master: the errors reproduce without 11-0
 
 Verified pre-existing via `git stash --keep-index` round-trip on master. Out of scope for 11-05 (deviation rule scope-boundary).
 
+## From Plan 11-08 execution (2026-04-26)
+
+### `services/triage/src/handler.ts` LinkedIn DM body→text typecheck error (NOT introduced by 11-08)
+
+`pnpm -r typecheck` fails on `services/triage/src/handler.ts:105`:
+
+```
+src/handler.ts(105,18): error TS2339: Property 'text' does not exist on type
+'{ capture_id: string; channel: "linkedin"; kind: "linkedin_dm";
+   received_at: string; conversation_urn: string; message_urn: string;
+   from: { name: string; li_public_id?: string | undefined; };
+   body: string; sent_at: string; }'.
+```
+
+Introduced by upstream commit `d5a1eac` ("fix(triage): dispatch chrome_highlight + linkedin_dm captures", PR #38) — the dispatched event uses `body` but the handler reads `d.text`. Reproduced on the worktree base branch before any Plan 11-08 changes.
+
+Out of scope for Plan 11-08 (Phase 11 scope is dashboard frontend rebuild + real-data wiring + button audit; LinkedIn capture pipeline is Phase 5). Owner: whoever next touches `services/triage` — fix is a one-line `d.text` → `d.body ?? ''`.
+
+### Pre-existing test-fixture typecheck error fixed in 11-08 (Rule 3)
+
+`packages/test-fixtures/src/dashboard/index.ts:93` — `makeTodayResponse()` did not provide `captures_today` or `channels` after Plan 11-04 made them required (with schema-level `.default([])`). This is exactly the same shape of error 11-05 flagged for `today/page.tsx`'s EMPTY literal, in a different file. Fixed inline in this plan because `pnpm -r typecheck` is gating evidence for the phase gate — Rule 3 (auto-fix blocking issues) applies.
+

@@ -676,36 +676,42 @@ Then for each known capture channel (`telegram-bot`, `gmail-poller`, `granola-po
 - [ ] `services/dashboard-api/tests/today.test.ts` — extend with capture sources
 - [ ] `services/dashboard-api/tests/calendar.test.ts` — extend with calendar_events_cache UNION
 - [ ] `scripts/verify-phase-11-wipe.sh` — demo-names-absent assertion, exits non-zero if any found
-- [ ] `scripts/verify-startup-guard.mjs` — invokes dashboard-api with planted seed row, expects 503
+- [ ] `services/dashboard-api/tests/seed-pollution-handler.test.ts` — Vitest handler-integration test asserting 503 when seed pollution detected, non-503 when clean (replaces the originally-planned `scripts/verify-startup-guard.mjs` per checker feedback — avoids global-mutation hatch in production db.ts)
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **agent_runs schema for channel-health derivation.**
+   - **RESOLVED (Wave 0 / Plan 11-00):** Wave 0 schema-verification task ran `SELECT DISTINCT agent_name, COUNT(*) FROM agent_runs GROUP BY 1` over the bastion and confirmed `agent_name` granularity is sufficient (per-channel rows: telegram-bot, gmail-poller, granola-poller, calendar-reader, etc.). No `channel_health` table required — derivation lives in `services/dashboard-api/src/handlers/integrations.ts` (Plan 11-06).
    - What we know: `agent_runs` exists since migration 0001; columns include `agentName`, `inputHash`, `outputJson`, `status`, `startedAt`, `finishedAt`, `captureId` (per usage in `inbox.ts:138-150`).
    - What's unclear: Is `agent_name` granular enough to map to channels? E.g., does the gmail-poller write `agent_name='gmail-poller'`? Does telegram-bot write its own row?
    - Recommendation: Wave 0 task — `psql -c "SELECT DISTINCT agent_name, COUNT(*) FROM agent_runs GROUP BY 1 ORDER BY 1"` over bastion. If granularity insufficient, derive from `outputJson->>'channel'` payload OR add a separate `channel_health` table that each channel writes to (heavier; defer).
 
 2. **`capture_text` column shape.**
+   - **RESOLVED (Wave 0 / Plan 11-00):** `\d+ capture_text` over bastion verified column names; verified shape recorded in `11-WAVE-0-SCHEMA-VERIFICATION.md`. Plans 11-04 and 11-05 reference that doc as the source of truth for UNION queries.
    - What we know: Phase 1 mig 0001 introduced this table; Telegram and Chrome both write to it.
    - What's unclear: Is there a `source_kind` discriminator column or do they share a single text body? Need to verify before writing the today aggregation query.
    - Recommendation: Wave 0 — `\d+ capture_text` over bastion.
 
 3. **Settings page scope (D-06 button audit).**
+   - **RESOLVED (Plan 11-07):** Phase 11 Plan 11-07 implements the button-audit + settings-wiring decision. Per the recommendation below, sidebar links that don't yet wire to a working surface are removed (D-06 'wire or remove' — remove path chosen for Phase 11; future polish phase may add back).
    - What we know: Currently a stub. The sidebar links to it.
    - What's unclear: Does Phase 11 wire Settings to something useful (env channel toggles, token refresh, manual scheduler trigger) or REMOVE the link (D-06 says "wire or remove")?
    - Recommendation: Plan-time decision. If wiring: surface (a) Telegram bot token rotation, (b) channel-toggle (disable LinkedIn polling temporarily), (c) "Run scheduler now" buttons (morning-brief, day-close). If removing: hide sidebar link until Phase 999.x.
 
 4. **Inbox kind: extend `'draft_reply'` vs add `'classified_email'`.**
+   - **RESOLVED (recommendation adopted):** Add optional `classification` field to existing `'draft_reply'` kind; renderers branch on classification. Cheaper than a new kind. Migration: zero (zod schema additive change). Implemented in Plan 11-03 (InboxItemSchema extension).
    - What we know: Contract `InboxItemKindSchema` has 4 values today.
    - What's unclear: D-05 wants ALL classified emails surfaced. Two contract paths.
    - Recommendation: Add optional `classification` field to existing `'draft_reply'` kind; renderers branch on classification. Cheaper than new kind. Migration: zero (zod schema additive change).
 
 5. **Wipe execution venue.**
+   - **RESOLVED (Wave 0 / Plan 11-00):** Plan-time bastion-reachability check completed in Wave 0; if not reachable, `cdk deploy KosData --context bastion=true` re-provisions in ~5 min. Plan 11-01 Task 3 (operator checkpoint) executes the wipe through the bastion + SSM port-forward flow.
    - What we know: Bastion already deployed for Phase 4 work; teardown is on operator todo.
    - What's unclear: Is the bastion still reachable? Or do we need a fresh `cdk deploy --context bastion=true`?
    - Recommendation: Plan-time check via `aws ec2 describe-instances --filters Name=tag:Name,Values=KosBastion`. If gone, re-provision is 5 min.
 
 6. **Startup-guard placement (Lambda init vs first-request).**
+   - **RESOLVED (recommendation adopted):** Lambda handler entry (post-bearer-check, pre-route). Implemented in Plan 11-01 Task 2 — see `services/dashboard-api/src/index.ts` integration. Cost: ~5ms per cold start, cached for warm container lifetime; fail-loud with HTTP 503.
    - Recommendation: Lambda init (module-scope IIFE on cold start). Cost: ~1 SELECT per cold start (~ms). Fail-loud: throws → init failure → next invocation tries again, every 1 in N requests sees a 503. Aggressive enough that operator notices. Logged to Sentry as `dashboard-api-seed-pollution-detected`.
 
 ## Sources

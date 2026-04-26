@@ -1,0 +1,10 @@
+{
+  "name": "kos-admin-oneshot",
+  "type": "module",
+  "private": true,
+  "description": "One-shot admin-SQL runner — see README.md",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
+    "pg": "^8.13.1"
+  }
+}

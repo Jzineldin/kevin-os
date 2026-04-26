@@ -60,12 +60,11 @@ async function getPool(): Promise<Pool> {
     username: RDS_USER,
     region: REGION,
   });
-  const token = await signer.getAuthToken();
   cachedPool = new Pool({
     host: RDS_ENDPOINT,
     port: RDS_PORT,
     user: RDS_USER,
-    password: token,
+    password: async () => signer.getAuthToken(),
     database: RDS_DATABASE,
     ssl: { rejectUnauthorized: true },
     max: 2,

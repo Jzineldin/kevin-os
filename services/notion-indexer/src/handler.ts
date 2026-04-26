@@ -81,6 +81,11 @@ async function getNotionToken(): Promise<string> {
  * Build a pg Pool backed by IAM auth tokens (RDS Proxy).
  * T-01-PROXY-01: the Proxy SG is open, but only an IAM-signed token is a
  * valid credential. No password path.
+ *
+ * IMPORTANT: IAM auth tokens expire after 15 minutes. A Lambda can stay warm
+ * for up to ~45 min, so we MUST refresh the token per-connection — not once
+ * at cold-start. Pattern matches dashboard-api/src/db.ts and the 20+ other
+ * services using `password: async () => signer.getAuthToken()`.
  */
 async function getPool(): Promise<Pool> {
   if (cachedPool) return cachedPool;
@@ -92,13 +97,12 @@ async function getPool(): Promise<Pool> {
     username: RDS_USER,
     region: REGION,
   });
-  const token = await signer.getAuthToken();
 
   cachedPool = new Pool({
     host: RDS_ENDPOINT,
     port: RDS_PORT,
     user: RDS_USER,
-    password: token,
+    password: async () => signer.getAuthToken(),
     database: RDS_DATABASE,
     ssl: { rejectUnauthorized: true },
     max: 2,

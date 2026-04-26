@@ -11,7 +11,8 @@
     "./dashboard": "./src/dashboard.ts",
     "./context": "./src/context.ts",
     "./brief": "./src/brief.ts",
-    "./email": "./src/email.ts"
+    "./email": "./src/email.ts",
+    "./migration": "./src/migration.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

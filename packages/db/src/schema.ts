@@ -146,6 +146,10 @@ export const mentionEvents = pgTable(
 );
 
 // Cross-phase audit log (archive-not-delete tracking, stack deploy events, VPS freeze runs, etc.).
+// Phase 10 (migration 0021) added `actor` and the `event_log_owner_at_idx`
+// index for per-owner audit-timeline reads. The `kind` column stays open-
+// text in the DB; the application-layer enum lives in
+// `@kos/contracts/migration` (EventLogKindSchema).
 export const eventLog = pgTable(
   'event_log',
   {
@@ -154,9 +158,12 @@ export const eventLog = pgTable(
     kind: text('kind').notNull(),
     detail: jsonb('detail'),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Phase 10 — plan id or operator handle that wrote the row. */
+    actor: text('actor').notNull(),
   },
   (t) => ({
     byKind: index('event_log_by_kind').on(t.kind, t.occurredAt),
+    byOwnerAt: index('event_log_owner_at_idx').on(t.ownerId, t.occurredAt),
   }),
 );
 

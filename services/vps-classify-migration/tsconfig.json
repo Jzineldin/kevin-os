@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "dist",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@aws-sdk/*": ["./node_modules/@aws-sdk/*"],
+      "@kos/*": ["./node_modules/@kos/*/src/index.ts", "./node_modules/@kos/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "wf-rogue-cron-001",
+  "name": "Rogue cron → Telegram debug poke",
+  "active": true,
+  "createdAt": "2025-09-12T11:00:00.000Z",
+  "updatedAt": "2026-02-08T14:30:00.000Z",
+  "settings": {
+    "executionTimeout": 600,
+    "timezone": "Europe/Stockholm"
+  },
+  "nodes": [
+    {
+      "id": "node-cron-1",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 240],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            { "mode": "everyX", "value": 5, "unit": "minutes" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-telegram-1",
+      "name": "Telegram debug poke",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [560, 240],
+      "credentials": {
+        "telegramApi": "telegram-cred-01"
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.KEVIN_CHAT_ID }}",
+        "text": "n8n cron tick from rogue workflow"
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          { "node": "Telegram debug poke", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "discovered_at": "2026-04-25T07:00:00.000+00:00",
+  "host": "kos-vps-frozen.hetzner.cloud",
+  "services": [
+    {
+      "unit_name": "classify_and_save.py",
+      "unit_type": "python-script",
+      "state": "inactive",
+      "replaced_by": "arn:aws:lambda:eu-north-1:000000000000:function:KosMigrationVpsClassifyMigration"
+    },
+    {
+      "unit_name": "morning_briefing.py",
+      "unit_type": "python-script",
+      "state": "inactive",
+      "replaced_by": "arn:aws:lambda:eu-north-1:000000000000:function:KosIntegrationsMorningBrief"
+    },
+    {
+      "unit_name": "evening_checkin.py",
+      "unit_type": "python-script",
+      "state": "inactive",
+      "replaced_by": "arn:aws:lambda:eu-north-1:000000000000:function:KosIntegrationsDayClose"
+    },
+    {
+      "unit_name": "n8n.service",
+      "unit_type": "n8n-daemon",
+      "state": "failed",
+      "replaced_by": null
+    },
+    {
+      "unit_name": "gmail_classifier.timer",
+      "unit_type": "systemd-timer",
+      "state": "active",
+      "replaced_by": null
+    },
+    {
+      "unit_name": "brain-dump-listener.service",
+      "unit_type": "generic-daemon",
+      "state": "active",
+      "replaced_by": null
+    },
+    {
+      "unit_name": "sync_aggregated.timer",
+      "unit_type": "systemd-timer",
+      "state": "active",
+      "replaced_by": null
+    }
+  ]
+}

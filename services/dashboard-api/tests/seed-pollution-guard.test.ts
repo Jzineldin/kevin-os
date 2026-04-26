@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const { dbExecuteMock } = vi.hoisted(() => ({
-  dbExecuteMock: vi.fn(async () => ({ rows: [] })),
+  dbExecuteMock: vi.fn(async (): Promise<{ rows: unknown[] }> => ({ rows: [] })),
 }));
 
 vi.mock('../src/db.js', () => ({

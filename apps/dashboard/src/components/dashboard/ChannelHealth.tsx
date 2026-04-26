@@ -12,11 +12,41 @@
  * consumer — Plans 11-04 + 11-06 import the same `ChannelHealthItem` type
  * from contracts (no redefinition).
  */
-import { Activity } from 'lucide-react';
+import {
+  Activity,
+  Send,
+  Mail,
+  Mic,
+  Calendar as CalendarIcon,
+  Briefcase,
+  Globe,
+} from 'lucide-react';
+import type { ComponentType, SVGProps } from 'react';
 import Link from 'next/link';
 import type { ChannelHealthItem } from '@kos/contracts/dashboard';
 
 export type { ChannelHealthItem };
+
+const CHANNEL_ICONS: Record<
+  string,
+  ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>
+> = {
+  Telegram: Send,
+  Gmail: Mail,
+  Granola: Mic,
+  Calendar: CalendarIcon,
+  LinkedIn: Briefcase,
+  Chrome: Globe,
+};
+
+const DEFAULT_CHANNELS: ChannelHealthItem[] = [
+  { name: 'Telegram', type: 'capture', status: 'down', last_event_at: null },
+  { name: 'Gmail', type: 'capture', status: 'down', last_event_at: null },
+  { name: 'Granola', type: 'capture', status: 'down', last_event_at: null },
+  { name: 'Calendar', type: 'capture', status: 'down', last_event_at: null },
+  { name: 'LinkedIn', type: 'capture', status: 'down', last_event_at: null },
+  { name: 'Chrome', type: 'capture', status: 'down', last_event_at: null },
+];
 
 function timeAgo(iso: string | null): string {
   if (!iso) return '—';
@@ -58,87 +88,121 @@ export function ChannelHealth({
 }: {
   channels: ChannelHealthItem[];
 }) {
-  if (channels.length === 0) {
-    return (
-      <div
-        className="mc-channel-empty"
-        style={{ color: 'var(--color-text-3)', fontSize: 12, padding: 8 }}
-      >
-        No channels configured
-      </div>
-    );
-  }
+  // When API returns empty, render the 6 expected channels in 'down' state so
+  // the integration block always shows the operational topology — Kevin sees
+  // exactly which integrations are present and which are silent.
+  const list = channels.length === 0 ? DEFAULT_CHANNELS : channels;
   return (
-    <div className="mc-channel-list">
-      {channels.map((ch) => (
-        <Link
-          key={ch.name}
-          href="/integrations-health"
-          className="mc-channel-bar"
-          data-channel={ch.name}
-          data-testid="mc-channel-bar"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 4px',
-            borderBottom: '1px solid var(--color-border)',
-            textDecoration: 'none',
-            color: 'inherit',
-          }}
-        >
-          <div
+    <div
+      className="mc-channel-list"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+        gap: 10,
+      }}
+    >
+      {list.map((ch) => {
+        const Icon = CHANNEL_ICONS[ch.name] ?? Activity;
+        const fg = statusToFg(ch.status);
+        const bg = statusToBg(ch.status);
+        return (
+          <Link
+            key={ch.name}
+            href="/integrations-health"
+            className="mc-channel-bar"
+            data-channel={ch.name}
+            data-testid="mc-channel-bar"
             style={{
+              position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
-              minWidth: 0,
-              flex: 1,
+              justifyContent: 'space-between',
+              padding: '12px 14px 12px 16px',
+              borderRadius: 12,
+              border: '1px solid var(--color-border)',
+              background: `linear-gradient(180deg, color-mix(in srgb, ${fg} 5%, var(--color-surface-1)) 0%, var(--color-surface-1) 80%)`,
+              textDecoration: 'none',
+              color: 'inherit',
+              overflow: 'hidden',
             }}
           >
-            <Activity
-              size={14}
-              style={{ color: 'var(--color-text-3)' }}
+            <span
               aria-hidden
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: 3,
+                background: fg,
+                opacity: 0.85,
+              }}
             />
-            <div style={{ minWidth: 0 }}>
-              <p
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                minWidth: 0,
+                flex: 1,
+              }}
+            >
+              <span
+                aria-hidden
                 style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: 'var(--color-text)',
-                  margin: 0,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: bg,
+                  color: fg,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `1px solid color-mix(in srgb, ${fg} 25%, transparent)`,
+                  flexShrink: 0,
                 }}
               >
-                {ch.name}
-              </p>
-              <p
-                style={{
-                  fontSize: 11,
-                  color: 'var(--color-text-3)',
-                  margin: 0,
-                }}
-              >
-                {timeAgo(ch.last_event_at)}
-              </p>
+                <Icon size={14} />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--color-text)',
+                    margin: 0,
+                    letterSpacing: '-0.005em',
+                  }}
+                >
+                  {ch.name}
+                </p>
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--color-text-3)',
+                    margin: '2px 0 0 0',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  {timeAgo(ch.last_event_at)}
+                </p>
+              </div>
             </div>
-          </div>
-          <span
-            className="mc-pill"
-            data-tone={statusToTone(ch.status)}
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              padding: '2px 8px',
-              borderRadius: 999,
-              color: statusToFg(ch.status),
-              background: statusToBg(ch.status),
-            }}
-          >
-            {ch.status}
-          </span>
-        </Link>
-      ))}
+            <span
+              aria-hidden
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                background: fg,
+                boxShadow: `0 0 0 3px color-mix(in srgb, ${fg} 20%, transparent), 0 0 8px 0 color-mix(in srgb, ${fg} 50%, transparent)`,
+                flexShrink: 0,
+                marginLeft: 8,
+              }}
+            />
+          </Link>
+        );
+      })}
     </div>
   );
 }

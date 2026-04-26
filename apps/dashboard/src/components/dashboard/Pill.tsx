@@ -91,16 +91,29 @@ export function Pill({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        padding: '2px 8px',
+        padding: '3px 10px 3px 8px',
         borderRadius: 999,
         fontSize: 11,
-        fontWeight: 500,
-        letterSpacing: 0.02,
+        fontWeight: 600,
+        letterSpacing: '0.02em',
         color: tone.fg,
         background: tone.bg,
+        border: `1px solid color-mix(in srgb, ${tone.fg} 30%, transparent)`,
+        boxShadow: `0 0 0 0 color-mix(in srgb, ${tone.fg} 0%, transparent)`,
       }}
     >
-      {spec.pulse ? <span className="pulse-dot" aria-hidden /> : null}
+      <span
+        aria-hidden
+        className={spec.pulse ? 'pulse-dot' : undefined}
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 999,
+          background: tone.fg,
+          boxShadow: `0 0 0 2px color-mix(in srgb, ${tone.fg} 25%, transparent)`,
+          flexShrink: 0,
+        }}
+      />
       {spec.label}
     </span>
   );

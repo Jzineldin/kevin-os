@@ -32,41 +32,58 @@ export function StatTile({
       className="mc-stat-tile"
       data-tone={tone}
       style={{
+        position: 'relative',
         border: '1px solid var(--color-border)',
-        background: 'var(--color-surface-1)',
+        background: `linear-gradient(180deg, color-mix(in srgb, ${t.fg} 7%, var(--color-surface-1)) 0%, var(--color-surface-1) 60%)`,
         borderRadius: 16,
-        padding: 20,
+        padding: '22px 22px 20px',
+        overflow: 'hidden',
+        boxShadow: `0 1px 0 0 color-mix(in srgb, ${t.fg} 10%, transparent) inset, 0 8px 24px -12px rgba(0,0,0,0.5)`,
       }}
     >
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: `linear-gradient(90deg, ${t.fg} 0%, transparent 100%)`,
+          opacity: 0.7,
+        }}
+      />
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          marginBottom: 10,
+          gap: 10,
+          marginBottom: 14,
         }}
       >
         <span
           aria-hidden
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: 8,
+            width: 32,
+            height: 32,
+            borderRadius: 10,
             background: t.bg,
             color: t.fg,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
+            border: `1px solid color-mix(in srgb, ${t.fg} 25%, transparent)`,
+            boxShadow: `0 0 0 4px color-mix(in srgb, ${t.fg} 6%, transparent)`,
           }}
         >
-          <Icon size={14} />
+          <Icon size={16} />
         </span>
         <span
           style={{
             fontSize: 11,
-            fontWeight: 600,
+            fontWeight: 700,
             textTransform: 'uppercase',
-            letterSpacing: '0.06em',
+            letterSpacing: '0.08em',
             color: 'var(--color-text-3)',
           }}
         >
@@ -76,10 +93,13 @@ export function StatTile({
       <p
         className="tabular-nums"
         style={{
-          fontSize: 28,
-          fontWeight: 300,
+          fontSize: 44,
+          fontWeight: 600,
+          lineHeight: 1,
+          letterSpacing: '-0.02em',
           color: 'var(--color-text)',
           margin: 0,
+          fontFeatureSettings: '"tnum" 1, "ss01" 1',
         }}
       >
         {value}

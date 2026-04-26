@@ -25,9 +25,19 @@
  *   5. Write Secrets Manager kos/gcal-oauth-<account>:
  *        { client_id, client_secret, refresh_token }
  *
- * Scope: https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly ONLY. Mutation-
- * executor + publisher + content-writer Lambdas have NO Google auth scope
- * at all (T-08-CAL-01 mitigation).
+ * Scopes:
+ *   - https://www.googleapis.com/auth/calendar.readonly  (calendar-reader)
+ *   - https://www.googleapis.com/auth/gmail.modify       (gmail read + label
+ *                                                         + archive + trash)
+ *   - https://www.googleapis.com/auth/gmail.send         (send + attachments)
+ *
+ * gmail.modify covers: read inbox, mark read/unread, apply/remove labels,
+ * archive (remove INBOX label), move to trash (auto-purges in 30 days).
+ * gmail.send covers: send messages with attachments. Permanent delete is
+ * NOT in either scope — switch to https://mail.google.com/ if you need it.
+ *
+ * Mutation-executor + publisher + content-writer Lambdas have NO Google
+ * auth scope at all (T-08-CAL-01 mitigation).
  */
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
@@ -71,7 +81,11 @@ if (!clientId || !clientSecret) {
 // OAuth consent URL
 // ---------------------------------------------------------------------------
 const redirectUri = 'http://127.0.0.1:9788/callback';
-const scope = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly';
+const scope = [
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
+].join(' ');
 const state = randomBytes(16).toString('hex');
 
 const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -190,7 +204,7 @@ try {
       new CreateSecretCommand({
         Name: secretId,
         SecretString: payload,
-        Description: `Google OAuth (calendar.readonly + gmail.readonly) for ${account} — Phase 8 CAP-09`,
+        Description: `Google OAuth (calendar.readonly + gmail.modify + gmail.send) for ${account}`,
       }),
     );
     console.log(`Created secret: ${secretId}`);

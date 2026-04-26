@@ -75,12 +75,74 @@ export const TodayMeetingSchema = z.object({
 });
 export type TodayMeeting = z.infer<typeof TodayMeetingSchema>;
 
+// -- Today captures (Phase 11 Plan 11-04) ---------------------------------
+
+/**
+ * Source enum for `captures_today`. Wave 0 schema verification confirmed
+ * that the `capture_text` and `capture_voice` tables DO NOT EXIST in prod
+ * (see 11-WAVE-0-SCHEMA-VERIFICATION.md). The Today aggregation UNIONs
+ * across the tables that DO exist:
+ *
+ *   - email_drafts          → 'email'
+ *   - mention_events        → 'mention'   (granola-transcript / telegram-voice / dashboard-text)
+ *   - event_log             → 'event'     (cross-system Phase 10 audit log)
+ *   - inbox_index           → 'inbox'     (entity routings, draft replies, merges)
+ *   - telegram_inbox_queue  → 'telegram_queue'
+ */
+export const CaptureSourceSchema = z.enum([
+  'email',
+  'mention',
+  'event',
+  'inbox',
+  'telegram_queue',
+]);
+export type CaptureSource = z.infer<typeof CaptureSourceSchema>;
+
+export const TodayCaptureItemSchema = z.object({
+  source: CaptureSourceSchema,
+  id: z.string(),
+  title: z.string(),
+  detail: z.string().nullable(),
+  at: z.string(),
+});
+export type TodayCaptureItem = z.infer<typeof TodayCaptureItemSchema>;
+
+export const StatTileDataSchema = z.object({
+  captures_today: z.number().int().nonnegative(),
+  drafts_pending: z.number().int().nonnegative(),
+  entities_active: z.number().int().nonnegative(),
+  events_upcoming: z.number().int().nonnegative(),
+});
+export type StatTileData = z.infer<typeof StatTileDataSchema>;
+
+/**
+ * Inline channel-health item shape used by TodayResponseSchema. Structurally
+ * identical to `ChannelHealthItemSchema` (defined later in this file by Plan
+ * 11-02). Two definitions exist because zod schemas are evaluated in source
+ * order, and TodayResponseSchema appears here before ChannelHealthItemSchema.
+ * Both schemas are kept byte-for-byte equivalent — see acceptance test
+ * `accepts new-shape payload with all three additive sections`.
+ *
+ * Plans 11-04 + 11-06 may import either symbol; the canonical name remains
+ * `ChannelHealthItemSchema`.
+ */
+const TodayChannelHealthItemSchema = z.object({
+  name: z.string(),
+  type: z.enum(['capture', 'scheduler']),
+  status: z.enum(['healthy', 'degraded', 'down']),
+  last_event_at: IsoDateTimeSchema.nullable(),
+});
+
 export const TodayResponseSchema = z.object({
   brief: TodayBriefSchema.nullable(),
   priorities: z.array(TodayPrioritySchema),
   drafts: z.array(TodayDraftSchema),
   dropped: z.array(TodayDroppedThreadSchema),
   meetings: z.array(TodayMeetingSchema),
+  // Phase 11 Plan 11-04 — additive sections (backwards-compatible defaults)
+  captures_today: z.array(TodayCaptureItemSchema).default([]),
+  stat_tiles: StatTileDataSchema.optional(),
+  channels: z.array(TodayChannelHealthItemSchema).default([]),
 });
 export type TodayResponse = z.infer<typeof TodayResponseSchema>;
 

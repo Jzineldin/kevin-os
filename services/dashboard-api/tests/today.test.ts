@@ -76,4 +76,19 @@ describe('today response schema', () => {
     };
     expect(() => TodayResponseSchema.parse(bad)).toThrow();
   });
+
+  // Phase 11 Plan 11-04: today response gains captures_today (UNION of
+  // email_drafts + capture_text + capture_voice + mention_events for the
+  // current Stockholm day) plus stat_tiles + channels strips. Wave 2
+  // implements; Wave 0 ships the skipped placeholder.
+  it.skip(
+    'captures_today UNIONs email + capture_text + capture_voice + mention_events',
+    async () => {
+      // Wave 2 implements. Pattern mirrors email-drafts.test.ts:
+      //   1. fakeDb.execute mock returning rows for each source table
+      //   2. import handler after __clearRoutesForTest()
+      //   3. assert response.captures_today contains rows from all 4 sources
+      //   4. assert response shape parses against TodayResponseSchema
+    },
+  );
 });

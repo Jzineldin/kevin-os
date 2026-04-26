@@ -121,6 +121,20 @@ describe('calendar /calendar/week', () => {
     expect(body.events).toEqual([]);
   });
 
+  // Phase 11 Plan 11-05: /calendar/week extends to UNION calendar_events_cache
+  // (Google calendar mirror) with Notion command-center rows. Wave 2 implements.
+  it.skip(
+    'UNIONs Notion command center + calendar_events_cache',
+    async () => {
+      // Wave 2 implements. Pattern:
+      //   1. inject Notion fake (existing pattern)
+      //   2. fakeDb.execute returning rows from calendar_events_cache
+      //   3. assert dedupe on (date_trunc('minute', start_at), title) — Google
+      //      preferred over Notion when both present
+      //   4. assert merged event count + sources distinguishable
+    },
+  );
+
   it('produces two events when both Deadline and Idag are set inside the window', async () => {
     process.env.NOTION_COMMAND_CENTER_DB_ID = 'fake-db';
     __setNotionForTest(

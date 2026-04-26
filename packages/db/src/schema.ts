@@ -5,12 +5,14 @@ import {
   timestamp,
   integer,
   jsonb,
+  numeric,
+  boolean,
   index,
   uniqueIndex,
   vector,
   primaryKey,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
+import { sql, type InferSelectModel, type InferInsertModel } from 'drizzle-orm';
 import { ownerId } from './owner.js';
 
 /**
@@ -413,3 +415,182 @@ export const agentDeadLetter = pgTable(
     ),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Phase 8 Migration 0020: outbound content + mutations + calendar + documents.
+//
+// Five tables, all with owner_id (D-13 forward compat):
+//   - content_drafts                 — AGT-07 per-platform drafts
+//   - content_publish_authorizations — CAP-09 single-use Approve token
+//   - pending_mutations              — AGT-08 imperative-verb proposals
+//   - document_versions              — MEM-05 content-addressed doc chain
+//   - calendar_events_cache          — MEM-05 read-only Google Calendar mirror
+//
+// `status` / `mutation_type` / `result` enums are CHECK-constrained at the
+// SQL layer; Drizzle types stay plain `text` per the existing repo
+// convention (see agent_runs.status, kos_inbox.kind, etc.).
+//
+// See: packages/db/drizzle/0020_phase_8_content_mutations_calendar_documents.sql
+// ---------------------------------------------------------------------------
+export const contentDrafts = pgTable(
+  'content_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: ownerId(),
+    topicId: text('topic_id').notNull(), // ULID
+    captureId: text('capture_id').notNull(),
+    platform: text('platform').notNull(), // CHECK at SQL layer
+    content: text('content').notNull(),
+    mediaUrls: jsonb('media_urls').notNull().default(sql`'[]'::jsonb`),
+    status: text('status').notNull().default('draft'), // CHECK at SQL layer
+    scheduleTime: timestamp('schedule_time', { withTimezone: true }),
+    postizPostId: text('postiz_post_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+  },
+  (t) => ({
+    topicPlatformUq: uniqueIndex('content_drafts_topic_platform_uidx').on(
+      t.topicId,
+      t.platform,
+    ),
+    ownerStatus: index('content_drafts_owner_status_idx').on(
+      t.ownerId,
+      t.status,
+      t.createdAt,
+    ),
+    ownerTopic: index('content_drafts_owner_topic_idx').on(t.ownerId, t.topicId),
+  }),
+);
+
+export const contentPublishAuthorizations = pgTable(
+  'content_publish_authorizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: ownerId(),
+    draftId: uuid('draft_id')
+      .notNull()
+      .references(() => contentDrafts.id, { onDelete: 'cascade' }),
+    approvedBy: text('approved_by').notNull().default('kevin'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }).notNull().defaultNow(),
+    scheduleTime: timestamp('schedule_time', { withTimezone: true }),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    publishResult: jsonb('publish_result'),
+  },
+  (t) => ({
+    ownerDraft: index('content_publish_authorizations_owner_draft_idx').on(
+      t.ownerId,
+      t.draftId,
+    ),
+  }),
+);
+
+export const pendingMutations = pgTable(
+  'pending_mutations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: ownerId(),
+    captureId: text('capture_id').notNull(),
+    mutationType: text('mutation_type').notNull(), // CHECK at SQL layer
+    targetKind: text('target_kind').notNull(),
+    targetId: text('target_id').notNull(),
+    targetDisplay: text('target_display').notNull(),
+    confidence: numeric('confidence', { precision: 4, scale: 3 }).notNull(),
+    reasoning: text('reasoning'),
+    alternatives: jsonb('alternatives').notNull().default(sql`'[]'::jsonb`),
+    status: text('status').notNull().default('proposed'), // CHECK at SQL layer
+    proposedAt: timestamp('proposed_at', { withTimezone: true }).notNull().defaultNow(),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    executedAt: timestamp('executed_at', { withTimezone: true }),
+    result: text('result'),
+    error: text('error'),
+  },
+  (t) => ({
+    ownerStatus: index('pending_mutations_owner_status_idx').on(
+      t.ownerId,
+      t.status,
+      t.proposedAt,
+    ),
+    captureIdx: index('pending_mutations_capture_id_idx').on(t.captureId),
+  }),
+);
+
+export const documentVersions = pgTable(
+  'document_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: ownerId(),
+    recipientEmail: text('recipient_email').notNull(),
+    docName: text('doc_name').notNull(),
+    sha256: text('sha256').notNull(),
+    s3Bucket: text('s3_bucket').notNull(),
+    s3Key: text('s3_key').notNull(),
+    versionN: integer('version_n').notNull(),
+    parentSha256: text('parent_sha256'),
+    diffSummary: text('diff_summary'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull(),
+    captureId: text('capture_id').notNull(),
+  },
+  (t) => ({
+    recipientDocShaUq: uniqueIndex('document_versions_recipient_doc_sha_uidx').on(
+      t.recipientEmail,
+      t.docName,
+      t.sha256,
+    ),
+    recipientDoc: index('document_versions_recipient_doc_idx').on(
+      t.recipientEmail,
+      t.docName,
+      t.versionN,
+    ),
+    ownerSent: index('document_versions_owner_idx').on(t.ownerId, t.sentAt),
+  }),
+);
+
+export const calendarEventsCache = pgTable(
+  'calendar_events_cache',
+  {
+    eventId: text('event_id').notNull(),
+    account: text('account').notNull(), // CHECK at SQL layer
+    ownerId: ownerId(),
+    calendarId: text('calendar_id').notNull(),
+    summary: text('summary').notNull(),
+    description: text('description'),
+    location: text('location'),
+    startUtc: timestamp('start_utc', { withTimezone: true }).notNull(),
+    endUtc: timestamp('end_utc', { withTimezone: true }).notNull(),
+    timezone: text('timezone').notNull().default('Europe/Stockholm'),
+    attendeesJson: jsonb('attendees_json').notNull().default(sql`'[]'::jsonb`),
+    isAllDay: boolean('is_all_day').notNull().default(false),
+    ignoredByKevin: boolean('ignored_by_kevin').notNull().default(false),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+    cachedAt: timestamp('cached_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.eventId, t.account] }),
+    ownerWindow: index('calendar_events_cache_owner_window_idx').on(
+      t.ownerId,
+      t.startUtc,
+    ),
+    accountUpdated: index('calendar_events_cache_account_updated_idx').on(
+      t.account,
+      t.updatedAt,
+    ),
+  }),
+);
+
+// Phase 8 row-shape type exports (selectable + insertable).
+export type ContentDraftRow = InferSelectModel<typeof contentDrafts>;
+export type ContentDraftInsert = InferInsertModel<typeof contentDrafts>;
+export type ContentPublishAuthorizationRow = InferSelectModel<
+  typeof contentPublishAuthorizations
+>;
+export type ContentPublishAuthorizationInsert = InferInsertModel<
+  typeof contentPublishAuthorizations
+>;
+export type PendingMutationRow = InferSelectModel<typeof pendingMutations>;
+export type PendingMutationInsert = InferInsertModel<typeof pendingMutations>;
+export type DocumentVersionRow = InferSelectModel<typeof documentVersions>;
+export type DocumentVersionInsert = InferInsertModel<typeof documentVersions>;
+export type CalendarEventsCacheRow = InferSelectModel<typeof calendarEventsCache>;
+export type CalendarEventsCacheInsert = InferInsertModel<typeof calendarEventsCache>;

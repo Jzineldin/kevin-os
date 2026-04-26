@@ -8,6 +8,19 @@
  *   4. RDS entity_index      → dropped threads (last_touch > 7 days, active).
  *   5. Notion Today Meetings → meetings today (Phase 7 extension; Phase 3 returns []).
  *
+ * Phase 11 D-07 expansion (Plan 11-04): the response now also surfaces
+ * three additive mission-control sections:
+ *   6. captures_today — UNION across email_drafts + event_log + mention_events
+ *      + inbox_index + telegram_inbox_queue for the current Stockholm day.
+ *      Wave 0 schema verification confirmed `capture_text` / `capture_voice`
+ *      tables DO NOT EXIST; the UNION runs over the tables that do.
+ *   7. stat_tiles — 4 numeric counts powering the top StatTileStrip:
+ *      CAPTURES TODAY / DRAFTS PENDING / ENTITIES ACTIVE / EVENTS UPCOMING.
+ *   8. channels — channel-health snapshot for the strip linking to
+ *      `/integrations-health`. Inlined here for round-trip economy (one
+ *      /today fetch supplies everything the page needs); Plan 11-06 owns
+ *      the dedicated endpoint with full scheduler+channel rollup.
+ *
  * Response shape MUST parse against TodayResponseSchema before returning
  * (zod at exit catches accidental shape drift).
  *
@@ -18,12 +31,24 @@
  * a simple Notion page property read.
  */
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { TodayResponseSchema } from '@kos/contracts/dashboard';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import {
+  TodayResponseSchema,
+  type StatTileData,
+  type TodayCaptureItem,
+} from '@kos/contracts/dashboard';
 import { entityIndex, inboxIndex } from '@kos/db/schema';
 import { register, type Ctx, type RouteResponse } from '../router.js';
 import { getDb } from '../db.js';
 import { getNotion } from '../notion.js';
 import { ownerScoped, OWNER_ID } from '../owner-scoped.js';
+
+type ChannelItem = {
+  name: string;
+  type: 'capture' | 'scheduler';
+  status: 'healthy' | 'degraded' | 'down';
+  last_event_at: string | null;
+};
 
 type TodayBrief = { body: string; generated_at: string } | null;
 
@@ -192,13 +217,210 @@ async function loadDropped(): Promise<
   }));
 }
 
+/**
+ * Phase 11 D-07: surface ALL of today's captures (not just urgent email
+ * drafts). UNION across the five tables that hold inbound capture artifacts
+ * for the current Europe/Stockholm day. The `capture_text` and
+ * `capture_voice` tables referenced in earlier RESEARCH notes DO NOT EXIST
+ * (Wave 0 schema verification — 11-WAVE-0-SCHEMA-VERIFICATION.md).
+ *
+ * Sources covered:
+ *   - email_drafts          (subject / classification / received_at)
+ *   - mention_events        (source / context / occurred_at)
+ *   - event_log             (kind / detail->>summary / occurred_at)
+ *   - inbox_index           (kind / preview / created_at)
+ *   - telegram_inbox_queue  (reason / body / queued_at)
+ *
+ * LIMIT 100 caps payload size; every row is owner-scoped to defend against
+ * any future relaxation of the Lambda auth boundary (T-11-04-04).
+ */
+async function loadCapturesToday(db: NodePgDatabase): Promise<TodayCaptureItem[]> {
+  const r = (await db.execute(sql`
+    WITH today_window AS (
+      SELECT date_trunc('day', now() AT TIME ZONE 'Europe/Stockholm') AS d_start
+    )
+    SELECT 'email' AS source,
+           id::text AS id,
+           COALESCE(draft_subject, subject, '(no subject)') AS title,
+           classification AS detail,
+           received_at::text AS at
+      FROM email_drafts, today_window
+      WHERE owner_id = ${OWNER_ID}::uuid AND received_at >= d_start
+    UNION ALL
+    SELECT 'mention' AS source,
+           id::text,
+           source AS title,
+           context AS detail,
+           occurred_at::text AS at
+      FROM mention_events, today_window
+      WHERE owner_id = ${OWNER_ID}::uuid AND occurred_at >= d_start
+    UNION ALL
+    SELECT 'event' AS source,
+           id::text,
+           kind AS title,
+           COALESCE(detail->>'summary', detail->>'title', detail::text) AS detail,
+           occurred_at::text AS at
+      FROM event_log, today_window
+      WHERE owner_id = ${OWNER_ID}::uuid AND occurred_at >= d_start
+    UNION ALL
+    SELECT 'inbox' AS source,
+           id::text,
+           kind AS title,
+           preview AS detail,
+           created_at::text AS at
+      FROM inbox_index, today_window
+      WHERE owner_id = ${OWNER_ID}::uuid AND created_at >= d_start
+    UNION ALL
+    SELECT 'telegram_queue' AS source,
+           id::text,
+           reason AS title,
+           body AS detail,
+           queued_at::text AS at
+      FROM telegram_inbox_queue, today_window
+      WHERE owner_id = ${OWNER_ID}::uuid AND queued_at >= d_start
+    ORDER BY at DESC
+    LIMIT 100
+  `)) as unknown as {
+    rows: Array<{
+      source: string;
+      id: string;
+      title: string | null;
+      detail: string | null;
+      at: string;
+    }>;
+  };
+  return r.rows.map((row) => ({
+    source: row.source as TodayCaptureItem['source'],
+    id: row.id,
+    title: row.title ?? '(untitled)',
+    detail: row.detail,
+    at: row.at,
+  }));
+}
+
+/**
+ * Phase 11 Plan 11-04: aggregate counts powering the StatTileStrip.
+ *
+ * - drafts_pending  → email_drafts in 'draft' or 'edited' status
+ * - entities_active → entity_index with status='active'
+ * - events_upcoming → calendar_events_cache rows starting in next 7 days
+ *                     (excluding ignored-by-Kevin)
+ *
+ * captures_today is filled in by the handler from the captures array length
+ * (the source data is already loaded for the captures section — no need to
+ * re-query).
+ */
+async function loadStatTiles(
+  db: NodePgDatabase,
+  capturesCount: number,
+): Promise<StatTileData> {
+  const r = (await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*) FROM email_drafts
+        WHERE owner_id = ${OWNER_ID}::uuid AND status IN ('draft','edited')) AS drafts_pending,
+      (SELECT COUNT(*) FROM entity_index
+        WHERE owner_id = ${OWNER_ID}::uuid AND status = 'active') AS entities_active,
+      (SELECT COUNT(*) FROM calendar_events_cache
+        WHERE owner_id = ${OWNER_ID}::uuid
+          AND start_utc >= now()
+          AND start_utc < now() + interval '7 days'
+          AND ignored_by_kevin = false) AS events_upcoming
+  `)) as unknown as {
+    rows: Array<{
+      drafts_pending: string | number;
+      entities_active: string | number;
+      events_upcoming: string | number;
+    }>;
+  };
+  const row = r.rows[0] ?? {
+    drafts_pending: 0,
+    entities_active: 0,
+    events_upcoming: 0,
+  };
+  return {
+    captures_today: capturesCount,
+    drafts_pending: Number(row.drafts_pending),
+    entities_active: Number(row.entities_active),
+    events_upcoming: Number(row.events_upcoming),
+  };
+}
+
+/**
+ * Phase 11 D-07: snapshot of capture-channel health.
+ *
+ * Wave 0 verified that `agent_runs.agent_name` is fine-grained enough to
+ * derive per-channel health without parsing `output_json`. Map of
+ * Kevin-facing channel name → expected `agent_name` + max acceptable age:
+ *
+ *   - Telegram → `triage` runs whenever a Telegram capture is processed; a
+ *     ≤24h freshness window matches Kevin's actual usage cadence.
+ *   - Gmail   → `gmail-poller` runs every ~15 min; degraded after 30 min.
+ *   - Granola → `granola-poller` runs hourly; degraded after 60 min.
+ *   - Calendar → `calendar-reader` runs every ~30 min; degraded after 90.
+ *
+ * Status thresholds:
+ *   healthy   ≤ max_age_min
+ *   degraded  ≤ 2 × max_age_min
+ *   down      > 2 × max_age_min  OR  no successful run on record
+ *
+ * Plan 11-06 will own a richer `/integrations/health` endpoint with full
+ * scheduler+channel rollup. This snapshot is inlined for round-trip economy.
+ */
+async function loadTodayChannels(db: NodePgDatabase): Promise<ChannelItem[]> {
+  const expectedAgents: Array<{
+    name: string;
+    agent_name: string;
+    max_age_min: number;
+  }> = [
+    { name: 'Telegram', agent_name: 'triage', max_age_min: 1440 },
+    { name: 'Gmail', agent_name: 'gmail-poller', max_age_min: 30 },
+    { name: 'Granola', agent_name: 'granola-poller', max_age_min: 60 },
+    { name: 'Calendar', agent_name: 'calendar-reader', max_age_min: 90 },
+  ];
+  const r = (await db.execute(sql`
+    SELECT agent_name, MAX(finished_at)::text AS last_finished
+      FROM agent_runs
+      WHERE owner_id = ${OWNER_ID}::uuid AND status = 'ok'
+      GROUP BY agent_name
+  `)) as unknown as {
+    rows: Array<{ agent_name: string; last_finished: string | null }>;
+  };
+  const map = new Map<string, string | null>(
+    r.rows.map((row) => [row.agent_name, row.last_finished]),
+  );
+  const now = Date.now();
+  return expectedAgents.map((spec) => {
+    const last = map.get(spec.agent_name) ?? null;
+    let status: ChannelItem['status'];
+    if (!last) {
+      status = 'down';
+    } else {
+      const ageMin = (now - new Date(last).getTime()) / 60_000;
+      if (ageMin > spec.max_age_min * 2) status = 'down';
+      else if (ageMin > spec.max_age_min) status = 'degraded';
+      else status = 'healthy';
+    }
+    return {
+      name: spec.name,
+      type: 'capture' as const,
+      status,
+      last_event_at: last ? new Date(last).toISOString() : null,
+    };
+  });
+}
+
 async function todayHandler(_ctx: Ctx): Promise<RouteResponse> {
-  const [brief, priorities, drafts, dropped] = await Promise.all([
+  const db = await getDb();
+  const [brief, priorities, drafts, dropped, captures, channels] = await Promise.all([
     loadBrief(),
     loadPriorities(),
     loadDrafts(),
     loadDropped(),
+    loadCapturesToday(db),
+    loadTodayChannels(db),
   ]);
+  // stat_tiles needs the captures count, so it runs after the parallel block.
+  const stat_tiles = await loadStatTiles(db, captures.length);
 
   const payload = TodayResponseSchema.parse({
     brief,
@@ -206,6 +428,9 @@ async function todayHandler(_ctx: Ctx): Promise<RouteResponse> {
     drafts,
     dropped,
     meetings: [],
+    captures_today: captures,
+    stat_tiles,
+    channels,
   });
 
   return {

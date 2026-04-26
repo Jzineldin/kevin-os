@@ -379,12 +379,14 @@ describe('today handler — Phase 11 Plan 11-04 sections', () => {
 
     const body = JSON.parse(res.body) as ReturnType<typeof TodayResponseSchema.parse>;
     expect(body.channels.length).toBe(4);
-    const map = Object.fromEntries(body.channels.map((c) => [c.name, c]));
-    expect(map['Telegram'].status).toBe('healthy');
-    expect(map['Gmail'].status).toBe('healthy');
-    expect(map['Granola'].status).toBe('degraded');
-    expect(map['Calendar'].status).toBe('down');
-    expect(map['Calendar'].last_event_at).toBeNull();
+    const map = Object.fromEntries(
+      body.channels.map((c) => [c.name, c] as const),
+    ) as Record<string, (typeof body.channels)[number] | undefined>;
+    expect(map['Telegram']?.status).toBe('healthy');
+    expect(map['Gmail']?.status).toBe('healthy');
+    expect(map['Granola']?.status).toBe('degraded');
+    expect(map['Calendar']?.status).toBe('down');
+    expect(map['Calendar']?.last_event_at).toBeNull();
   });
 
   it('Test 4: empty results return safe defaults (captures_today=[], stat_tiles all 0, all channels down)', async () => {

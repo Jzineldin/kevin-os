@@ -1,0 +1,10 @@
+{
+  "brain_dbs": [
+    { "id": "REPLACE_WITH_NOTION_UUID_1", "name": "Brain DB 1 (e.g., Personal)" },
+    { "id": "REPLACE_WITH_NOTION_UUID_2", "name": "Brain DB 2 (e.g., Tale Forge)" },
+    { "id": "REPLACE_WITH_NOTION_UUID_3", "name": "Brain DB 3 (e.g., Outbehaving)" },
+    { "id": "REPLACE_WITH_NOTION_UUID_4", "name": "Brain DB 4 (e.g., Almi)" },
+    { "id": "REPLACE_WITH_NOTION_UUID_5", "name": "Brain DB 5 (e.g., Inbox)" }
+  ],
+  "notes": "Replace REPLACE_WITH_NOTION_UUID_* with real UUIDs from Kevin's Notion workspace before running scripts/migrate-brain-dbs.mjs. Actual DB names differ per workspace - these are placeholder names. Do NOT commit scripts/.notion-brain-dbs.json (real data) - gitignore covers it."
+}

@@ -32,6 +32,8 @@ import './handlers/inbox.js';
 import './handlers/merge.js';
 import './handlers/capture.js';
 import './handlers/calendar.js';
+// Phase 11 Plan 11-06: GET /integrations/health (channel + scheduler aggregate).
+import './handlers/integrations.js';
 // Phase 4 Plan 04-05: Approve / Edit / Skip Route Handlers + merged inbox.
 import './routes/email-drafts.js';
 import './routes/inbox.js';

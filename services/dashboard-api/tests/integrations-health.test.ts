@@ -218,9 +218,10 @@ describe('integrations-health handler (Phase 11 Plan 11-06)', () => {
     // Inspect the recorded query — Drizzle's sql template object exposes
     // a `.queryChunks` field, but in mocks we receive an object whose
     // string-form contains the literal `owner_id` filter.
-    const calls = dbExecuteMock.mock.calls;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const calls = (dbExecuteMock.mock as any).calls as unknown[][];
     expect(calls.length).toBeGreaterThanOrEqual(1);
-    const arg = calls[0]?.[0] as { queryChunks?: unknown[]; sql?: string };
+    const arg = calls[0]?.[0];
     const text = JSON.stringify(arg ?? {});
     expect(text).toContain('owner_id');
     expect(text).toContain('agent_runs');

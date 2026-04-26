@@ -271,6 +271,10 @@ export const InboxItemKindSchema = z.enum([
   'entity_routing',
   'new_entity',
   'merge_resume',
+  // Phase 11 D-05 — added so /inbox-merged can return agent_dead_letter
+  // rows under a single InboxItemSchema. The /inbox legacy route never
+  // emits this kind; only /inbox-merged does.
+  'dead_letter',
 ]);
 export type InboxItemKind = z.infer<typeof InboxItemKindSchema>;
 

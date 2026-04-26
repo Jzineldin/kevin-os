@@ -96,6 +96,12 @@ export function makeTodayResponse(overrides: Partial<TodayResponse> = {}): Today
     drafts: [makeTodayDraft()],
     dropped: [makeTodayDroppedThread()],
     meetings: [makeTodayMeeting()],
+    // Phase 11 Plan 11-04 made captures_today + channels required (with
+    // `.default([])` at the schema level). Default to empty arrays here so
+    // fixture types satisfy the contract without forcing every caller to
+    // pass them.
+    captures_today: [],
+    channels: [],
     ...overrides,
   };
 }

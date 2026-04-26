@@ -11,3 +11,4 @@ playwright/.cache/
 
 # Paper-cut #2 migration (quick 260424-r6s) — @serwist/turbopack streams the SW via a Route Handler at /serwist/sw.js. No files are emitted to public/.
 .vercel
+.env*.local

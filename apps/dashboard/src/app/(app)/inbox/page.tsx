@@ -34,11 +34,19 @@ export default async function InboxPage({
   searchParams: Promise<{ focus?: string }>;
 }) {
   const params = await searchParams;
+  // 2026-04-26: switched from `/inbox` (inbox_index only — Phase 3 entity
+  // routings) to `/inbox-merged` (unions email_drafts + agent_dead_letter
+  // + inbox_index — Phase 4 Plan 04-05). Without this, classified emails
+  // never appeared in the dashboard inbox.
   let data: InboxList;
   try {
-    data = await callApi('/inbox', { method: 'GET' }, InboxListSchema);
+    data = await callApi('/inbox-merged', { method: 'GET' }, InboxListSchema);
   } catch {
-    data = EMPTY;
+    try {
+      data = await callApi('/inbox', { method: 'GET' }, InboxListSchema);
+    } catch {
+      data = EMPTY;
+    }
   }
   return (
     <InboxClient

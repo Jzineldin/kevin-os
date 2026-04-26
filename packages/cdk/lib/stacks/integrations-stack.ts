@@ -38,6 +38,7 @@ import {
   wireIosWebhook,
   type IosWebhookWiring,
 } from './integrations-ios-webhook.js';
+import { wireSesInbound, type SesInboundWiring } from './integrations-ses-inbound.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -86,6 +87,12 @@ export interface IntegrationsStackProps extends StackProps {
   // along with `blobsBucket` (already optional) so wireIosWebhook can grant
   // SecretsManager:GetSecretValue + S3:PutObject on `audio/*`.
   iosShortcutWebhookSecret?: ISecret;
+  // Phase 4 Plan 04-02 (CAP-03) — ses-inbound Lambda. Activated only when
+  // `enableSesInbound` is explicitly true so existing test fixtures synth
+  // without an extra Lambda. Production deploy passes `enableSesInbound: true`
+  // alongside `kevinOwnerId` (which the helper requires for dead-letter rows).
+  enableSesInbound?: boolean;
+  sesInboundBucketName?: string;
 }
 
 export class IntegrationsStack extends Stack {
@@ -106,6 +113,12 @@ export class IntegrationsStack extends Stack {
    * boundary); replay table TTL on `expires_at`.
    */
   public readonly iosWebhook?: IosWebhookWiring;
+  /**
+   * Phase 4 Plan 04-02 (CAP-03) — populated only when `enableSesInbound`
+   * is explicitly set. Holds the ses-inbound Lambda; the eu-west-1 bucket +
+   * SES receiving rule are operator-provisioned (see runbook).
+   */
+  public readonly sesInbound?: SesInboundWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -243,6 +256,21 @@ export class IntegrationsStack extends Stack {
     // Schedulers + IAM grants accrete in Plans 07-01..07-04. Skipped at
     // synth time when SafetyStack-derived props (cap table, alarm topic) +
     // outputBus are unset; production deploy supplies all three.
+    // Plan 04-02 (CAP-03): ses-inbound Lambda. Activated only when
+    // `enableSesInbound` is explicitly true. The eu-west-1 bucket + SES
+    // receiving rule are operator-provisioned via 04-SES-OPERATOR-RUNBOOK.md
+    // (region asymmetry — D-13).
+    if (props.enableSesInbound) {
+      this.sesInbound = wireSesInbound(this, {
+        captureBus: props.captureBus,
+        kevinOwnerId: props.kevinOwnerId ?? '',
+        sesInboundBucketName: props.sesInboundBucketName,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
+    }
+
     if (props.telegramCapTable && props.alarmTopic && props.outputBus) {
       this.lifecycle = wireLifecycleAutomation(this, {
         vpc: props.vpc,

@@ -56,6 +56,14 @@ import {
   wireLinkedInWebhook,
   type LinkedInWebhookWiring,
 } from './integrations-linkedin-webhook.js';
+import {
+  wireBaileysSidecar,
+  type BaileysSidecarWiring,
+} from './integrations-baileys-sidecar.js';
+import {
+  wireDiscordSchedule,
+  type DiscordScheduleWiring,
+} from './integrations-discord-schedule.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -115,6 +123,16 @@ export interface IntegrationsStackProps extends StackProps {
   // secrets (kos/linkedin-webhook-bearer + kos/linkedin-webhook-hmac) and
   // the Function URL itself; operator seeds real secret values post-deploy.
   enableLinkedInWebhook?: boolean;
+  // Phase 5 Plan 05-05 (CAP-06): Baileys sidecar Lambda — webhook receiver
+  // for the Baileys WhatsApp Fargate container (Plan 05-04, autonomous=false).
+  // Activated only when `enableBaileysSidecar === true` AND `blobsBucket`
+  // is supplied. Helper self-provisions the kos/baileys-webhook-secret
+  // Secret + Function URL + IAM grants (S3 PutObject on audio/* and
+  // EventBridge PutEvents — explicitly NO bedrock/rds/ses). Operator
+  // flips the flag after Plan 05-04 is unblocked + the WhatsApp risk
+  // acceptance is signed.
+  enableBaileysSidecar?: boolean;
+  baileysMediaBaseUrl?: string;
   // Phase 4 Plan 04-02 (CAP-03) — ses-inbound Lambda. Activated only when
   // `enableSesInbound` is explicitly true so existing test fixtures synth
   // without an extra Lambda. Production deploy passes `enableSesInbound: true`
@@ -169,6 +187,22 @@ export class IntegrationsStack extends Stack {
    * post-deploy via `aws secretsmanager put-secret-value`.
    */
   public readonly linkedInWebhook?: LinkedInWebhookWiring;
+  /**
+   * Phase 5 Plan 05-05 (CAP-06) Baileys sidecar wiring. Populated only when
+   * `enableBaileysSidecar === true` AND `blobsBucket` is supplied. The
+   * helper provisions the `kos/baileys-webhook-secret` Secret itself, the
+   * Function URL (authType=NONE — X-BAILEYS-Secret IS the auth boundary),
+   * and IAM grants scoped to S3 `audio/*` + EventBridge captureBus only.
+   */
+  public readonly baileysSidecar?: BaileysSidecarWiring;
+  /**
+   * Phase 5 Plan 05-06 (CAP-10) Discord brain-dump Scheduler wiring.
+   * Populated only when `kevinOwnerId` is supplied. Phase 5 owns the
+   * Scheduler + IAM role per D-09; Phase 10 Plan 10-04 ships the actual
+   * Lambda handler. The Scheduler target ARN is sourced from SSM
+   * parameter `/kos/discord/brain-dump-lambda-arn` (operator-seeded).
+   */
+  public readonly discordSchedule?: DiscordScheduleWiring;
   /**
    * Phase 4 Plan 04-02 (CAP-03) — populated only when `enableSesInbound`
    * is explicitly set. Holds the ses-inbound Lambda; the eu-west-1 bucket +
@@ -349,6 +383,36 @@ export class IntegrationsStack extends Stack {
         sentryDsnSecret: props.sentryDsnSecret,
         langfusePublicKeySecret: props.langfusePublicKeySecret,
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
+    }
+
+    // Plan 05-05 (Phase 5 CAP-06): Baileys sidecar Lambda. Helper provisions
+    // the kos/baileys-webhook-secret Secret + Function URL + IAM grants.
+    // Synth-gated on the explicit `enableBaileysSidecar` flag AND
+    // `blobsBucket` so existing test fixtures stay green; production deploy
+    // flips the flag once Plan 05-04 (Fargate container) is unblocked AND
+    // the WhatsApp risk acceptance is signed (the Fargate container itself
+    // is `autonomous: false` and not provisioned here).
+    if (props.enableBaileysSidecar === true && props.blobsBucket) {
+      this.baileysSidecar = wireBaileysSidecar(this, {
+        captureBus: props.captureBus,
+        blobsBucket: props.blobsBucket,
+        baileysMediaBaseUrl: props.baileysMediaBaseUrl,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
+    }
+
+    // Plan 05-06 (Phase 5 CAP-10): Discord brain-dump Scheduler. Phase 5
+    // owns the Scheduler + IAM role per D-09; Phase 10 Plan 10-04 ships
+    // the Lambda handler. Synth-gated on `kevinOwnerId` so existing test
+    // fixtures stay green. The Scheduler target ARN is read from SSM
+    // parameter `/kos/discord/brain-dump-lambda-arn` (operator-seeded
+    // pre-deploy — see 05-06-DISCORD-CONTRACT.md for the seeding runbook).
+    if (props.kevinOwnerId) {
+      this.discordSchedule = wireDiscordSchedule(this, {
+        kevinOwnerId: props.kevinOwnerId,
       });
     }
 

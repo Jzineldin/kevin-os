@@ -24,8 +24,3 @@ cdk.out.dashboard/
 # CDK test temp dir — vitest globalSetup redirects os.tmpdir() here so
 # `cdk.out*` synth artifacts don't accumulate in /tmp on shared hosts.
 packages/cdk/.cdk-tmp/
-
-# Phase 10 MIG-03 — operator-populated real Brain DB UUIDs (workspace-specific).
-# `scripts/.notion-brain-dbs.example.json` IS committed as the template.
-scripts/.notion-brain-dbs.json
-

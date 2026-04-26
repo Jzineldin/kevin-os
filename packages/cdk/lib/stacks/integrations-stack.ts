@@ -52,6 +52,10 @@ import {
   wireEmailAgents,
   type EmailAgentsWiring,
 } from './integrations-email-agents.js';
+import {
+  wireLinkedInWebhook,
+  type LinkedInWebhookWiring,
+} from './integrations-linkedin-webhook.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -106,6 +110,11 @@ export interface IntegrationsStackProps extends StackProps {
   // them and the chrome-webhook is simply not provisioned.
   chromeExtensionBearerSecret?: ISecret;
   chromeExtensionHmacSecret?: ISecret;
+  // Phase 5 Plan 05-02 (CAP-05): LinkedIn DM webhook. Activated only when
+  // `enableLinkedInWebhook` is explicitly true. Helper provisions both
+  // secrets (kos/linkedin-webhook-bearer + kos/linkedin-webhook-hmac) and
+  // the Function URL itself; operator seeds real secret values post-deploy.
+  enableLinkedInWebhook?: boolean;
   // Phase 4 Plan 04-02 (CAP-03) — ses-inbound Lambda. Activated only when
   // `enableSesInbound` is explicitly true so existing test fixtures synth
   // without an extra Lambda. Production deploy passes `enableSesInbound: true`
@@ -153,6 +162,13 @@ export class IntegrationsStack extends Stack {
    * the risk).
    */
   public readonly chromeWebhook?: ChromeWebhookWiring;
+  /**
+   * Phase 5 Plan 05-02 (CAP-05) LinkedIn DM webhook wiring. Populated only
+   * when `enableLinkedInWebhook === true`. Bearer + HMAC secrets are
+   * provisioned by the helper itself; operator seeds the real values
+   * post-deploy via `aws secretsmanager put-secret-value`.
+   */
+  public readonly linkedInWebhook?: LinkedInWebhookWiring;
   /**
    * Phase 4 Plan 04-02 (CAP-03) — populated only when `enableSesInbound`
    * is explicitly set. Holds the ses-inbound Lambda; the eu-west-1 bucket +
@@ -315,6 +331,21 @@ export class IntegrationsStack extends Stack {
         captureBus: props.captureBus,
         chromeExtensionBearerSecret: props.chromeExtensionBearerSecret,
         chromeExtensionHmacSecret: props.chromeExtensionHmacSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
+    }
+
+    // Plan 05-02 (Phase 5 CAP-05): LinkedIn DM webhook. Helper provisions
+    // the Lambda + Function URL (authType=NONE) + 2 Secrets (Bearer + HMAC).
+    // Synth-gated on the explicit `enableLinkedInWebhook` flag so existing
+    // test fixtures stay green; production deploy flips the flag once the
+    // operator runbook (seed both secrets, paste URL into extension options
+    // page) is ready to run.
+    if (props.enableLinkedInWebhook === true) {
+      this.linkedInWebhook = wireLinkedInWebhook(this, {
+        captureBus: props.captureBus,
         sentryDsnSecret: props.sentryDsnSecret,
         langfusePublicKeySecret: props.langfusePublicKeySecret,
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,

@@ -12,7 +12,11 @@
     "./context": "./src/context.ts",
     "./brief": "./src/brief.ts",
     "./email": "./src/email.ts",
-    "./migration": "./src/migration.ts"
+    "./migration": "./src/migration.ts",
+    "./content": "./src/content.ts",
+    "./mutation": "./src/mutation.ts",
+    "./calendar": "./src/calendar.ts",
+    "./document-version": "./src/document-version.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

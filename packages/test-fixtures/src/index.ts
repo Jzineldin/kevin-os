@@ -26,3 +26,9 @@ export * from './ios-shortcut.js';
 // Phase 5 Plan 05-00 Task 4 — messaging-channel fixtures (Chrome MV3 stub +
 // LinkedIn Voyager + Baileys WhatsApp).
 export * from './phase-5/index.js';
+// Phase 8 Plan 08-00 Task 5 — outbound content + mutation + calendar +
+// document-diff fixtures.
+export * from './imperative-mutations.js';
+export * from './postiz-mcp-responses.js';
+export * from './gcal-events.js';
+export * from './document-diff-pairs.js';

@@ -351,8 +351,42 @@ export const InboxItemKindSchema = z.enum([
   'entity_routing',
   'new_entity',
   'merge_resume',
+  // Phase 11 D-05 — added so /inbox-merged can return agent_dead_letter
+  // rows under a single InboxItemSchema. The /inbox legacy route never
+  // emits this kind; only /inbox-merged does.
+  'dead_letter',
 ]);
 export type InboxItemKind = z.infer<typeof InboxItemKindSchema>;
+
+/**
+ * Phase 11 D-05 — email classification surfaced on inbox rows.
+ *
+ * Source-of-truth values match the email_drafts.classification column
+ * (services/email-triage). New phases that introduce additional buckets
+ * must update this enum together with the column.
+ */
+export const EmailClassificationSchema = z.enum([
+  'urgent',
+  'important',
+  'informational',
+  'junk',
+]);
+export type EmailClassification = z.infer<typeof EmailClassificationSchema>;
+
+/**
+ * Phase 11 D-05 — email_drafts.status state machine surfaced on inbox
+ * rows so the renderer can hide Approve/Skip on terminal statuses.
+ */
+export const EmailDraftStatusSchema = z.enum([
+  'pending_triage',
+  'draft',
+  'edited',
+  'approved',
+  'skipped',
+  'sent',
+  'failed',
+]);
+export type EmailDraftStatus = z.infer<typeof EmailDraftStatusSchema>;
 
 export const InboxItemSchema = z.object({
   id: z.string(),
@@ -364,6 +398,10 @@ export const InboxItemSchema = z.object({
   merge_id: UlidSchema.nullable(),
   payload: z.record(z.unknown()),
   created_at: IsoDateTimeSchema,
+  // Phase 11 D-05 — email-only metadata. Optional + nullable so legacy
+  // clients (and non-email kinds like entity_routing) round-trip cleanly.
+  classification: EmailClassificationSchema.nullable().optional(),
+  email_status: EmailDraftStatusSchema.nullable().optional(),
 });
 export type InboxItem = z.infer<typeof InboxItemSchema>;
 

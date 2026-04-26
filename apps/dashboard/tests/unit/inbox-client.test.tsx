@@ -262,4 +262,82 @@ describe('InboxClient', () => {
     const [msg] = mockErrorToast.mock.calls[0] ?? [];
     expect(msg).toBe('Already handled elsewhere.');
   });
+
+  // -- Phase 11 D-05: terminal-status guard ------------------------------
+
+  const ITEM_TERMINAL_SENT: InboxItem = {
+    id: 'itm-sent',
+    kind: 'draft_reply',
+    title: 'Re: Already-sent thread',
+    preview: 'This was already sent',
+    bolag: 'tale-forge',
+    entity_id: null,
+    merge_id: null,
+    payload: { body: 'Sent body' },
+    created_at: '2026-04-23T08:00:00.000Z',
+    classification: 'urgent',
+    email_status: 'sent',
+  };
+
+  const ITEM_TERMINAL_SKIPPED: InboxItem = {
+    id: 'itm-skipped',
+    kind: 'draft_reply',
+    title: 'Junk message',
+    preview: 'Will be skipped',
+    bolag: null,
+    entity_id: null,
+    merge_id: null,
+    payload: {},
+    created_at: '2026-04-23T07:00:00.000Z',
+    classification: 'junk',
+    email_status: 'skipped',
+  };
+
+  it('Enter on a sent (terminal) item does NOT fire approveInbox', async () => {
+    const user = userEvent.setup();
+    render(
+      <InboxClient
+        initialItems={[ITEM_TERMINAL_SENT, ITEM_A]}
+        focusId={null}
+      />,
+    );
+
+    await user.keyboard('{Enter}');
+    // Optional brief wait — but assertion stays even if action would
+    // be called asynchronously, the guard prevents it.
+    await waitFor(() => {
+      expect(approveInboxMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('S on a skipped (terminal) item does NOT fire skipInbox', async () => {
+    const user = userEvent.setup();
+    render(
+      <InboxClient
+        initialItems={[ITEM_TERMINAL_SKIPPED, ITEM_A]}
+        focusId={null}
+      />,
+    );
+
+    await user.keyboard('s');
+    await waitFor(() => {
+      expect(skipInboxMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('Enter on a draft (non-terminal) item still fires approveInbox', async () => {
+    const user = userEvent.setup();
+    approveInboxMock.mockResolvedValueOnce(undefined);
+    const draft: InboxItem = {
+      ...ITEM_A,
+      classification: 'urgent',
+      email_status: 'draft',
+    };
+    render(<InboxClient initialItems={[draft]} focusId={null} />);
+
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(approveInboxMock).toHaveBeenCalledWith(draft.id);
+    });
+  });
 });

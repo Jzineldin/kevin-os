@@ -10,6 +10,12 @@
  *                           deep-link (Plan 11 implements the merge route)
  *   - `new_entity`        → proposed profile + Confirm/Reject
  *   - `merge_resume`      → delegates to <ResumeMergeCard /> (Plan 11)
+ *   - `dead_letter`       → Phase 4 D-24 surface (Phase 11 D-05 routed
+ *                           into the merged inbox): read-only display.
+ *
+ * Phase 11 D-05: Approve / Skip buttons hide for terminal statuses
+ * (sent/failed/approved/skipped) AND for dead_letter rows. Edit is also
+ * hidden when email_status is anything other than 'draft' or 'edited'.
  *
  * The sticky bottom bar shows the <Kbd> shortcut legend verbatim per
  * UI-SPEC line 363. An on-screen Action Bar (Approve / Edit / Skip)
@@ -22,9 +28,11 @@ import type { InboxItem } from '@kos/contracts/dashboard';
 import { BolagBadge } from '@/components/badge/BolagBadge';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
+import { Pill } from '@/components/dashboard/Pill';
 import { Textarea } from '@/components/ui/textarea';
 
 import { approveInbox, editInbox, skipInbox } from './actions';
+import { isTerminalInboxItem } from './InboxClient';
 import { ResumeMergeCard } from './ResumeMergeCard';
 
 const KIND_LABEL: Record<InboxItem['kind'], string> = {
@@ -32,9 +40,13 @@ const KIND_LABEL: Record<InboxItem['kind'], string> = {
   entity_routing: 'Ambiguous entity routing',
   new_entity: 'New entity confirmation',
   merge_resume: 'Resume merge',
+  // Phase 11 D-05 — `dead_letter` items now flow through /inbox-merged.
+  dead_letter: 'Failed agent task',
 };
 
 const CONFLICT_COPY = 'Already handled elsewhere.';
+
+const EDITABLE_STATUSES: ReadonlySet<string> = new Set(['draft', 'edited']);
 
 export function ItemDetail({
   item,
@@ -62,6 +74,14 @@ export function ItemDetail({
           <div className="min-w-0 flex-1">
             <h2 className="h-page">{item.title}</h2>
             <p className="h-page-meta">{KIND_LABEL[item.kind]}</p>
+            {item.classification ? (
+              <div className="mt-2">
+                <Pill
+                  classification={item.classification}
+                  status={item.email_status ?? 'pending_triage'}
+                />
+              </div>
+            ) : null}
           </div>
           <BolagBadge org={item.bolag} />
         </div>
@@ -144,24 +164,53 @@ function ActionBar({
     });
   }
 
+  const isTerminal = isTerminalInboxItem(item);
+  // Edit is only relevant when there's a draft body to edit — restrict
+  // to draft/edited or to the legacy Phase-3 inbox_index kinds that
+  // never carry email_status (pre-D-05 behavior preserved).
+  const canEdit =
+    !isTerminal &&
+    (!item.email_status || EDITABLE_STATUSES.has(item.email_status));
+
+  if (isTerminal) {
+    return (
+      <span
+        className="text-xs"
+        style={{ color: 'var(--color-text-3)' }}
+        data-testid="inbox-readonly-label"
+      >
+        Read-only
+      </span>
+    );
+  }
+
   return (
     <>
-      <Button onClick={onApprove} disabled={pending} size="sm">
-        Approve
-      </Button>
       <Button
-        variant="outline"
-        onClick={onEditRequest}
+        onClick={onApprove}
         disabled={pending}
         size="sm"
+        data-testid="inbox-approve-btn"
       >
-        Edit
+        Approve
       </Button>
+      {canEdit ? (
+        <Button
+          variant="outline"
+          onClick={onEditRequest}
+          disabled={pending}
+          size="sm"
+          data-testid="inbox-edit-btn"
+        >
+          Edit
+        </Button>
+      ) : null}
       <Button
         variant="ghost"
         onClick={onSkip}
         disabled={pending}
         size="sm"
+        data-testid="inbox-skip-btn"
       >
         Skip
       </Button>

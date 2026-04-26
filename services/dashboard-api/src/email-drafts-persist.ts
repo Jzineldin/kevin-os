@@ -149,13 +149,20 @@ export interface InboxDraftItem {
 }
 
 /**
- * List all email_drafts in 'draft' or 'edited' status — these are the
- * items that show up in the dashboard inbox. Used by the merged
- * `/inbox` route handler. 50 rows max, newest-first.
+ * List ALL email_drafts ordered by received_at DESC.
+ *
+ * Phase 11 D-05: dropped the previous `status IN ('draft','edited')` filter
+ * so that skipped/sent/failed/approved rows (and every classification —
+ * urgent/important/informational/junk) also surface in the inbox. The
+ * renderer (InboxClient + ItemRow) hides Approve/Skip buttons for terminal
+ * statuses; the row itself remains visible with a classification pill.
+ *
+ * Default limit raised from 50 → 100 to accommodate the larger surface.
+ * Used by the merged `/inbox-merged` route handler. Newest-first.
  */
 export async function listInboxDrafts(
   db: NodePgDatabase,
-  limit = 50,
+  limit = 100,
 ): Promise<InboxDraftItem[]> {
   const r = (await db.execute(sql`
     SELECT
@@ -170,7 +177,6 @@ export async function listInboxDrafts(
       received_at::text AS received_at
     FROM email_drafts
     WHERE owner_id = ${OWNER_ID}
-      AND status IN ('draft','edited')
     ORDER BY received_at DESC
     LIMIT ${limit}
   `)) as unknown as { rows: InboxDraftItem[] };

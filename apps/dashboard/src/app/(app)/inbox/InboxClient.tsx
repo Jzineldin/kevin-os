@@ -43,7 +43,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import type { InboxItem } from '@kos/contracts/dashboard';
+import type {
+  EmailDraftStatus,
+  InboxItem,
+} from '@kos/contracts/dashboard';
 import { PulseDot } from '@/components/system/PulseDot';
 import { useLiveRegion } from '@/components/system/LiveRegion';
 import { useSseKind } from '@/components/system/SseProvider';
@@ -56,6 +59,24 @@ import { ItemRow } from './ItemRow';
 const CONFLICT_COPY = 'Already handled elsewhere.';
 const EMPTY_HEADLINE = 'Inbox clear. ✅';
 const EMPTY_BODY = 'Nothing to review. KOS surfaces drafts as they arrive.';
+
+// Phase 11 D-05: terminal email statuses — rows in these states are
+// read-only. Approve/Skip handlers no-op for them (defense-in-depth
+// alongside the email-sender Lambda's idempotency on
+// email_send_authorizations per Phase 4 D-24).
+const TERMINAL_EMAIL_STATUSES: ReadonlySet<EmailDraftStatus> = new Set<
+  EmailDraftStatus
+>(['approved', 'sent', 'skipped', 'failed']);
+
+export function isTerminalInboxItem(
+  item: InboxItem | null | undefined,
+): boolean {
+  if (!item) return false;
+  // dead_letter rows are also read-only (no Approve/Skip applicable).
+  if (item.kind === 'dead_letter') return true;
+  if (!item.email_status) return false;
+  return TERMINAL_EMAIL_STATUSES.has(item.email_status);
+}
 
 export function InboxClient({
   initialItems,
@@ -129,6 +150,11 @@ export function InboxClient({
   const doApprove = useCallback(() => {
     const cur = selectedRef.current;
     if (!cur) return;
+    // Phase 11 D-05 — terminal-status guard: read-only items don't fire.
+    if (isTerminalInboxItem(cur)) {
+      announce('Read-only item — no action available');
+      return;
+    }
     const id = cur.id;
     const title = cur.title;
     announce(`Approving ${title}`);
@@ -147,6 +173,11 @@ export function InboxClient({
   const doSkip = useCallback(() => {
     const cur = selectedRef.current;
     if (!cur) return;
+    // Phase 11 D-05 — terminal-status guard.
+    if (isTerminalInboxItem(cur)) {
+      announce('Read-only item — no action available');
+      return;
+    }
     const id = cur.id;
     const title = cur.title;
     announce(`Skipping ${title}`);

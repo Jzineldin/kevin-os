@@ -64,10 +64,6 @@ import {
   wireDiscordSchedule,
   type DiscordScheduleWiring,
 } from './integrations-discord-schedule.js';
-import {
-  wireDocumentDiff,
-  type DocumentDiffWiring,
-} from './integrations-document-diff.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -228,15 +224,6 @@ export class IntegrationsStack extends Stack {
    * Populated only when `outputBus` and `kevinOwnerId` are both supplied.
    */
   public readonly emailAgents?: EmailAgentsWiring;
-  /**
-   * Phase 8 Plan 08-05 (MEM-05) document-diff wiring. Populated only when
-   * `outputBus`, `blobsBucket`, and `kevinOwnerId` are all supplied.
-   * Subscribes to `kos.output / email.sent`; fetches attachments from
-   * blobsBucket; writes to document_versions as `kos_document_diff`.
-   * IAM has NO postiz:* / ses:* / notion writes — diff tracking never
-   * publishes.
-   */
-  public readonly documentDiff?: DocumentDiffWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -499,27 +486,6 @@ export class IntegrationsStack extends Stack {
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,
         notionTokenSecret: props.notionTokenSecret,
         azureSearchAdminSecret: props.azureSearchAdminSecret,
-      });
-    }
-
-    // Plan 08-05 (Phase 8 MEM-05) document-diff. Activated when blobsBucket,
-    // outputBus, and kevinOwnerId are all supplied — keeps existing test
-    // fixtures green; production deploy passes all three. Subscribes to
-    // `kos.output / email.sent`; reads attachments from blobsBucket; writes
-    // to document_versions. IAM has NO postiz:* / ses:* / notion writes
-    // (CDK test asserts).
-    if (props.outputBus && props.blobsBucket && props.kevinOwnerId) {
-      this.documentDiff = wireDocumentDiff(this, {
-        vpc: props.vpc,
-        rdsSecurityGroup: props.rdsSecurityGroup,
-        rdsProxyEndpoint: props.rdsProxyEndpoint,
-        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
-        blobsBucket: props.blobsBucket,
-        outputBus: props.outputBus,
-        kevinOwnerId: props.kevinOwnerId,
-        sentryDsnSecret: props.sentryDsnSecret,
-        langfusePublicKeySecret: props.langfusePublicKeySecret,
-        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
     }
 

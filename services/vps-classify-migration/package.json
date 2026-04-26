@@ -13,12 +13,14 @@
     "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/client-secrets-manager": "3.691.0",
     "@kos/contracts": "workspace:*",
+    "@sentry/aws-serverless": "^8",
     "ulid": "2.3.0",
     "zod": "3.23.8"
   },
   "devDependencies": {
     "@types/aws-lambda": "8.10.145",
     "@types/node": "22.9.0",
+    "aws-sdk-client-mock": "4.1.0",
     "typescript": "5.6.3",
     "vitest": "2.1.4"
   }

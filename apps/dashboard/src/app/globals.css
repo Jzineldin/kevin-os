@@ -343,3 +343,59 @@ body {
     @apply font-sans;
   }
 }
+
+/* ============================================================
+ * Phase 11 — mission-control aesthetic primitives
+ * Layered on top of the 03-UI-SPEC token system. NO new color
+ * values — all rules consume existing --color-* tokens.
+ * APPEND-ONLY: do not mutate the @theme block above.
+ * ============================================================ */
+
+.mc-stat-tile {
+  transition: background var(--transition-fast) var(--ease);
+}
+.mc-stat-tile:hover {
+  background: var(--color-surface-2);
+}
+
+.mc-channel-bar {
+  transition: background var(--transition-fast) var(--ease);
+}
+.mc-channel-bar:hover {
+  background: var(--color-surface-1);
+}
+
+.mc-pill[data-pulse="true"] .pulse-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.mc-chat-bubble {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 50;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px
+    color-mix(in srgb, var(--color-accent) 35%, transparent);
+  transition:
+    transform var(--transition-fast) var(--ease),
+    background var(--transition-fast) var(--ease);
+}
+.mc-chat-bubble:hover {
+  background: color-mix(in srgb, var(--color-accent) 90%, white);
+  transform: translateY(-1px);
+}
+.mc-chat-bubble:focus-visible {
+  outline: 2px solid var(--color-accent-2);
+  outline-offset: 2px;
+}

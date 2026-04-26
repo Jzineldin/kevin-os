@@ -44,6 +44,10 @@ import {
   type EmailEngineWiring,
 } from './integrations-emailengine.js';
 import type { ICluster } from 'aws-cdk-lib/aws-ecs';
+import {
+  wireEmailAgents,
+  type EmailAgentsWiring,
+} from './integrations-email-agents.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -145,6 +149,13 @@ export class IntegrationsStack extends Stack {
    * state store).
    */
   public readonly emailEngine?: EmailEngineWiring;
+  /**
+   * Phase 4 Plan 04-04 (AGT-05) + 04-05 unified email-pipeline wiring —
+   * email-triage Lambda (Bedrock, NO ses:*) + email-sender Lambda (SES,
+   * NO bedrock:*) + 3 EventBridge rules (capture, scan, approved).
+   * Populated only when `outputBus` and `kevinOwnerId` are both supplied.
+   */
+  public readonly emailAgents?: EmailAgentsWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -324,6 +335,29 @@ export class IntegrationsStack extends Stack {
         sentryDsnSecret: props.sentryDsnSecret,
         langfusePublicKeySecret: props.langfusePublicKeySecret,
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
+    }
+
+    // Plan 04-04 + 04-05: unified email pipeline (email-triage + email-sender +
+    // 3 EventBridge rules). Skipped at synth time when outputBus or
+    // kevinOwnerId is unset — keeps existing test fixtures green; production
+    // deploy supplies both. STRUCTURAL Approve gate: email-triage role has
+    // NO ses:* and email-sender role has NO bedrock:* (CDK tests assert).
+    if (props.outputBus && props.kevinOwnerId) {
+      this.emailAgents = wireEmailAgents(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        captureBus: props.captureBus,
+        systemBus: props.systemBus,
+        outputBus: props.outputBus,
+        kevinOwnerId: props.kevinOwnerId,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+        notionTokenSecret: props.notionTokenSecret,
+        azureSearchAdminSecret: props.azureSearchAdminSecret,
       });
     }
 

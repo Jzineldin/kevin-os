@@ -191,6 +191,46 @@ export const EntityEditResponseSchema = z.object({
 });
 export type EntityEditResponse = z.infer<typeof EntityEditResponseSchema>;
 
+// -- Integrations health (GET /integrations-health) — Phase 11 D-07 -------
+
+/**
+ * Channel-health row as surfaced by the `/integrations-health` page and the
+ * Today view's channel-health strip. Single source of truth for both
+ * Plan 11-04 (page) and Plan 11-06 (Today strip) — they import from here
+ * rather than redefining locally.
+ *
+ * `type='capture'` covers inbound channels (Telegram, Gmail, Granola,
+ * Calendar, LinkedIn, Chrome). `type='scheduler'` covers cron-style
+ * jobs surfaced on the same page (mission-control "Cron Jobs" analog —
+ * see CONTEXT D-01 + 11-PATTERNS A6 lines 435-451).
+ *
+ * `last_event_at` is nullable: null = no event ever observed (treat as
+ * '—' in UI per ChannelHealth.timeAgo()).
+ */
+export const ChannelHealthItemSchema = z.object({
+  name: z.string(),
+  type: z.enum(['capture', 'scheduler']),
+  status: z.enum(['healthy', 'degraded', 'down']),
+  last_event_at: IsoDateTimeSchema.nullable(),
+});
+export type ChannelHealthItem = z.infer<typeof ChannelHealthItemSchema>;
+
+export const SchedulerHealthItemSchema = z.object({
+  name: z.string(),
+  next_run_at: IsoDateTimeSchema.nullable(),
+  last_run_at: IsoDateTimeSchema.nullable(),
+  last_status: z.enum(['ok', 'fail', 'pending']).nullable(),
+});
+export type SchedulerHealthItem = z.infer<typeof SchedulerHealthItemSchema>;
+
+export const IntegrationsHealthResponseSchema = z.object({
+  channels: z.array(ChannelHealthItemSchema),
+  schedulers: z.array(SchedulerHealthItemSchema),
+});
+export type IntegrationsHealthResponse = z.infer<
+  typeof IntegrationsHealthResponseSchema
+>;
+
 // -- Calendar (GET /calendar/week) per D-04 -------------------------------
 
 /**

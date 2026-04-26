@@ -1,0 +1,8 @@
+tbl,id,title,kind,status,ts
+inbox_index,demo-01,Damien Carter,new_entity,pending,2026-04-23 22:33:29.589435+00
+inbox_index,demo-02,Christina Larsson,new_entity,pending,2026-04-23 22:33:29.589435+00
+inbox_index,demo-04,Re: Partnership proposal,draft_reply,pending,2026-04-23 22:33:29.589435+00
+inbox_index,demo-05,Lars Svensson,new_entity,pending,2026-04-23 22:33:29.589435+00
+inbox_index,demo-06,Paused: Maria vs Maria Johansson,merge_resume,pending,2026-04-23 22:33:29.589435+00
+inbox_index,demo-08,Re: Summer meeting,draft_reply,pending,2026-04-23 22:33:29.589435+00
+inbox_index,demo-10,Possible duplicate: Damien C.,entity_routing,pending,2026-04-23 22:33:29.589435+00

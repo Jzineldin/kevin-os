@@ -405,6 +405,26 @@ Notes on dual-listed requirements (handled as single-phase ownership with cross-
 _Roadmap created: 2026-04-21_
 _Last updated: 2026-04-24 (Phase 10 planned — 8 plans enumerated; 24 D-XX locked; <30-min rollback runbook + Telegram webhook persistence re-test resolves M1 closure path; net -$49.50/mo steady-state savings)_
 
+### Phase 11: Frontend rebuild + real-data wiring + button audit (mission-control aesthetic)
+
+**Goal:** Replace the current placeholder dashboard with a production-grade operational UI in the mission-control aesthetic (dark navy SOC-dashboard, rounded cards, big numeric stat tiles, colored status pills, priority-numbered activity feed, channel-health indicators, persistent chat bubble), wipe stale demo rows from prod RDS with safeguards against re-seeding, surface ALL real captures (not just urgent email drafts) with classification tags, audit every interactive button so each one either works or is removed, and wire the calendar / chat / entities / today pages to live data sources end-to-end. Outcome: Kevin opens the dashboard and sees only his real data, every button does something, and the visual language matches the SOC/operational vibe of github.com/Jzineldin/mission-control.
+
+**Requirements**: REQ-1 (Dashboard view), REQ-3 (Calm visual UX), REQ-12 (Inbox approval flow)
+
+**Depends on:** Phase 3 (Dashboard MVP scaffolding), Phase 4 (email_drafts schema), Phase 6 (Granola transcripts), Phase 7 (Lifecycle automation), Phase 10 (latest schema migrations)
+**Plans:** 9 plans
+
+Plans:
+- [ ] 11-00-PLAN.md — Wave 0: schema verification + bastion check + visual baselines + test scaffolds
+- [ ] 11-01-PLAN.md — Wave 1: demo-data wipe + dashboard-api startup pollution guard
+- [ ] 11-02-PLAN.md — Wave 1: mission-control primitives (StatTile/Pill/ChannelHealth/PriorityRow) + ChatBubble shell + design tokens + shadcn install
+- [ ] 11-03-PLAN.md — Wave 2: drop urgent-only filter on /inbox-merged + classification pills + UNION inbox_index rows
+- [ ] 11-04-PLAN.md — Wave 2: /today extension (captures aggregation + StatTileStrip + channel strip)
+- [ ] 11-05-PLAN.md — Wave 2: /calendar UNION calendar_events_cache + Notion CC with dedupe
+- [ ] 11-06-PLAN.md — Wave 2: /integrations-health new endpoint + page + sidebar entry
+- [ ] 11-07-PLAN.md — Wave 3: button audit + chat shell + sidebar updates + global ChatBubble mount
+- [ ] 11-08-PLAN.md — Wave 4: e2e + visual regression + button-audit + empty-state + Kevin sign-off gate
+
 ---
 
 ## Backlog

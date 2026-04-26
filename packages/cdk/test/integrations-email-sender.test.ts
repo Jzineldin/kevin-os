@@ -31,6 +31,7 @@ function synth() {
   });
   const vpc = new Vpc(stack, 'V');
   const sg = new SecurityGroup(stack, 'Sg', { vpc });
+  const captureBus = new EventBus(stack, 'CaptureBus', { eventBusName: 'kos.capture' });
   const systemBus = new EventBus(stack, 'SystemBus', { eventBusName: 'kos.system' });
   const outputBus = new EventBus(stack, 'OutputBus', { eventBusName: 'kos.output' });
   const sentry = new Secret(stack, 'Sentry');
@@ -41,12 +42,13 @@ function synth() {
     rdsSecurityGroup: sg,
     rdsProxyEndpoint: 'kos-rds.proxy-fake.eu-north-1.rds.amazonaws.com',
     rdsProxyDbiResourceId: 'prx-fake',
+    captureBus,
     systemBus,
     outputBus,
     kevinOwnerId: '7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c',
     sentryDsnSecret: sentry,
-    langfusePublicSecret: lfPub,
-    langfuseSecretSecret: lfSec,
+    langfusePublicKeySecret: lfPub,
+    langfuseSecretKeySecret: lfSec,
   });
   return { tpl: Template.fromStack(stack) };
 }

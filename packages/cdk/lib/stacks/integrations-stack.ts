@@ -65,9 +65,9 @@ import {
   type DiscordScheduleWiring,
 } from './integrations-discord-schedule.js';
 import {
-  wireMutationPipeline,
-  type MutationPipelineWiring,
-} from './integrations-mutations.js';
+  wireDocumentDiff,
+  type DocumentDiffWiring,
+} from './integrations-document-diff.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -229,14 +229,14 @@ export class IntegrationsStack extends Stack {
    */
   public readonly emailAgents?: EmailAgentsWiring;
   /**
-   * Phase 8 Plan 08-04 (AGT-08) imperative-verb mutation pipeline —
-   * mutation-proposer Lambda (Bedrock Haiku + Sonnet) + mutation-executor
-   * Lambda (UPDATE-only, archive-not-delete) + 2 EventBridge rules.
-   * Populated only when `outputBus`, `agentBus`, and `kevinOwnerId` are
-   * all supplied. STRUCTURAL Approve gate: proposer has NO Notion writes
-   * + executor has NO Bedrock; both forbid DELETEs at the DB grant layer.
+   * Phase 8 Plan 08-05 (MEM-05) document-diff wiring. Populated only when
+   * `outputBus`, `blobsBucket`, and `kevinOwnerId` are all supplied.
+   * Subscribes to `kos.output / email.sent`; fetches attachments from
+   * blobsBucket; writes to document_versions as `kos_document_diff`.
+   * IAM has NO postiz:* / ses:* / notion writes — diff tracking never
+   * publishes.
    */
-  public readonly mutationPipeline?: MutationPipelineWiring;
+  public readonly documentDiff?: DocumentDiffWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -502,23 +502,21 @@ export class IntegrationsStack extends Stack {
       });
     }
 
-    // Plan 08-04 (AGT-08): mutation-proposer + mutation-executor + 2 rules.
-    // Synth-gated on outputBus + agentBus + kevinOwnerId — keeps existing
-    // test fixtures green; production deploy supplies all three. STRUCTURAL
-    // Approve gate (CDK tests assert): proposer has NO postiz/ses/Notion-write
-    // grants; executor has NO bedrock/ses/postiz grants AND no DELETE on any
-    // DB role grant.
-    if (props.outputBus && props.agentBus && props.kevinOwnerId) {
-      this.mutationPipeline = wireMutationPipeline(this, {
+    // Plan 08-05 (Phase 8 MEM-05) document-diff. Activated when blobsBucket,
+    // outputBus, and kevinOwnerId are all supplied — keeps existing test
+    // fixtures green; production deploy passes all three. Subscribes to
+    // `kos.output / email.sent`; reads attachments from blobsBucket; writes
+    // to document_versions. IAM has NO postiz:* / ses:* / notion writes
+    // (CDK test asserts).
+    if (props.outputBus && props.blobsBucket && props.kevinOwnerId) {
+      this.documentDiff = wireDocumentDiff(this, {
         vpc: props.vpc,
         rdsSecurityGroup: props.rdsSecurityGroup,
         rdsProxyEndpoint: props.rdsProxyEndpoint,
         rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
-        captureBus: props.captureBus,
-        agentBus: props.agentBus,
+        blobsBucket: props.blobsBucket,
         outputBus: props.outputBus,
         kevinOwnerId: props.kevinOwnerId,
-        notionTokenSecret: props.notionTokenSecret,
         sentryDsnSecret: props.sentryDsnSecret,
         langfusePublicKeySecret: props.langfusePublicKeySecret,
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,

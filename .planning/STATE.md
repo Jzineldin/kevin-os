@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: KOS v1
 status: deployed-mostly
-last_updated: "2026-04-26T12:40:00.000Z"
+last_updated: "2026-04-26T18:20:00.000Z"
 last_activity: 2026-04-26
 progress:
   total_phases: 11
@@ -11,8 +11,8 @@ progress:
   in_progress_phases: 1
   blocked_phases: 1
   total_plans: 80
-  completed_plans: 71
-  percent: 89
+  completed_plans: 72
+  percent: 90
 ---
 
 # State: Kevin OS (KOS)
@@ -138,6 +138,10 @@ Things that block KOS from being fully usable. Ordered by impact.
 ---
 
 ## Recent Session Activity
+
+### 2026-04-26 (afternoon — Phase 11 Wave 1)
+
+**Phase 11 Plan 02 — Wave 1 mission-control primitives + design tokens** (commits 497159a, 0f6bffd, d1076b8, 00def71). Built typed design-token registry + 5 dashboard primitives (Pill/StatTile/StatTileGrid/ChannelHealth/PriorityRow) + 2 chat shell components (ChatBubble/ChatSheet) + 3 shadcn primitives (sheet/progress/popover). Added canonical `ChannelHealthItemSchema` to `@kos/contracts/dashboard` so plans 11-04 + 11-06 share one source. Extended `globals.css` APPEND-only with `.mc-*` classes — `@theme` block byte-identical. 9 new unit tests pass (4 Pill + 3 StatTile + 2 ChannelHealth). Typecheck + lint clean. Wave 2 unblocked.
 
 ### 2026-04-26 (post-overnight session)
 

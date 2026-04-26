@@ -417,7 +417,7 @@ _Last updated: 2026-04-24 (Phase 10 planned — 8 plans enumerated; 24 D-XX lock
 Plans:
 - [ ] 11-00-PLAN.md — Wave 0: schema verification + bastion check + visual baselines + test scaffolds
 - [ ] 11-01-PLAN.md — Wave 1: demo-data wipe + dashboard-api startup pollution guard
-- [ ] 11-02-PLAN.md — Wave 1: mission-control primitives (StatTile/Pill/ChannelHealth/PriorityRow) + ChatBubble shell + design tokens + shadcn install
+- [x] 11-02-PLAN.md — Wave 1: mission-control primitives (StatTile/Pill/ChannelHealth/PriorityRow) + ChatBubble shell + design tokens + shadcn install (✅ 2026-04-26 — 4 commits, 9 unit tests, ChannelHealthItemSchema added to @kos/contracts/dashboard)
 - [ ] 11-03-PLAN.md — Wave 2: drop urgent-only filter on /inbox-merged + classification pills + UNION inbox_index rows
 - [ ] 11-04-PLAN.md — Wave 2: /today extension (captures aggregation + StatTileStrip + channel strip)
 - [ ] 11-05-PLAN.md — Wave 2: /calendar UNION calendar_events_cache + Notion CC with dedupe

@@ -10,21 +10,34 @@
  *     `transition: none` — instant, snappy (§Motion rule 8 behaviour extended)
  *   - Hover: `background: --color-surface-hover;` via `--t-fast`
  *
+ * Phase 11 D-05: when item.classification is present (email rows), render
+ * a Pill below the preview showing classification × email_status. Adds
+ * data-testid="inbox-row-pill" so the e2e suite can locate it.
+ *
  * Reserved letters D / A / R do not bind anywhere in this module — the
  * keyboard handler for those is explicitly absent in InboxClient. See
  * 03-UI-SPEC line 373.
  */
 import type { InboxItem, InboxItemKind } from '@kos/contracts/dashboard';
 import type { ElementType } from 'react';
-import { AlertTriangle, GitMerge, Mail, UserPlus } from 'lucide-react';
+import {
+  AlertTriangle,
+  GitMerge,
+  Mail,
+  UserPlus,
+  XOctagon,
+} from 'lucide-react';
 
 import { BolagBadge } from '@/components/badge/BolagBadge';
+import { Pill } from '@/components/dashboard/Pill';
 
 const KIND_ICON: Record<InboxItemKind, ElementType> = {
   draft_reply: Mail,
   entity_routing: GitMerge,
   new_entity: UserPlus,
   merge_resume: AlertTriangle,
+  // Phase 11 D-05 — `dead_letter` items now flow through /inbox-merged.
+  dead_letter: XOctagon,
 };
 
 export function ItemRow({
@@ -78,6 +91,14 @@ export function ItemRow({
         >
           {item.preview}
         </div>
+        {item.classification ? (
+          <div data-testid="inbox-row-pill" className="mt-1">
+            <Pill
+              classification={item.classification}
+              status={item.email_status ?? 'pending_triage'}
+            />
+          </div>
+        ) : null}
       </div>
       <BolagBadge org={item.bolag} />
     </button>

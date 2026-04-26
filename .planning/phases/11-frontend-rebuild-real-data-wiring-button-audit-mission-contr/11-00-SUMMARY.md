@@ -3,7 +3,7 @@ phase: 11
 plan: 0
 subsystem: frontend-rebuild-prep
 tags: [wave-0, scaffolding, visual-baseline, test-scaffolds]
-status: partial-blocked-on-operator
+status: complete
 requirements: [REQ-1, REQ-3, REQ-12]
 dependency_graph:
   requires: []
@@ -46,10 +46,19 @@ decisions:
   - "BUTTON_REGISTRY ships as empty readonly array — Wave 3 populates"
   - "Helper script for capture-baseline.mjs deleted post-run (single-use; PNGs stay)"
 metrics:
-  tasks_completed: 2
-  tasks_blocked: 1
-  duration_minutes: ~8
+  tasks_completed: 3
+  tasks_blocked: 0
+  duration_minutes: ~25
   completed_date: 2026-04-26
+open_questions_resolved:
+  Q1_agent_name_granularity: "RESOLVED — agent_runs.agent_name is fine-grained: triage(1641), voice-capture(27), granola-poller(20), transcript-extractor(19), entity-resolver:<name>, weekly-review, day-close, transcript-indexed. Channel-health derivation via agent_name COUNT/MAX is viable without falling back to outputJson->>channel."
+  Q2_capture_table_shape: "RESOLVED with deviation — capture_text and capture_voice tables DO NOT EXIST in prod RDS. Captures live across event_log (kind+detail jsonb), mention_events (3 sources: granola-transcript, telegram-voice, dashboard-text), inbox_index (4 kinds: new_entity, draft_reply, entity_routing, merge_resume), telegram_inbox_queue, and email_drafts. Plan 11-04 today aggregation must UNION across these tables instead of capture_text/capture_voice."
+  Q5_bastion_reachable: "RESOLVED — kos-bastion provisioned via cdk deploy KosData --context bastion=true (i-0c1ee4fefaf1448ce, t4g.nano), SSM agent online, port-forward 55432->5432 verified, dashboard_api role connects with password from kos/db/dashboard_api secret."
+demo_inventory_pre_wipe:
+  inbox_index: 7  # demo-01,02,04,05,06,08,10
+  email_drafts: 0  # the 'Re: Partnership proposal'/'Re: Summer meeting' rows visible in dashboard are inbox_index draft_reply rows, not actual email_drafts
+  agent_dead_letter: 0
+  total: 7
 ---
 
 # Phase 11 Plan 11-00: Wave 0 Schema Verification + Test Scaffolds Summary
@@ -101,24 +110,73 @@ pnpm -F @kos/dashboard-api typecheck → clean
 bash scripts/verify-phase-11-wipe.sh → exit 0
 ```
 
-## What Remains — Task 0 (BLOCKED on operator)
+## Task 0 — Schema Verification + Pre-Wipe Inventory (RESOLVED 2026-04-26)
 
-Per the plan's `<task type="checkpoint:human-action" gate="blocking">` directive, Task 0 (operator-driven schema + bastion verification) requires:
+Operator authorized "yes A" path: orchestrator drove CDK deploy + SSM port-forward + psql verification autonomously. Bastion provisioned, schema captured, demo-row CSV captured.
 
-1. **Bastion provisioning** — `aws ec2 describe-instances --filters Name=tag:Name,Values=kos-bastion` returned NO instances under any tag convention (`kos-bastion`, `KosBastion`, `KosData` stack). The active todo in STATE.md is "Tear down bastion (1 cdk command)", consistent with the bastion having never been re-provisioned after Phase 4. Re-provisioning requires operator action because it mutates production infrastructure.
-2. **psql execution against prod RDS** — describe + COUNT + COPY against `kosdata-rdsinstance5075e838-9prpmgxajujc.cts46s6u6r3l.eu-north-1.rds.amazonaws.com` via the bastion SSM port-forward.
-3. **Schema verification doc** — `.planning/phases/11-.../11-WAVE-0-SCHEMA-VERIFICATION.md` documenting the answers to RESEARCH Open Q1 (`agent_runs.agent_name` granularity), Q2 (`capture_text` / `capture_voice` / `mention_events` columns), and Q5 (bastion reachability).
-4. **Pre-wipe demo-row inventory CSV** — `.planning/phases/11-.../demo-rows-pre-wipe.csv` so D-03's wipe is reversible per the plan's threat model T-11-00-03.
+### Bastion provisioning
 
-Auto mode rule 5 explicitly forbids non-confirmed mutations of shared / production systems, so this work is being handed back to the operator. Tasks 1 and 2 do not depend on Task 0's output — they could complete independently.
+```bash
+GCP_PROJECT_ID=kevin-os-494418 KEVIN_OWNER_ID=7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c \
+  npx cdk deploy KosData --context bastion=true     # ~4 min, exit 0
+```
 
-### Operator instructions
+The env vars matter — without them the synth wants to drop the unrelated `GcpVertexSa` export (cross-stack collision with KosIntegrations), which would fail the deploy. With them set, the diff is purely additive (new bastion EC2 + IAM role + SG ingress to RDS).
 
-See the **CHECKPOINT REACHED** section returned to the orchestrator (or the `## OPERATOR INSTRUCTIONS` block in this summary's checkpoint output). Once the operator runs the SQL session and produces the verification doc + CSV, a continuation agent fills in this summary's gaps:
+Bastion: `i-0c1ee4fefaf1448ce` (t4g.nano, KosData stack, tag Name=BastionHost).
 
-- frontmatter `status: partial-blocked-on-operator` → `complete`
-- frontmatter `tasks_blocked: 1` → `0`
-- This section is replaced with: agent_runs granularity decision, capture_text/voice/mention column names, bastion connection method used, pre-wipe demo-row inventory counts.
+### SSM port-forward + psql connection
+
+```bash
+aws ssm start-session --target i-0c1ee4fefaf1448ce \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters '{"host":["kosdata-rdsinstance5075e838-9prpmgxajujc.cts46s6u6r3l.eu-north-1.rds.amazonaws.com"],"portNumber":["5432"],"localPortNumber":["55432"]}'
+```
+
+Connected as `dashboard_api` role using password from `kos/db/dashboard_api` secret. Schema queries written to [`11-WAVE-0-SCHEMA-VERIFICATION.md`](11-WAVE-0-SCHEMA-VERIFICATION.md) (381 lines).
+
+### Open Questions resolution
+
+**Q1 — `agent_runs.agent_name` granularity (channel-health derivation):** RESOLVED, granular enough.
+
+| agent_name (top entries) | runs |
+|---|---:|
+| `triage` | 1641 |
+| `voice-capture` | 27 |
+| `granola-poller` | 20 |
+| `transcript-extractor` | 19 |
+| `entity-resolver:<name>` | 5–16 each |
+| `weekly-review` | 4 |
+| `day-close` | 3 |
+| `transcript-indexed` | 15 |
+
+Plan 11-06 channel-health endpoint can derive Telegram health from `triage` + `voice-capture`, Granola health from `granola-poller`, etc. without parsing `outputJson->>channel`.
+
+**Q2 — `capture_text` / `capture_voice` column shape:** RESOLVED with deviation. Tables DO NOT EXIST. Captures span:
+
+| Table | Shape (key cols) | Purpose |
+|---|---|---|
+| `event_log` | `kind text`, `detail jsonb`, `occurred_at`, `actor` | Phase 10 cross-system audit log per packages/contracts/src/migration.ts EventLogKindSchema |
+| `mention_events` | `source text` (3 distinct: granola-transcript, telegram-voice, dashboard-text) | Per-mention router input |
+| `inbox_index` | `kind text` (4 distinct: new_entity, draft_reply, entity_routing, merge_resume), `title`, `status`, `created_at` | Phase 3 inbox surface |
+| `telegram_inbox_queue` | (telegram-specific) | Telegram capture queue |
+| `email_drafts` | `subject`, `draft_subject`, `classification`, `status`, `received_at` | Phase 4 email drafts |
+
+**Plan 11-04 deviation required:** the `/today` "captures today" aggregation must UNION across these tables, not query `capture_text` / `capture_voice`. This will be flagged as a Wave 2 deviation in Plan 11-04's executor prompt.
+
+**Q5 — Bastion reachability:** RESOLVED. Bastion provisioned, SSM agent online, port-forward verified.
+
+### Pre-wipe demo-row inventory
+
+Captured to [`demo-rows-pre-wipe.csv`](demo-rows-pre-wipe.csv) for D-03 reversibility:
+
+| tbl | rows | ids | source |
+|---|---:|---|---|
+| `inbox_index` | 7 | demo-01..10 (skipping 03,07,09) | inserted 2026-04-23 22:33:29 — likely the early dev seed |
+| `email_drafts` | 0 | — | demo names visible in dashboard's Today/Inbox are inbox_index draft_reply rows, not actual email_drafts |
+| `agent_dead_letter` | 0 | — | no dead-letters reference demo names |
+
+**Total demo rows: 7**, all in `inbox_index` with id pattern `demo-NN`. Plan 11-01's wipe SQL targets these specifically (D-03).
 
 ## Deviations from Plan
 
@@ -159,4 +217,11 @@ git log --oneline -5 | grep 978a0e6   → FOUND (Task 1 baseline commit)
 git log --oneline -5 | grep 6b2b6e3   → FOUND (Task 2 scaffolds commit)
 ```
 
-Task 0 artifacts (`11-WAVE-0-SCHEMA-VERIFICATION.md`, `demo-rows-pre-wipe.csv`) are intentionally absent until the operator returns with verified bastion + psql output.
+Task 0 artifacts now present:
+
+```text
+[ -f .planning/phases/11-.../11-WAVE-0-SCHEMA-VERIFICATION.md ]  → FOUND (381 lines)
+[ -f .planning/phases/11-.../demo-rows-pre-wipe.csv ]            → FOUND (8 lines incl. header)
+```
+
+Committed in `56d4c2c chore(11-00): finalize Wave 0 schema verification + pre-wipe CSV`.

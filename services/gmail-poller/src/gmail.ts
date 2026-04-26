@@ -89,15 +89,21 @@ interface RawGmailMessage {
 
 export interface ListNewArgs {
   accessToken: string;
-  /** Gmail search modifier — e.g. `5m`, `15m`. Default: `5m`. */
-  newerThan?: string;
+  /**
+   * Lower bound for messages to fetch, expressed as Unix epoch SECONDS.
+   * Gmail's `after:` operator supports this directly. (Do NOT use
+   * `newer_than:Nm` — Gmail interprets `m` as MONTHS, not minutes.)
+   * Default: now - 6 minutes.
+   */
+  afterEpochSec?: number;
 }
 
 export async function listNewMessageIds(args: ListNewArgs): Promise<GmailMessageMeta[]> {
-  const newerThan = args.newerThan ?? '5m';
+  const afterEpochSec =
+    args.afterEpochSec ?? Math.floor(Date.now() / 1000) - 6 * 60;
   // `in:inbox` excludes sent, drafts, spam. `-in:chats` filters Hangouts/
   // Chat threads which Gmail surfaces here.
-  const q = `newer_than:${newerThan} in:inbox -in:chats`;
+  const q = `after:${afterEpochSec} in:inbox -in:chats`;
   const out: GmailMessageMeta[] = [];
   let pageToken: string | undefined;
   // Cap to 250 messages per poll to keep the per-cycle quota bounded.

@@ -231,18 +231,30 @@ export type IntegrationsHealthResponse = z.infer<
   typeof IntegrationsHealthResponseSchema
 >;
 
-// -- Calendar (GET /calendar/week) per D-04 -------------------------------
+// -- Calendar (GET /calendar/week) per D-04 + Phase 11 D-07 ---------------
 
 /**
- * Calendar event as surfaced by the Week view. Phase 3 source is
- * Command Center Notion DB only (Deadline + Idag date properties).
- * Google Calendar merge is Phase 8 (CAP-09). `linked_entity_id` is
- * populated when the Command Center row carries a LinkedEntity relation
- * so clicking the bar deep-links to `/entities/[id]`.
+ * Calendar event as surfaced by the Week view. Sources:
+ *  - 'command_center_deadline' / 'command_center_idag': Notion Command Center
+ *    DB rows (Deadline / Idag date properties). Treated as deadlines.
+ *  - 'google_calendar': real Google Calendar meetings mirrored into the
+ *    `calendar_events_cache` table by the calendar-reader Lambda (Plan 11-05
+ *    closes the read gap — UNION of Notion CC + Google).
+ *
+ * `linked_entity_id` is populated only for Notion CC rows (LinkedEntity
+ * relation). `account` is populated only for google_calendar events
+ * (the calendar-reader-side account label: 'kevin-elzarka' or
+ * 'kevin-taleforge'). The two are mutually exclusive in practice.
+ *
+ * Dedupe rule (Plan 11-05 mergeAndDedupeEvents): collapse rows that share
+ * the same start-minute + normalised title; Google Calendar wins over
+ * Notion CC when both contain a matching event (Google is canonical for
+ * actual meetings; Notion CC is canonical for deadlines).
  */
 export const CalendarEventSourceSchema = z.enum([
   'command_center_deadline',
   'command_center_idag',
+  'google_calendar',
 ]);
 export type CalendarEventSource = z.infer<typeof CalendarEventSourceSchema>;
 
@@ -254,6 +266,12 @@ export const CalendarEventSchema = z.object({
   linked_entity_id: UuidSchema.nullable(),
   bolag: BolagSchema.nullable(),
   source: CalendarEventSourceSchema,
+  // Phase 11 Plan 11-05: present for source='google_calendar' rows so the
+  // CalendarWeekView can disambiguate which of Kevin's two Google
+  // accounts owns the meeting (kevin-elzarka vs kevin-taleforge).
+  // Optional + nullable to keep wire-format backwards-compatible with
+  // pre-Phase-11 Notion-only payloads.
+  account: z.string().nullable().optional(),
 });
 export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
 

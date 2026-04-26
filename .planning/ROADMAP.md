@@ -419,7 +419,7 @@ Plans:
 - [ ] 11-01-PLAN.md — Wave 1: demo-data wipe + dashboard-api startup pollution guard
 - [x] 11-02-PLAN.md — Wave 1: mission-control primitives (StatTile/Pill/ChannelHealth/PriorityRow) + ChatBubble shell + design tokens + shadcn install (✅ 2026-04-26 — 4 commits, 9 unit tests, ChannelHealthItemSchema added to @kos/contracts/dashboard)
 - [ ] 11-03-PLAN.md — Wave 2: drop urgent-only filter on /inbox-merged + classification pills + UNION inbox_index rows
-- [ ] 11-04-PLAN.md — Wave 2: /today extension (captures aggregation + StatTileStrip + channel strip)
+- [x] 11-04-PLAN.md — Wave 2: /today extension (captures aggregation + StatTileStrip + channel strip) (✅ 2026-04-26 — 4 commits, 5-table UNION absorbing Wave 0 deviation, 10 today tests + 4 e2e tests, single round-trip /today payload)
 - [ ] 11-05-PLAN.md — Wave 2: /calendar UNION calendar_events_cache + Notion CC with dedupe
 - [ ] 11-06-PLAN.md — Wave 2: /integrations-health new endpoint + page + sidebar entry
 - [ ] 11-07-PLAN.md — Wave 3: button audit + chat shell + sidebar updates + global ChatBubble mount

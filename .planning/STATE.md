@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-26T19:46:26.556Z"
+last_updated: "2026-04-26T19:50:30.254Z"
 progress:
   total_phases: 12
   completed_phases: 4
   total_plans: 89
-  completed_plans: 53
-  percent: 60
+  completed_plans: 54
+  percent: 61
 ---
 
 # State: Kevin OS (KOS)
@@ -43,7 +43,7 @@ Phase 10:[⚠️] Migration & Decommission       — VPS migration adapter live;
 Phase 11:[🆕] AI Chat + Bidirectional Telegram — NEW SCOPE (see Phase 11 below)
 ```
 
-**Progress:** [██████░░░░] 60%
+**Progress:** [██████░░░░] 61%
 
 ---
 
@@ -148,6 +148,7 @@ Things that block KOS from being fully usable. Ordered by impact.
 7. **Chrome extension installed + verified** — bearer + HMAC + webhook URL configured; right-click capture confirmed live.
 8. **Bastion deployed for migrations** — needs teardown (run `cdk deploy KosData --require-approval never` without `--context bastion=true`).
 9. **EBS volume resized 48GB → 200GB** — disk pressure was blocking test runs.
+10. **Phase 11 Plan 11-04 complete** — `/today` extended with 5-source UNION (email_drafts + mention_events + event_log + inbox_index + telegram_inbox_queue, absorbing Wave 0 deviation that capture_text/capture_voice tables do not exist), 4 stat tiles, channel-health strip; TodayView mission-control layout wired; 10 today tests + 4 e2e tests passing; SSE refresh preserved (D-14).
 
 ### Branches cleaned
 

@@ -21,6 +21,8 @@ import { initSentry, wrapHandler } from '../../_shared/sentry.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import {
   CaptureReceivedTextSchema,
+  CaptureReceivedChromeHighlightSchema,
+  CaptureReceivedLinkedInDmSchema,
   CaptureVoiceTranscribedSchema,
   TriageRoutedSchema,
 } from '@kos/contracts';
@@ -81,15 +83,38 @@ export const handler = wrapHandler(async (event: EBEvent) => {
     let messageId: number | undefined;
 
     if (dt === 'capture.received') {
-      const d = CaptureReceivedTextSchema.parse(event.detail);
-      captureId = d.capture_id;
-      sourceKind = 'text';
-      text = d.text;
-      channel = d.channel;
-      senderId = d.sender?.id;
-      senderDisplay = d.sender?.display;
-      chatId = d.telegram?.chat_id;
-      messageId = d.telegram?.message_id;
+      // Dispatch by `kind`. Chrome highlights and LinkedIn DMs share
+      // `capture.received` with text captures but use different schemas
+      // (channel='chrome'|'linkedin', extra fields). Map both to the
+      // unified internal triage flow with channel='dashboard' downstream
+      // (TriageRoutedSchema only accepts telegram/dashboard for now —
+      // chrome/linkedin captures have no Telegram ack so 'dashboard' is
+      // the right semantic equivalent).
+      const detail = event.detail as { kind?: string };
+      const kind = detail.kind;
+      if (kind === 'chrome_highlight') {
+        const d = CaptureReceivedChromeHighlightSchema.parse(event.detail);
+        captureId = d.capture_id;
+        sourceKind = 'text';
+        text = d.text;
+        channel = 'dashboard';
+      } else if (kind === 'linkedin_dm') {
+        const d = CaptureReceivedLinkedInDmSchema.parse(event.detail);
+        captureId = d.capture_id;
+        sourceKind = 'text';
+        text = d.text ?? '';
+        channel = 'dashboard';
+      } else {
+        const d = CaptureReceivedTextSchema.parse(event.detail);
+        captureId = d.capture_id;
+        sourceKind = 'text';
+        text = d.text;
+        channel = d.channel;
+        senderId = d.sender?.id;
+        senderDisplay = d.sender?.display;
+        chatId = d.telegram?.chat_id;
+        messageId = d.telegram?.message_id;
+      }
     } else if (dt === 'capture.voice.transcribed') {
       const d = CaptureVoiceTranscribedSchema.parse(event.detail);
       captureId = d.capture_id;

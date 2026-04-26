@@ -245,7 +245,10 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
     eventPattern: {
       source: ['kos.capture'],
       detailType: ['capture.received'],
-      detail: { kind: ['text'] },
+      // 2026-04-26: extended from `text` only to also cover Phase 5
+      // chrome highlights + LinkedIn DMs. The triage handler dispatches
+      // on `kind` and parses with the correct schema.
+      detail: { kind: ['text', 'chrome_highlight', 'linkedin_dm'] },
     },
     targets: [
       new LambdaTarget(triageFn, {

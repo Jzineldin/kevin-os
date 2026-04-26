@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kevin OS Capture — Options</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+      label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
+      input { width: 100%; padding: 0.5rem; box-sizing: border-box; }
+      button { margin-top: 1rem; padding: 0.5rem 1rem; }
+      .status { margin-top: 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Kevin OS Capture</h1>
+    <p>Phase 5 Plan 05-00 scaffold — full options UI lands in Plan 05-01.</p>
+    <label for="webhook-url">Webhook URL</label>
+    <input id="webhook-url" type="url" placeholder="https://..." />
+    <label for="bearer">Bearer token</label>
+    <input id="bearer" type="password" placeholder="kos-..." />
+    <label for="hmac-secret">HMAC secret</label>
+    <input id="hmac-secret" type="password" placeholder="hex" />
+    <button id="save">Save</button>
+    <div class="status" id="status"></div>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -79,9 +79,126 @@ export const CaptureReceivedVoiceSchema = z.object({
   }),
 });
 
+// --- Phase 5 / Plan 05-00: CAP-04 Chrome highlight ----------------------
+//
+// Chrome extension content script captures Kevin's right-click selection on
+// any web page and POSTs it to the chrome-webhook Lambda. `source_url` is
+// the location.href at selection time; `source_title` mirrors document.title
+// so the inbox can render a human label without re-fetching the page.
+// `selected_at` is the client clock; `received_at` is the Lambda's clock —
+// both are kept so timezone / drift bugs are surfaceable post-hoc.
+export const CaptureReceivedChromeHighlightSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('chrome'),
+  kind: z.literal('chrome_highlight'),
+  text: z.string().min(1).max(50_000),
+  source_url: z.string().url(),
+  source_title: z.string().optional(),
+  selected_at: z.string().datetime(),
+  received_at: z.string().datetime(),
+});
+
+// --- Phase 5 / Plan 05-00: CAP-05 LinkedIn DM ---------------------------
+//
+// Chrome extension's LinkedIn content script polls Voyager `conversations`
+// + thread events endpoints, parses URN envelopes, and POSTs each new
+// message to the linkedin-webhook Lambda. `conversation_urn` and
+// `message_urn` are the Voyager identifiers used for idempotent dedupe;
+// `from.li_public_id` is the URL-slug ("damien-hateley") if present in the
+// miniProfile payload (some events ship miniProfile without it).
+export const CaptureReceivedLinkedInDmSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('linkedin'),
+  kind: z.literal('linkedin_dm'),
+  conversation_urn: z.string(),
+  message_urn: z.string(),
+  from: z.object({
+    name: z.string(),
+    li_public_id: z.string().optional(),
+  }),
+  body: z.string().min(1).max(50_000),
+  sent_at: z.string().datetime(),
+  received_at: z.string().datetime(),
+});
+
+// --- Phase 5 / Plan 05-00: CAP-06 WhatsApp incoming ---------------------
+//
+// Baileys Fargate container streams every observed WhatsApp message to the
+// baileys-sidecar Lambda Function URL. `jid` is the sender's WhatsApp JID
+// (e.g., `46700000000@s.whatsapp.net`); `chat_jid` is the conversation JID
+// — identical to `jid` for 1:1 chats, distinct (`-XXX@g.us`) for groups.
+// `from_name` is the WhatsApp `pushName` if available — never trusted, only
+// surfaced for human disambiguation in the dashboard.
+export const CaptureReceivedWhatsappTextSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('whatsapp'),
+  kind: z.literal('whatsapp_text'),
+  jid: z.string(),
+  chat_jid: z.string(),
+  from_name: z.string().optional(),
+  body: z.string().min(1).max(50_000),
+  is_group: z.boolean(),
+  sent_at: z.string().datetime(),
+  received_at: z.string().datetime(),
+});
+
+// WhatsApp voice notes flow through the same Lambda; the audio is
+// uploaded to S3 (eu-north-1) by the sidecar before this event is emitted,
+// so downstream transcribe-starter (Phase 2 plan 02-02) can pick the audio
+// up via the existing `audio/*` PutObject trigger.
+export const CaptureReceivedWhatsappVoiceSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('whatsapp'),
+  kind: z.literal('whatsapp_voice'),
+  jid: z.string(),
+  chat_jid: z.string(),
+  from_name: z.string().optional(),
+  raw_ref: z.object({
+    s3_bucket: z.string(),
+    s3_key: z.string(),
+    duration_sec: z.number().int().min(0),
+    mime_type: z.string(),
+  }),
+  is_group: z.boolean(),
+  sent_at: z.string().datetime(),
+  received_at: z.string().datetime(),
+});
+
+// --- Phase 5 / Plan 05-00: CAP-10 Discord text --------------------------
+//
+// Discord fallback poller (Plan 05-06) emits one event per new text message
+// in any watched channel. `channel_id` and `message_id` are Discord
+// snowflakes; the `author.id` is the snowflake of the message author. The
+// poller is best-effort and idempotent — replays of the same `(channel_id,
+// message_id)` pair must not double-route (idempotency enforced upstream
+// by triage's existing capture-id dedupe).
+export const CaptureReceivedDiscordTextSchema = z.object({
+  capture_id: z.string().regex(UlidRegex),
+  channel: z.literal('discord'),
+  kind: z.literal('discord_text'),
+  channel_id: z.string(),
+  message_id: z.string(),
+  author: z.object({
+    id: z.string(),
+    display: z.string().optional(),
+  }),
+  body: z.string().min(1).max(50_000),
+  sent_at: z.string().datetime(),
+  received_at: z.string().datetime(),
+});
+
+// Phase 5 extends the Phase-2-authored discriminated union by appending the
+// five new capture kinds. Phase 2 / Phase 4 consumers (triage, voice-capture,
+// email-triage) parse the relevant single schema directly; this union is the
+// dashboard's single source of truth for all capture shapes.
 export const CaptureReceivedSchema = z.discriminatedUnion('kind', [
   CaptureReceivedTextSchema,
   CaptureReceivedVoiceSchema,
+  CaptureReceivedChromeHighlightSchema,
+  CaptureReceivedLinkedInDmSchema,
+  CaptureReceivedWhatsappTextSchema,
+  CaptureReceivedWhatsappVoiceSchema,
+  CaptureReceivedDiscordTextSchema,
 ]);
 
 export const CaptureVoiceTranscribedSchema = z.object({
@@ -222,3 +339,58 @@ export const OutputPushSchema = z.object({
     .optional(),
 });
 export type OutputPush = z.infer<typeof OutputPushSchema>;
+
+// --- Phase 5 / Plan 05-00: capture type exports + SystemAlert -----------
+//
+// Inferred TS types for the five Phase 5 capture schemas declared above.
+// Kept at the bottom of the file (not next to the schemas) because the
+// discriminated union must be defined before consumers can `z.infer` it
+// without circularity warnings.
+
+export type CaptureReceivedChromeHighlight = z.infer<
+  typeof CaptureReceivedChromeHighlightSchema
+>;
+export type CaptureReceivedLinkedInDm = z.infer<
+  typeof CaptureReceivedLinkedInDmSchema
+>;
+export type CaptureReceivedWhatsappText = z.infer<
+  typeof CaptureReceivedWhatsappTextSchema
+>;
+export type CaptureReceivedWhatsappVoice = z.infer<
+  typeof CaptureReceivedWhatsappVoiceSchema
+>;
+export type CaptureReceivedDiscordText = z.infer<
+  typeof CaptureReceivedDiscordTextSchema
+>;
+
+// `kos.system / system.alert` — emitted by capture-side webhooks
+// (chrome-webhook, linkedin-webhook, baileys-sidecar, baileys-fargate,
+// emailengine-webhook, dashboard-api) when something operationally
+// noteworthy happens. NOT a capture — never routed through triage.
+//
+// Severity levels:
+//   - info             : healthy lifecycle events (account paired, etc.)
+//   - warn             : recoverable issues (transient network failures)
+//   - error            : non-recoverable; may require operator action
+//   - auth_fail        : LinkedIn 401 / WhatsApp banned / Bearer mismatch
+//   - unusual_activity : rate spike, unexpected sender pattern, abuse signal
+//
+// Consumed by dashboard-api which surfaces unacked rows in the alerts panel
+// (no Telegram, no notification cap — alerts are pull, not push, per the
+// ADHD-compatibility constraint in CLAUDE.md).
+export const SystemAlertSchema = z.object({
+  source: z.enum([
+    'chrome',
+    'linkedin',
+    'whatsapp',
+    'discord',
+    'baileys',
+    'emailengine',
+    'system',
+  ]),
+  severity: z.enum(['info', 'warn', 'error', 'auth_fail', 'unusual_activity']),
+  message: z.string().min(1).max(1000),
+  owner_id: z.string().uuid(),
+  raised_at: z.string().datetime(),
+});
+export type SystemAlert = z.infer<typeof SystemAlertSchema>;

@@ -16,6 +16,11 @@
     "@kos/contracts": "workspace:*",
     "@kos/db": "workspace:*",
     "@notionhq/client": "^2",
+    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2",
+    "@langfuse/otel": "^5",
+    "@opentelemetry/api": "^1",
+    "@opentelemetry/instrumentation": "^0.215",
+    "@opentelemetry/sdk-trace-node": "^2",
     "@sentry/aws-serverless": "^8",
     "pg": "8.13.1",
     "zod": "3.23.8"

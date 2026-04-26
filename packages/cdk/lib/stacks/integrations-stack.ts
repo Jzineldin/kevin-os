@@ -64,6 +64,10 @@ import {
   wireDiscordSchedule,
   type DiscordScheduleWiring,
 } from './integrations-discord-schedule.js';
+import {
+  wireMutationPipeline,
+  type MutationPipelineWiring,
+} from './integrations-mutations.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -224,6 +228,15 @@ export class IntegrationsStack extends Stack {
    * Populated only when `outputBus` and `kevinOwnerId` are both supplied.
    */
   public readonly emailAgents?: EmailAgentsWiring;
+  /**
+   * Phase 8 Plan 08-04 (AGT-08) imperative-verb mutation pipeline —
+   * mutation-proposer Lambda (Bedrock Haiku + Sonnet) + mutation-executor
+   * Lambda (UPDATE-only, archive-not-delete) + 2 EventBridge rules.
+   * Populated only when `outputBus`, `agentBus`, and `kevinOwnerId` are
+   * all supplied. STRUCTURAL Approve gate: proposer has NO Notion writes
+   * + executor has NO Bedrock; both forbid DELETEs at the DB grant layer.
+   */
+  public readonly mutationPipeline?: MutationPipelineWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -486,6 +499,29 @@ export class IntegrationsStack extends Stack {
         langfuseSecretKeySecret: props.langfuseSecretKeySecret,
         notionTokenSecret: props.notionTokenSecret,
         azureSearchAdminSecret: props.azureSearchAdminSecret,
+      });
+    }
+
+    // Plan 08-04 (AGT-08): mutation-proposer + mutation-executor + 2 rules.
+    // Synth-gated on outputBus + agentBus + kevinOwnerId — keeps existing
+    // test fixtures green; production deploy supplies all three. STRUCTURAL
+    // Approve gate (CDK tests assert): proposer has NO postiz/ses/Notion-write
+    // grants; executor has NO bedrock/ses/postiz grants AND no DELETE on any
+    // DB role grant.
+    if (props.outputBus && props.agentBus && props.kevinOwnerId) {
+      this.mutationPipeline = wireMutationPipeline(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        captureBus: props.captureBus,
+        agentBus: props.agentBus,
+        outputBus: props.outputBus,
+        kevinOwnerId: props.kevinOwnerId,
+        notionTokenSecret: props.notionTokenSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
     }
 

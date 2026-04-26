@@ -102,7 +102,7 @@ export const handler = wrapHandler(async (event: EBEvent) => {
         const d = CaptureReceivedLinkedInDmSchema.parse(event.detail);
         captureId = d.capture_id;
         sourceKind = 'text';
-        text = d.text ?? '';
+        text = d.body ?? '';
         channel = 'dashboard';
       } else {
         const d = CaptureReceivedTextSchema.parse(event.detail);

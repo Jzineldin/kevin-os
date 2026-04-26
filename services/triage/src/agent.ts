@@ -61,7 +61,11 @@ export const TriageOutputSchema = z.object({
   route: z.enum(['voice-capture', 'inbox-review', 'drop']),
   detected_type: z.enum(['task', 'meeting', 'note', 'question', 'other']).optional(),
   urgency: z.enum(['low', 'med', 'high', 'none']).optional(),
-  reason: z.string().max(200),
+  // No hard max — over-length reasons are truncated rather than dropped.
+  // Dropping a real capture because the LLM was verbose is a far worse failure
+  // than logging a long reason. The prompt asks for ≤200 chars; if the model
+  // disobeys we still surface the capture and just truncate the reason.
+  reason: z.string().transform((s) => (s.length > 500 ? s.slice(0, 500) : s)),
 });
 export type TriageOutput = z.infer<typeof TriageOutputSchema>;
 

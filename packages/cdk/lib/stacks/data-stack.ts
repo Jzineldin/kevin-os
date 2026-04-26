@@ -94,6 +94,17 @@ export class DataStack extends Stack {
   // (`openssl rand -hex 32`) before pointing the iOS Shortcut at the
   // Function URL.
   public readonly iosShortcutWebhookSecret: Secret;
+  // Phase 4 Plan 04-03 (CAP-07 EmailEngine): five placeholder secrets for the
+  // EmailEngine Fargate task + admin/webhook Lambdas. Operator seeds all five
+  // out-of-band before `cdk deploy` activates the EmailEngine wiring (see
+  // 04-EMAILENGINE-OPERATOR-RUNBOOK.md). EmailEngine forbids horizontal
+  // scaling, so a single Fargate task reads these via ECS task-def secret
+  // refs and the admin/webhook Lambdas read them via the Secrets Manager API.
+  public readonly emailEngineLicenseSecret: Secret;
+  public readonly emailEngineImapElzarkaSecret: Secret;
+  public readonly emailEngineImapTaleforgeSecret: Secret;
+  public readonly emailEngineWebhookSecret: Secret;
+  public readonly emailEngineApiKeySecret: Secret;
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -374,6 +385,37 @@ export class DataStack extends Stack {
       'IosShortcutWebhookSecret',
       'kos/ios-shortcut-webhook-secret',
       'Shared HMAC-SHA256 secret for the iOS Action Button webhook (CAP-02 / D-01).',
+    );
+
+    // --- Phase 4 Plan 04-03 (CAP-07): EmailEngine secrets -------------------
+    // Five placeholders seeded by the operator post-deploy (see runbook).
+    // RemovalPolicy.RETAIN keeps them across `cdk destroy` so re-deploys do
+    // not require re-procuring the EmailEngine license or rotating Gmail app
+    // passwords on every infra refresh.
+    this.emailEngineLicenseSecret = mkSecret(
+      'EmailEngineLicenseKey',
+      'kos/emailengine-license-key',
+      'EmailEngine Postal Systems license key (~$99/yr; see runbook for procurement).',
+    );
+    this.emailEngineImapElzarkaSecret = mkSecret(
+      'EmailEngineImapKevinElzarka',
+      'kos/emailengine-imap-kevin-elzarka',
+      'IMAP credentials for kevin.elzarka@gmail.com — JSON {"email","app_password"}.',
+    );
+    this.emailEngineImapTaleforgeSecret = mkSecret(
+      'EmailEngineImapKevinTaleforge',
+      'kos/emailengine-imap-kevin-taleforge',
+      'IMAP credentials for kevin@tale-forge.app — JSON {"email","app_password"}.',
+    );
+    this.emailEngineWebhookSecret = mkSecret(
+      'EmailEngineWebhookSecret',
+      'kos/emailengine-webhook-secret',
+      'X-EE-Secret header value EmailEngine sends to emailengine-webhook Lambda (CAP-07).',
+    );
+    this.emailEngineApiKeySecret = mkSecret(
+      'EmailEngineApiKey',
+      'kos/emailengine-api-key',
+      'EmailEngine REST API admin key (consumed by emailengine-admin Lambda).',
     );
 
     // --- ECS Fargate cluster (INF-06) ---------------------------------------

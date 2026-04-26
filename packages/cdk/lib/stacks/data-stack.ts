@@ -94,6 +94,17 @@ export class DataStack extends Stack {
   // (`openssl rand -hex 32`) before pointing the iOS Shortcut at the
   // Function URL.
   public readonly iosShortcutWebhookSecret: Secret;
+  // Phase 5 Plan 05-01 (CAP-04): chrome-webhook Bearer + HMAC secrets. The
+  // chrome-webhook Lambda fetches BOTH on cold start and rejects empty /
+  // 'PLACEHOLDER' values (T-05-01-01 fail-closed). Operator seeds via:
+  //   aws secretsmanager put-secret-value \
+  //     --secret-id kos/chrome-extension-bearer \
+  //     --secret-string "$(openssl rand -hex 32)"
+  //   aws secretsmanager put-secret-value \
+  //     --secret-id kos/chrome-extension-hmac-secret \
+  //     --secret-string "$(openssl rand -hex 32)"
+  public readonly chromeExtensionBearerSecret: Secret;
+  public readonly chromeExtensionHmacSecret: Secret;
   // Phase 4 Plan 04-03 (CAP-07 EmailEngine): five placeholder secrets for the
   // EmailEngine Fargate task + admin/webhook Lambdas. Operator seeds all five
   // out-of-band before `cdk deploy` activates the EmailEngine wiring (see
@@ -385,6 +396,20 @@ export class DataStack extends Stack {
       'IosShortcutWebhookSecret',
       'kos/ios-shortcut-webhook-secret',
       'Shared HMAC-SHA256 secret for the iOS Action Button webhook (CAP-02 / D-01).',
+    );
+
+    // Phase 5 Plan 05-01 (CAP-04): chrome-webhook auth pair. The Bearer is
+    // the cheap gate; the HMAC binds timestamp + body so a leaked Bearer
+    // can't be replayed with mutated content (T-05-01-01).
+    this.chromeExtensionBearerSecret = mkSecret(
+      'ChromeExtensionBearer',
+      'kos/chrome-extension-bearer',
+      'Static Bearer token shared with the Kevin OS Chrome extension Options page (CAP-04).',
+    );
+    this.chromeExtensionHmacSecret = mkSecret(
+      'ChromeExtensionHmacSecret',
+      'kos/chrome-extension-hmac-secret',
+      'Shared HMAC-SHA256 secret used by chrome-webhook + extension to sign every POST body (CAP-04).',
     );
 
     // --- Phase 4 Plan 04-03 (CAP-07): EmailEngine secrets -------------------

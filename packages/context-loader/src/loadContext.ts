@@ -29,6 +29,22 @@ import {
   writeDossierCache,
   type DossierCacheRow,
 } from './cache.js';
+import {
+  loadCalendarWindow,
+  formatCalendarMarkdown,
+  type CalendarWindowRow,
+} from './calendar.js';
+
+/**
+ * Phase 8 Plan 08-01 / D-11 — context bundle augmented with the optional
+ * calendar window. `calendar_window` is undefined when the caller did NOT
+ * request `includeCalendar: true`; an empty array means no events in the
+ * 48 h horizon (which the markdown formatter renders as an omitted section
+ * rather than a bare heading).
+ */
+export interface ContextBundleWithCalendar extends ContextBundle {
+  calendar_window?: CalendarWindowRow[];
+}
 
 export interface LoadContextInput {
   entityIds: string[];
@@ -48,9 +64,18 @@ export interface LoadContextInput {
     entityIds: string[];
     topK: number;
   }) => Promise<SearchHit[]>;
+  /**
+   * Phase 8 D-11 — when true, loads calendar_events_cache for the next 48 h
+   * for this owner and injects a `## Today + Tomorrow Calendar` section into
+   * `assembled_markdown`. Off by default to keep the existing call sites
+   * (triage, voice-capture, entity-resolver) byte-identical.
+   */
+  includeCalendar?: boolean;
 }
 
-export async function loadContext(input: LoadContextInput): Promise<ContextBundle> {
+export async function loadContext(
+  input: LoadContextInput,
+): Promise<ContextBundleWithCalendar> {
   const started = Date.now();
   const {
     entityIds,
@@ -59,6 +84,7 @@ export async function loadContext(input: LoadContextInput): Promise<ContextBundl
     maxSemanticChunks = 10,
     pool,
     azureSearch,
+    includeCalendar,
   } = input;
 
   const partialReasons: string[] = [];
@@ -91,8 +117,10 @@ export async function loadContext(input: LoadContextInput): Promise<ContextBundl
     }),
   ]);
 
-  // 4. Parallel: Azure semantic chunks + linked projects.
-  const [semanticChunks, linkedProjects] = await Promise.all([
+  // 4. Parallel: Azure semantic chunks + linked projects + (optionally) the
+  //    48 h calendar window. Plan 08-01 / D-11 — runs alongside the existing
+  //    fetches so the new feature doesn't widen p95 unless the caller opts in.
+  const [semanticChunks, linkedProjects, calendarWindow] = await Promise.all([
     azureSearch
       ? azureSearch({
           rawText: rawText ?? '',
@@ -107,6 +135,12 @@ export async function loadContext(input: LoadContextInput): Promise<ContextBundl
       partialReasons.push(`linked_projects: ${(err as Error).message}`);
       return [] as ContextBundle['linked_projects'];
     }),
+    includeCalendar
+      ? loadCalendarWindow(pool, ownerId, 48).catch((err) => {
+          partialReasons.push(`calendar_window: ${(err as Error).message}`);
+          return [] as CalendarWindowRow[];
+        })
+      : Promise.resolve<CalendarWindowRow[] | undefined>(undefined),
   ]);
 
   if (entityIds.length > 0 && cached.size === entityIds.length) {
@@ -163,12 +197,18 @@ export async function loadContext(input: LoadContextInput): Promise<ContextBundl
     partial_reasons: partialReasons,
   };
 
-  const assembled = buildDossierMarkdown(bundleWithoutMarkdown);
+  let assembled = buildDossierMarkdown(bundleWithoutMarkdown);
+  if (calendarWindow && calendarWindow.length > 0) {
+    // Append the calendar block AFTER the dossier sections so the
+    // cache-stable Kevin Context prefix stays first (prompt-cache hits).
+    assembled = `${assembled}\n${formatCalendarMarkdown(calendarWindow)}`;
+  }
 
   return {
     ...bundleWithoutMarkdown,
     assembled_markdown: assembled,
     elapsed_ms: Date.now() - started,
+    ...(includeCalendar ? { calendar_window: calendarWindow ?? [] } : {}),
   };
 }
 

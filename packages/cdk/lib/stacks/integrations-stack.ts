@@ -64,6 +64,10 @@ import {
   wireDiscordSchedule,
   type DiscordScheduleWiring,
 } from './integrations-discord-schedule.js';
+import {
+  wireCalendarReader,
+  type CalendarReaderWiring,
+} from './integrations-calendar-reader.js';
 
 export interface IntegrationsStackProps extends StackProps {
   // Plan 04 — Notion
@@ -224,6 +228,14 @@ export class IntegrationsStack extends Stack {
    * Populated only when `outputBus` and `kevinOwnerId` are both supplied.
    */
   public readonly emailAgents?: EmailAgentsWiring;
+  /**
+   * Phase 8 Plan 08-01 (CAP-09) calendar-reader wiring. Populated only when
+   * `kevinOwnerId` is supplied (production deploy). The OAuth secrets are
+   * resolved by name (`kos/gcal-oauth-kevin-{elzarka,taleforge}`) and must
+   * be operator-seeded via `scripts/bootstrap-gcal-oauth.mjs` before the
+   * Lambda's first scheduled invocation succeeds.
+   */
+  public readonly calendarReader?: CalendarReaderWiring;
 
   constructor(scope: Construct, id: string, props: IntegrationsStackProps) {
     super(scope, id, props);
@@ -341,6 +353,25 @@ export class IntegrationsStack extends Stack {
           langfuseSecretKeySecret: props.langfuseSecretKeySecret,
         });
       }
+
+      // Plan 08-01 (Phase 8 CAP-09): calendar-reader Lambda + 30-min
+      // EventBridge Scheduler entry. Re-uses notion.schedulerRole so all
+      // schedules share one trust policy. The two OAuth secrets
+      // (kos/gcal-oauth-kevin-{elzarka,taleforge}) are operator-seeded
+      // by scripts/bootstrap-gcal-oauth.mjs and resolved by name here.
+      this.calendarReader = wireCalendarReader(this, {
+        vpc: props.vpc,
+        rdsSecurityGroup: props.rdsSecurityGroup,
+        rdsProxyEndpoint: props.rdsProxyEndpoint,
+        rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
+        captureBus: props.captureBus,
+        scheduleGroupName: props.scheduleGroupName,
+        kevinOwnerId: props.kevinOwnerId,
+        schedulerRole: notion.schedulerRole,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
+      });
     }
 
     // Plan 04-01 (Phase 4 CAP-02): iOS Action Button webhook. Synth gated on

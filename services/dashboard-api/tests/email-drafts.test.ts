@@ -298,3 +298,158 @@ describe('email-drafts route handlers (Plan 04-05)', () => {
     ).not.toThrow();
   });
 });
+
+/**
+ * Phase 11 D-05 — drop urgent-only filter on listInboxDrafts.
+ *
+ * The previous implementation filtered `status IN ('draft','edited')`,
+ * which hid skipped/sent/failed/approved/junk/informational rows from
+ * the inbox. Phase 11 surfaces ALL classified email rows and lets the
+ * renderer decide which controls (Approve/Skip/Edit) to show per-row.
+ */
+describe('listInboxDrafts (Phase 11 D-05)', () => {
+  beforeEach(() => {
+    recordedQueries.length = 0;
+  });
+
+  it('returns rows with all statuses (no status-IN filter)', async () => {
+    const orig = fakeDb.execute;
+    const allStatusRows = [
+      {
+        draft_id: 'a',
+        capture_id: captureA,
+        from_email: 'x@y',
+        subject: 's',
+        draft_subject: null,
+        draft_body: null,
+        classification: 'junk',
+        status: 'skipped',
+        received_at: '2026-04-26T10:00:00Z',
+      },
+      {
+        draft_id: 'b',
+        capture_id: captureA,
+        from_email: 'x@y',
+        subject: 's',
+        draft_subject: null,
+        draft_body: null,
+        classification: 'urgent',
+        status: 'sent',
+        received_at: '2026-04-26T09:00:00Z',
+      },
+      {
+        draft_id: 'c',
+        capture_id: captureA,
+        from_email: 'x@y',
+        subject: 's',
+        draft_subject: null,
+        draft_body: null,
+        classification: 'urgent',
+        status: 'draft',
+        received_at: '2026-04-26T08:00:00Z',
+      },
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fakeDb.execute = ((q: any) => {
+      const text = typeof q === 'string' ? q : (q.sql ?? JSON.stringify(q));
+      recordedQueries.push({ text });
+      if (text.includes('FROM email_drafts')) {
+        return Promise.resolve({ rows: allStatusRows });
+      }
+      return Promise.resolve({ rows: [] });
+    }) as FakeDb['execute'];
+    try {
+      const { listInboxDrafts } = await import(
+        '../src/email-drafts-persist.js'
+      );
+      const rows = await listInboxDrafts(fakeDb as never);
+      expect(rows).toHaveLength(3);
+      expect(rows.map((r) => r.status).sort()).toEqual([
+        'draft',
+        'sent',
+        'skipped',
+      ]);
+    } finally {
+      fakeDb.execute = orig;
+    }
+  });
+
+  it("SQL has NO status IN ('draft','edited') filter", async () => {
+    const orig = fakeDb.execute;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fakeDb.execute = ((q: any) => {
+      const text = typeof q === 'string' ? q : (q.sql ?? JSON.stringify(q));
+      recordedQueries.push({ text });
+      return Promise.resolve({ rows: [] });
+    }) as FakeDb['execute'];
+    try {
+      const { listInboxDrafts } = await import(
+        '../src/email-drafts-persist.js'
+      );
+      await listInboxDrafts(fakeDb as never);
+      const lastQuery =
+        recordedQueries[recordedQueries.length - 1]?.text ?? '';
+      expect(lastQuery).not.toMatch(/status IN \('draft','edited'\)/);
+    } finally {
+      fakeDb.execute = orig;
+    }
+  });
+
+  it('SQL orders by received_at DESC', async () => {
+    const orig = fakeDb.execute;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fakeDb.execute = ((q: any) => {
+      const text = typeof q === 'string' ? q : (q.sql ?? JSON.stringify(q));
+      recordedQueries.push({ text });
+      return Promise.resolve({ rows: [] });
+    }) as FakeDb['execute'];
+    try {
+      const { listInboxDrafts } = await import(
+        '../src/email-drafts-persist.js'
+      );
+      await listInboxDrafts(fakeDb as never);
+      const lastQuery =
+        recordedQueries[recordedQueries.length - 1]?.text ?? '';
+      expect(lastQuery).toMatch(/ORDER BY received_at DESC/);
+    } finally {
+      fakeDb.execute = orig;
+    }
+  });
+
+  it('default limit raised to 100 (was 50)', async () => {
+    // Drizzle's sql template lays params out inline between chunk objects
+    // in `.queryChunks`. To verify the default-limit value we scan the
+    // chunk array for primitive values (strings/numbers) — the LAST
+    // primitive is the LIMIT bound (the OWNER_ID is also a string param,
+    // but it appears earlier in the chunk sequence).
+    const orig = fakeDb.execute;
+    let capturedQuery: unknown;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fakeDb.execute = ((q: any) => {
+      const text = typeof q === 'string' ? q : (q.sql ?? JSON.stringify(q));
+      recordedQueries.push({ text });
+      if (capturedQuery === undefined) capturedQuery = q;
+      return Promise.resolve({ rows: [] });
+    }) as FakeDb['execute'];
+    try {
+      const { listInboxDrafts } = await import(
+        '../src/email-drafts-persist.js'
+      );
+      await listInboxDrafts(fakeDb as never);
+      expect(capturedQuery).toBeDefined();
+      // Walk queryChunks, collect primitives (non-{value:...} entries).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chunks = (capturedQuery as any).queryChunks ?? [];
+      const primitives = chunks.filter(
+        (c: unknown) =>
+          typeof c === 'string' ||
+          typeof c === 'number' ||
+          typeof c === 'boolean',
+      );
+      // Default-limit param sits at the end of the chunk-primitive list.
+      expect(primitives[primitives.length - 1]).toBe(100);
+    } finally {
+      fakeDb.execute = orig;
+    }
+  });
+});

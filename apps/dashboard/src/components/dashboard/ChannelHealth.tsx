@@ -61,14 +61,6 @@ function timeAgo(iso: string | null): string {
   return `${d}d ago`;
 }
 
-function statusToTone(
-  status: ChannelHealthItem['status'],
-): 'success' | 'warning' | 'danger' {
-  if (status === 'healthy') return 'success';
-  if (status === 'degraded') return 'warning';
-  return 'danger';
-}
-
 function statusToBg(status: ChannelHealthItem['status']): string {
   if (status === 'healthy')
     return 'color-mix(in srgb, var(--color-success) 15%, transparent)';

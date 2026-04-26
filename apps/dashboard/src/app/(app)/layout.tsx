@@ -13,7 +13,11 @@
  *      renders with correct numbers on first paint. Counts default to
  *      zeroes if the dashboard-api call fails — the shell stays usable.
  *   4. Skip-to-content link (a11y rule 6) — visible on focus only.
- *   5. Max-width 1280px container (Design System table) inside <main>.
+ *   5. Max-width 1920px container (v4 visual rebuild — Bloomberg-grade
+ *      wide-screen real estate). The previous 1280 cap starved the
+ *      2-column Today grid on a 27" display; 1920 fills edge-to-edge
+ *      on a 2560-wide monitor and stops short of unreadable line
+ *      lengths on 4K.
  */
 import { z } from 'zod';
 
@@ -77,7 +81,7 @@ export default async function AppLayout({
             <Topbar />
             <main
               id="content"
-              className="mx-auto w-full max-w-[1280px] flex-1 px-8 py-8"
+              className="mx-auto w-full max-w-[1920px] flex-1 px-9 py-7"
             >
               {children}
             </main>

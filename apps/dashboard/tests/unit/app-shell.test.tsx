@@ -8,7 +8,7 @@
  *      8 — instant toggle).
  *   3. (Phase 11) Chat item is enabled — no longer disabled.
  *   4. (Phase 11) Settings nav entry has been removed.
- *   5. The sidebar width class w-[220px] is present (UI-SPEC §Sidebar).
+ *   5. The sidebar width class w-[232px] is present (v4 visual rebuild).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -58,11 +58,11 @@ describe('Sidebar', () => {
     expect(screen.getByText('Logout')).toBeInTheDocument();
   });
 
-  it('applies 220px width on the aside element', () => {
+  it('applies 232px width on the aside element (v4)', () => {
     renderSidebar();
     const el = document.querySelector('[data-slot="sidebar"]');
     expect(el).not.toBeNull();
-    expect(el!.className).toContain('w-[220px]');
+    expect(el!.className).toContain('w-[232px]');
   });
 
   it('marks the active Today route with instant transition (motion rule 8)', () => {

@@ -1,23 +1,21 @@
 /**
- * StatTileStrip — top-of-Today mission-control 4-tile row.
+ * StatTileStrip — v4 top-of-Today KPI strip.
  *
- * Renders the four stat tiles defined in 11-CONTEXT.md "specifics §1":
- *   CAPTURES TODAY / DRAFTS PENDING / ENTITIES ACTIVE / EVENTS UPCOMING
+ * Visual reference: mockup-v4.html § .kpis row
  *
- * Data is supplied by the /today response payload's `stat_tiles` field
- * (Plan 11-04 Task 1). When the field is undefined (e.g. degraded /today
- * fetch), tiles render zero values rather than blanking — D-12 calm
- * empty-state policy applies even at the section level.
+ * Four horizontal stat tiles that use the full content width of the
+ * main column — the one thing big screens are actually for. Tones map
+ * 1:1 onto the section palette so each KPI previews the section you'd
+ * jump to (priority blue → Priorities panel, drafts violet → Drafts
+ * panel, etc.), giving the page a consistent color grammar top to
+ * bottom.
  *
- * Tonal palette (per Plan 11-02 design tokens):
- *   captures  → accent  (purple — primary capture stream)
- *   drafts    → warning (amber — awaiting Kevin's review)
- *   entities  → success (green — active relationships)
- *   events    → info    (blue — upcoming calendar)
+ * When /today can't provide stat_tiles the tiles render zeros — D-12
+ * calm empty-state policy applies even at the section level.
  */
-import { Inbox, FileText, Users, CalendarDays } from 'lucide-react';
+import { CheckCheck, FileEdit, CalendarClock, InboxIcon } from 'lucide-react';
+
 import { StatTile } from '@/components/dashboard/StatTile';
-import { StatTileGrid } from '@/components/dashboard/StatTileGrid';
 import type { StatTileData } from '@kos/contracts/dashboard';
 
 const ZERO: StatTileData = {
@@ -30,33 +28,39 @@ const ZERO: StatTileData = {
 export function StatTileStrip({ data }: { data: StatTileData | undefined }) {
   const safe = data ?? ZERO;
   return (
-    <div data-testid="stat-tile-strip" style={{ marginBottom: 24 }}>
-      <StatTileGrid>
-        <StatTile
-          icon={Inbox}
-          label="CAPTURES TODAY"
-          value={safe.captures_today}
-          tone="accent"
-        />
-        <StatTile
-          icon={FileText}
-          label="DRAFTS PENDING"
-          value={safe.drafts_pending}
-          tone="warning"
-        />
-        <StatTile
-          icon={Users}
-          label="ENTITIES ACTIVE"
-          value={safe.entities_active}
-          tone="success"
-        />
-        <StatTile
-          icon={CalendarDays}
-          label="EVENTS UPCOMING"
-          value={safe.events_upcoming}
-          tone="info"
-        />
-      </StatTileGrid>
+    <div
+      data-testid="stat-tile-strip"
+      className="grid gap-[14px] mb-7"
+      style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}
+    >
+      <StatTile
+        icon={CheckCheck}
+        label="Priorities"
+        value={safe.entities_active}
+        tone="priority"
+        delta={safe.entities_active > 0 ? '1 due today' : 'none'}
+      />
+      <StatTile
+        icon={FileEdit}
+        label="Drafts pending"
+        value={safe.drafts_pending}
+        tone="drafts"
+        delta={safe.drafts_pending > 0 ? 'awaiting review' : 'caught up'}
+      />
+      <StatTile
+        icon={CalendarClock}
+        label="Meetings"
+        value={safe.events_upcoming}
+        tone="schedule"
+        delta={safe.events_upcoming > 0 ? 'next 24h' : 'empty day'}
+      />
+      <StatTile
+        icon={InboxIcon}
+        label="Captures today"
+        value={safe.captures_today}
+        tone="inbox"
+        delta="all sources"
+      />
     </div>
   );
 }

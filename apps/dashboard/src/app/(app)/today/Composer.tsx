@@ -1,17 +1,22 @@
 'use client';
 
 /**
- * Composer — voice/text dump zone for capture. Per 03-UI-SPEC §Today and
- * §Copywriting:
- *   - Swedish placeholder (data-side language, D-41 pass-through)
- *   - Primary button "Skicka" (Swedish, data-side)
- *   - On submit: clear textarea, show fade-in sonner toast with mono
- *     capture_id, auto-dismiss 3s (UI-SPEC).
- *   - Single PulseDot next to button: accent idle, warning on pending /
- *     no-ack, success when SSE `capture_ack` with matching id arrives.
- *   - If no ack within 5s, dot stays warning (UI-SPEC).
- *   - On failure: sonner toast "Capture didn't reach KOS. Retry?" with
- *     retry action; auto-dismiss disabled (UI-SPEC copy table).
+ * Composer — v4 Capture panel sitting in the right column of /today.
+ *
+ * Visual reference: mockup-v4.html § Capture panel
+ *
+ * Compact panel with:
+ *   - Textarea that snaps to surface-0 (bg) when unfocused and uses
+ *     sect-priority as its focus ring color.
+ *   - Foot row: "auto-detects" hint on the left, mono ⌘↵ on the right,
+ *     primary sm-sized "Capture" submit button.
+ *   - PulseDot preserved in the panel header count slot as the
+ *     capture-ack signal (accent → warning while awaiting SSE ack →
+ *     success on match). Moves out of the body so the composer stays
+ *     uncluttered.
+ *
+ * Behavior unchanged from Phase 3: POST via captureText action, waits
+ * 5s for `capture_ack` SSE with matching id, toasts on success/failure.
  */
 import { useCallback, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -19,13 +24,13 @@ import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { PulseDot, type PulseTone } from '@/components/system/PulseDot';
+import { Panel } from '@/components/dashboard/Panel';
 import { useSseKind } from '@/components/system/SseProvider';
 import type { SseEvent } from '@kos/contracts/dashboard';
 
 import { captureText } from './actions';
 
-const PLACEHOLDER =
-  'Dumpa allt — en tanke, en idé, ett möte. KOS sorterar.';
+const PLACEHOLDER = 'Dumpa allt — en tanke, en idé, ett möte. KOS sorterar.';
 const SUBMIT_LABEL = 'Skicka';
 const RETRY_ERROR = "Capture didn't reach KOS. Retry?";
 const ACK_WAIT_MS = 5_000;
@@ -62,9 +67,7 @@ export function Composer() {
       try {
         const res = await captureText(payload);
         setWaitingFor(res.capture_id);
-        toast.success(`Captured ${res.capture_id}`, {
-          duration: 3_000,
-        });
+        toast.success(`Captured ${res.capture_id}`, { duration: 3_000 });
         if (ackTimeoutRef.current) clearTimeout(ackTimeoutRef.current);
         ackTimeoutRef.current = setTimeout(() => {
           setDotTone('warning');
@@ -72,10 +75,7 @@ export function Composer() {
       } catch {
         toast.error(RETRY_ERROR, {
           duration: Infinity,
-          action: {
-            label: 'Retry',
-            onClick: () => setText(payload),
-          },
+          action: { label: 'Retry', onClick: () => setText(payload) },
         });
         setDotTone('accent');
       }
@@ -83,20 +83,33 @@ export function Composer() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="side-card">
-      <div className="h-section">CAPTURE</div>
-      <div className="flex flex-col gap-3">
+    <Panel
+      tone="priority"
+      name="Capture"
+      count={
+        <span className="flex items-center gap-2">
+          <PulseDot tone={dotTone} />
+          <span className="mono">⌘ ↵</span>
+        </span>
+      }
+      bodyPadding="tight"
+      aria-label="Quick capture"
+      testId="today-composer"
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-[10px]">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={PLACEHOLDER}
           aria-label="Capture input"
-          rows={4}
-          className="bg-[color:var(--color-surface-2)]"
+          rows={3}
           disabled={pending}
+          className="bg-[color:var(--color-bg)] min-h-[64px] border-[color:var(--color-border)] focus-visible:border-[color:var(--color-sect-priority)]"
         />
         <div className="flex items-center justify-between">
-          <PulseDot tone={dotTone} />
+          <span className="font-mono text-[10px] tracking-[0.04em] text-[color:var(--color-text-4)]">
+            auto-detects entity
+          </span>
           <Button
             type="submit"
             size="sm"
@@ -106,7 +119,7 @@ export function Composer() {
             {SUBMIT_LABEL}
           </Button>
         </div>
-      </div>
-    </form>
+      </form>
+    </Panel>
   );
 }

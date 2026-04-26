@@ -1,14 +1,15 @@
 /**
- * /login — unauthenticated entry point.
+ * /login — unauthenticated entry point. v4 visual.
  *
- * Server Component shell. Renders the brand mark + LoginForm client
- * island + iOS / Chrome install help text (verbatim from UI-SPEC §
- * Copywriting per D-32).
+ * Server Component shell. Renders a centered card with the v4
+ * BrandMark (32px), the LoginForm client island, and install help
+ * copy.
  *
  * Must be `dynamic = 'force-dynamic'` so Next doesn't prerender it and
  * cache stale CSRF context.
  */
 import { Suspense } from 'react';
+import { BrandMark } from '@/components/app-shell/BrandMark';
 import { LoginForm } from './LoginForm';
 
 export const dynamic = 'force-dynamic';
@@ -16,28 +17,22 @@ export const dynamic = 'force-dynamic';
 export default function LoginPage() {
   return (
     <main
-      className="min-h-screen flex items-center justify-center"
+      className="min-h-screen flex items-center justify-center px-4"
       style={{ background: 'var(--color-bg)' }}
     >
       <div
-        className="w-[420px] p-8 rounded-xl border"
+        className="w-full max-w-[420px] rounded-[var(--radius-lg)] border p-8"
         style={{
           background: 'var(--color-surface-1)',
           borderColor: 'var(--color-border)',
+          boxShadow: '0 10px 40px -20px rgba(0,0,0,0.6)',
         }}
       >
-        <div className="flex items-center justify-center mb-6">
-          <div
-            aria-hidden
-            className="w-[22px] h-[22px] rounded-md"
-            style={{
-              background:
-                'linear-gradient(135deg, var(--color-accent), var(--color-accent-2))',
-            }}
-          />
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <BrandMark size={32} />
           <span
-            className="ml-2 font-semibold"
-            style={{ fontSize: 'var(--text-md)', color: 'var(--color-text)' }}
+            className="text-[16px] font-semibold tracking-[-0.01em]"
+            style={{ color: 'var(--color-text)' }}
           >
             Kevin OS
           </span>
@@ -48,11 +43,18 @@ export default function LoginPage() {
         </Suspense>
 
         <p
-          className="mt-6"
-          style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-3)' }}
+          className="mt-6 text-center"
+          style={{
+            fontSize: 12,
+            lineHeight: 1.6,
+            color: 'var(--color-text-3)',
+            fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.02em',
+          }}
         >
-          iOS users: add this page to home screen via Safari&apos;s Share menu.
-          Chrome / Edge: install via the address-bar icon after sign-in.
+          iOS — add to home screen via Safari&apos;s Share menu.
+          <br />
+          Chrome / Edge — install via the address-bar icon after sign-in.
         </p>
       </div>
     </main>

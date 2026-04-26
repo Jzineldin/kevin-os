@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kevin OS — Mockup v2 (Warm Paper / ADHD-calm)</title>
+
+<!--
+  Direction: "Warm Paper / Calm OS"
+
+  Research notes behind the font & aesthetic choices:
+  - Atkinson Hyperlegible (Braille Institute, 2020) — character shapes are
+    engineered to be maximally distinguishable (a/o, I/l/1, 0/O), which is
+    the same property that reduces sub-word jumping in ADHD/dyslexia reading.
+  - Instrument Serif (Instrument, 2023) — high-contrast editorial serif
+    that gives ONE strong typographic moment per screen without being loud.
+  - JetBrains Mono — data face; the variable-stroke rounding reads calmer
+    than SF Mono or Geist Mono at 11-12px.
+  - Warm paper background (#f6f1e8 family): reduces glare vs. pure white,
+    keeps contrast without the "email client" sterility. This is the iA
+    Writer / Things 3 / Craft / Readwise lineage.
+  - Single primary accent (sage). Status colours are desaturated further
+    than v1 — nothing yells unless it's a real error.
+  - Layout: ONE current-focus block above the fold, everything else is
+    quiet and scrollable. ADHD-friendly = "what am I doing right now"
+    is unmissable; everything else waits.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    /* ── Warm paper palette ── */
+    --paper:        #f6f1e8;      /* primary bg — warm off-white */
+    --paper-2:      #efe9dc;      /* card bg */
+    --paper-3:      #e6dfce;      /* hover / recessed */
+    --paper-edge:   #d9d1bd;      /* hairline border */
+    --paper-rail:   #e0d8c4;      /* soft rail */
+
+    /* ── Ink (warm near-black, not cold) ── */
+    --ink-1:        #1a1814;      /* primary text */
+    --ink-2:        #3d3a32;      /* secondary */
+    --ink-3:        #74705f;      /* tertiary / meta */
+    --ink-4:        #a39d8a;      /* labels, disabled */
+
+    /* ── One calm accent: sage ── */
+    --sage:         #4f7a5a;
+    --sage-2:       #2f5a3d;
+    --sage-wash:    #dce7da;      /* 8% sage on paper */
+    --sage-line:    #b5c9b6;
+
+    /* ── Earned colors (desaturated, used rarely) ── */
+    --ochre:        #b8874a;      /* warning/attention */
+    --ochre-wash:   #ece0ca;
+    --rust:         #a85a3f;      /* errors — warm, not red-shout */
+    --rust-wash:    #eed7cd;
+    --sky:          #5a7b94;      /* info / external links */
+
+    /* ── Bolag tints (softened) ── */
+    --tf:   #3d6b7a;              /* Tale Forge — slate teal */
+    --tf-wash: #d9e2e4;
+    --ob:   #a26a2e;              /* Outbehaving — burnt ochre */
+    --ob-wash: #ecdec4;
+    --pe:   #6b5a8a;              /* Personal — muted plum */
+    --pe-wash: #ddd4e3;
+
+    /* ── Type ── */
+    --f-body:     "Atkinson Hyperlegible", -apple-system, ui-sans-serif, sans-serif;
+    --f-display:  "Instrument Serif", "Atkinson Hyperlegible", serif;
+    --f-mono:     "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+    /* ── Motion ── */
+    --ease:      cubic-bezier(0.2, 0.9, 0.3, 1);
+    --fast:      140ms;
+    --med:       220ms;
+
+    /* ── Radii (softer, paper-like) ── */
+    --r-sm: 3px;
+    --r-md: 6px;
+    --r-lg: 10px;
+    --r-xl: 14px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink-1);
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Paper grain — subtle noise so the bg feels like a surface, not a screen */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.55; mix-blend-mode: multiply;
+  }
+  body > * { position: relative; z-index: 1; }
+
+  button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--sage-wash); color: var(--sage-2); }
+
+  .mono { font-family: var(--f-mono); font-feature-settings: "tnum" 1; }
+  .serif { font-family: var(--f-display); }
+
+  /* =========================================================
+     SHELL — one column, quiet dock on the left
+     ========================================================= */
+  .shell {
+    display: grid;
+    grid-template-columns: 68px 1fr;
+    min-height: 100vh;
+  }
+
+  /* ── Quiet dock (icon-only; expands on hover) ── */
+  .dock {
+    background: var(--paper);
+    border-right: 1px solid var(--paper-edge);
+    padding: 22px 12px;
+    display: flex; flex-direction: column; gap: 2px;
+    transition: width var(--med) var(--ease);
+  }
+  .dock-brand {
+    display: grid; place-items: center;
+    width: 44px; height: 44px;
+    margin-bottom: 20px;
+    font-family: var(--f-display);
+    font-style: italic;
+    font-size: 22px;
+    color: var(--ink-1);
+    position: relative;
+  }
+  .dock-brand::after {
+    content: ""; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 999px; background: var(--sage);
+    box-shadow: 0 0 0 3px var(--sage-wash);
+  }
+  .dock-item {
+    width: 44px; height: 36px;
+    display: grid; place-items: center;
+    border-radius: var(--r-md);
+    color: var(--ink-3);
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+    position: relative;
+  }
+  .dock-item:hover { background: var(--paper-2); color: var(--ink-1); }
+  .dock-item.active {
+    background: var(--sage-wash);
+    color: var(--sage-2);
+  }
+  .dock-item.active::before {
+    content: ""; position: absolute; left: -12px; top: 10px; bottom: 10px;
+    width: 2px; border-radius: 0 2px 2px 0; background: var(--sage);
+  }
+  .dock-item .dot-alert {
+    position: absolute; top: 6px; right: 6px;
+    width: 6px; height: 6px; border-radius: 999px; background: var(--ochre);
+    box-shadow: 0 0 0 2px var(--paper);
+  }
+  .dock-label {
+    font-family: var(--f-mono); font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.18em;
+    color: var(--ink-4); padding: 16px 8px 6px;
+  }
+  .dock-foot { margin-top: auto; }
+
+  /* =========================================================
+     MAIN — generous whitespace, single reading column
+     ========================================================= */
+  .main {
+    display: flex; flex-direction: column;
+    min-width: 0;
+  }
+
+  /* ── Top line (thin, quiet) ── */
+  .top {
+    height: 56px;
+    padding: 0 40px;
+    display: flex; align-items: center; gap: 20px;
+    border-bottom: 1px solid var(--paper-edge);
+  }
+  .top .crumbs {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--f-mono); font-size: 12px;
+    color: var(--ink-4);
+    letter-spacing: 0.02em;
+  }
+  .top .crumbs .sep { color: var(--ink-4); }
+  .top .crumbs .last { color: var(--ink-2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; }
+  .top .spacer { flex: 1; }
+
+  .cmd {
+    display: flex; align-items: center; gap: 10px;
+    height: 34px; padding: 0 14px;
+    background: var(--paper-2);
+    border: 1px solid var(--paper-edge);
+    border-radius: var(--r-md);
+    font-size: 13px; color: var(--ink-3);
+    min-width: 280px;
+    transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  .cmd:hover { border-color: var(--ink-4); background: var(--paper); }
+  .cmd .k {
+    margin-left: auto;
+    font-family: var(--f-mono); font-size: 10px;
+    padding: 2px 6px; border-radius: 3px;
+    background: var(--paper); border: 1px solid var(--paper-edge);
+    color: var(--ink-3);
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 34px; padding: 0 14px;
+    border-radius: var(--r-md);
+    font-size: 13px; font-weight: 700;
+    border: 1px solid var(--paper-edge);
+    background: var(--paper-2);
+    color: var(--ink-2);
+    transition: all var(--fast) var(--ease);
+  }
+  .btn:hover { background: var(--paper); border-color: var(--ink-4); }
+  .btn.sage {
+    background: var(--sage); color: #fff; border-color: var(--sage-2);
+    box-shadow: 0 1px 0 var(--sage-2), 0 4px 12px -6px rgba(79,122,90,0.6);
+  }
+  .btn.sage:hover { background: var(--sage-2); }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 999px;
+    background: var(--paper-2);
+    border: 1px solid var(--paper-edge);
+    display: inline-grid; place-items: center;
+    font-size: 12px; font-weight: 700; color: var(--ink-2);
+    font-family: var(--f-body);
+  }
+
+  /* =========================================================
+     CONTENT
+     ========================================================= */
+  .content {
+    padding: 40px 56px 100px;
+    max-width: 960px;          /* single reading column — calming */
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ── Greeting / page head ── */
+  .greeting {
+    margin-bottom: 36px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--paper-rail);
+  }
+  .greeting .day {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--ink-3);
+    margin-bottom: 12px;
+  }
+  .greeting .hello {
+    font-family: var(--f-display);
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -0.015em;
+    color: var(--ink-1);
+    margin: 0;
+    font-weight: 400;
+  }
+  .greeting .hello em {
+    font-style: italic;
+    color: var(--sage-2);
+  }
+  .greeting .summary {
+    margin-top: 16px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    max-width: 640px;
+  }
+  .greeting .summary .pill {
+    display: inline-flex; align-items: center;
+    padding: 1px 8px; border-radius: 4px;
+    background: var(--paper-2);
+    border: 1px solid var(--paper-edge);
+    font-family: var(--f-mono); font-size: 13px;
+    color: var(--ink-2);
+    vertical-align: baseline;
+  }
+
+  /* ── THE ONE THING (ADHD anchor) ── */
+  .focus {
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--paper-edge);
+    border-radius: var(--r-xl);
+    padding: 36px 36px 28px;
+    margin-bottom: 44px;
+    box-shadow:
+      0 1px 0 var(--paper-rail),
+      0 10px 30px -18px rgba(26,24,20,0.25);
+  }
+  .focus::before {
+    content: ""; position: absolute; top: -1px; left: 24px; right: 24px; height: 2px;
+    background: var(--sage); border-radius: 2px;
+  }
+  .focus-label {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--f-mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.22em;
+    color: var(--sage-2); font-weight: 500;
+    margin-bottom: 18px;
+  }
+  .focus-label .tick {
+    width: 6px; height: 6px; border-radius: 999px; background: var(--sage);
+    box-shadow: 0 0 0 3px var(--sage-wash);
+    animation: breathe 3.5s var(--ease) infinite;
+  }
+  @keyframes breathe { 0%,100% { opacity:.6; } 50% { opacity:1; } }
+
+  .focus-title {
+    font-family: var(--f-display);
+    font-size: 34px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    color: var(--ink-1);
+    margin: 0 0 14px;
+    font-weight: 400;
+  }
+  .focus-why {
+    font-size: 15px; line-height: 1.65;
+    color: var(--ink-2);
+    max-width: 580px;
+    margin-bottom: 24px;
+  }
+  .focus-actions {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    padding-top: 20px;
+    border-top: 1px dashed var(--paper-rail);
+  }
+  .focus-meta {
+    position: absolute; top: 28px; right: 28px;
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--f-mono); font-size: 12px;
+    color: var(--ink-3);
+  }
+  .focus-meta .time {
+    padding: 3px 8px; background: var(--ochre-wash);
+    border: 1px solid color-mix(in srgb, var(--ochre) 30%, transparent);
+    color: var(--ochre);
+    border-radius: 4px;
+  }
+
+  /* ── Section heading (editorial) ── */
+  .section-head {
+    display: flex; align-items: baseline; gap: 14px;
+    margin: 44px 0 20px;
+  }
+  .section-head h2 {
+    font-family: var(--f-display);
+    font-style: italic;
+    font-size: 26px;
+    margin: 0;
+    letter-spacing: -0.005em;
+    color: var(--ink-1);
+    font-weight: 400;
+  }
+  .section-head .count {
+    font-family: var(--f-mono); font-size: 12px;
+    color: var(--ink-4); letter-spacing: 0.06em;
+  }
+  .section-head .line { flex: 1; height: 1px; background: var(--paper-rail); }
+  .section-head .all {
+    font-family: var(--f-mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--ink-3);
+  }
+  .section-head .all:hover { color: var(--ink-1); }
+
+  /* ── Priority list (paper rows, no boxes inside boxes) ── */
+  .priorities {
+    display: flex; flex-direction: column;
+  }
+  .pri {
+    display: grid; grid-template-columns: 28px 1fr auto;
+    gap: 18px; align-items: center;
+    padding: 18px 4px;
+    border-bottom: 1px solid var(--paper-rail);
+    transition: background var(--fast) var(--ease);
+  }
+  .pri:last-child { border-bottom: none; }
+  .pri:hover { background: color-mix(in srgb, var(--paper-2) 50%, transparent); }
+  .pri-check {
+    width: 20px; height: 20px; border-radius: 999px;
+    border: 1.5px solid var(--paper-edge);
+    transition: all var(--fast) var(--ease);
+    cursor: pointer;
+    justify-self: center;
+  }
+  .pri-check:hover { border-color: var(--sage); background: var(--sage-wash); }
+  .pri-body .t { font-size: 16px; color: var(--ink-1); line-height: 1.4; }
+  .pri-body .m {
+    margin-top: 4px;
+    font-family: var(--f-mono); font-size: 12px; color: var(--ink-3);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .tag {
+    display: inline-flex; align-items: center;
+    padding: 1px 8px;
+    border-radius: 3px;
+    font-family: var(--f-mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+  .tag.tf { background: var(--tf-wash); color: var(--tf); }
+  .tag.ob { background: var(--ob-wash); color: var(--ob); }
+  .tag.pe { background: var(--pe-wash); color: var(--pe); }
+  .ent-link {
+    color: var(--sage-2);
+    border-bottom: 1px dotted var(--sage-line);
+    padding-bottom: 1px;
+  }
+  .ent-link:hover { background: var(--sage-wash); }
+  .pri .when {
+    font-family: var(--f-mono); font-size: 12px; color: var(--ink-3);
+    white-space: nowrap;
+  }
+  .pri .when.soon { color: var(--ochre); }
+
+  /* ── Drafts list (prose-like, not cards) ── */
+  .draft {
+    padding: 20px 4px;
+    border-bottom: 1px solid var(--paper-rail);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .draft:last-child { border-bottom: none; }
+  .draft-head {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--f-mono); font-size: 11px; color: var(--ink-3);
+    text-transform: uppercase; letter-spacing: 0.12em;
+  }
+  .draft-head .channel { font-weight: 700; color: var(--ink-2); }
+  .draft-head .spread { flex:1; }
+  .draft-quote {
+    font-family: var(--f-display);
+    font-style: italic;
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink-1);
+    padding-left: 16px;
+    border-left: 2px solid var(--paper-rail);
+  }
+  .draft-actions { display: flex; gap: 8px; }
+  .mini-btn {
+    padding: 5px 11px; font-size: 12px; font-weight: 700;
+    border-radius: var(--r-sm);
+    color: var(--ink-3);
+    transition: all var(--fast) var(--ease);
+  }
+  .mini-btn:hover { background: var(--paper-2); color: var(--ink-1); }
+  .mini-btn.primary { color: var(--sage-2); }
+  .mini-btn.primary:hover { background: var(--sage-wash); }
+
+  /* ── Meetings (timeline strip) ── */
+  .timeline {
+    display: flex; flex-direction: column;
+    position: relative;
+    padding-left: 66px;
+  }
+  .timeline::before {
+    content: ""; position: absolute;
+    left: 58px; top: 6px; bottom: 6px;
+    width: 1px; background: var(--paper-rail);
+  }
+  .meet {
+    position: relative;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--paper-rail);
+  }
+  .meet:last-child { border-bottom: none; }
+  .meet .time {
+    position: absolute; left: -66px; top: 18px;
+    font-family: var(--f-mono); font-size: 12px;
+    color: var(--ink-3);
+    width: 50px; text-align: right;
+  }
+  .meet::before {
+    content: ""; position: absolute;
+    left: -14px; top: 22px;
+    width: 9px; height: 9px; border-radius: 999px;
+    background: var(--paper); border: 1.5px solid var(--paper-edge);
+  }
+  .meet.now::before {
+    background: var(--sage); border-color: var(--sage-2);
+    box-shadow: 0 0 0 4px var(--sage-wash);
+  }
+  .meet .t { font-size: 15px; color: var(--ink-1); }
+  .meet.now .t { font-weight: 700; }
+  .meet .m {
+    margin-top: 4px;
+    font-family: var(--f-mono); font-size: 12px; color: var(--ink-3);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .meet .now-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--f-mono); font-size: 10px;
+    color: var(--sage-2); letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  /* ── Capture composer ── */
+  .capture {
+    margin-top: 44px;
+    padding: 20px;
+    background: var(--paper-2);
+    border: 1px dashed var(--paper-edge);
+    border-radius: var(--r-lg);
+  }
+  .capture textarea {
+    width: 100%;
+    background: transparent;
+    border: none; outline: none; resize: none;
+    font-family: var(--f-body); font-size: 15px;
+    color: var(--ink-1);
+    min-height: 58px;
+  }
+  .capture textarea::placeholder { color: var(--ink-4); font-style: italic; }
+  .capture-foot {
+    display: flex; align-items: center; gap: 10px;
+    padding-top: 12px;
+    margin-top: 8px;
+    border-top: 1px solid var(--paper-edge);
+  }
+  .capture-foot .hint {
+    font-family: var(--f-mono); font-size: 11px; color: var(--ink-4);
+  }
+  .capture-foot .spread { flex: 1; }
+
+  /* ── Status footer strip ── */
+  .footer-strip {
+    display: flex; align-items: center; gap: 24px;
+    padding: 16px 4px;
+    margin-top: 56px;
+    border-top: 1px solid var(--paper-rail);
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--ink-4);
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .footer-strip .ch {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .footer-strip .ch .d {
+    width: 6px; height: 6px; border-radius: 999px;
+  }
+  .footer-strip .ch.ok .d   { background: var(--sage); }
+  .footer-strip .ch.warn .d { background: var(--ochre); }
+  .footer-strip .ch.err .d  { background: var(--rust); }
+  .footer-strip .spread { flex: 1; }
+
+  /* ── Load stagger ── */
+  .fade { animation: fade 420ms var(--ease) both; }
+  .fade:nth-child(1) { animation-delay: 0ms; }
+  .fade:nth-child(2) { animation-delay: 60ms; }
+  .fade:nth-child(3) { animation-delay: 120ms; }
+  .fade:nth-child(4) { animation-delay: 180ms; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ── Preview ribbon ── */
+  .ribbon {
+    position: fixed; bottom: 16px; right: 18px;
+    background: var(--ink-1); color: var(--paper);
+    font-family: var(--f-mono); font-size: 11px;
+    padding: 6px 12px; border-radius: var(--r-sm);
+    letter-spacing: 0.04em; z-index: 30;
+    box-shadow: 0 4px 14px -4px rgba(26,24,20,0.3);
+  }
+  .ribbon b { color: var(--ochre); font-weight: 500; }
+
+  /* Icon svg baseline */
+  .ic { width: 18px; height: 18px; stroke-width: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ========== DOCK ========== -->
+  <nav class="dock">
+    <div class="dock-brand">K</div>
+
+    <div class="dock-item active" title="Today">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    </div>
+    <div class="dock-item" title="Inbox">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6L18.5 5a2 2 0 00-1.8-1H7.3a2 2 0 00-1.8 1z"/></svg>
+      <span class="dot-alert"></span>
+    </div>
+    <div class="dock-item" title="Calendar">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    </div>
+    <div class="dock-item" title="Chat">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    </div>
+
+    <div class="dock-label">—</div>
+
+    <div class="dock-item" title="People">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    </div>
+    <div class="dock-item" title="Projects">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    </div>
+
+    <div class="dock-foot">
+      <div class="dock-item" title="Health">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ========== MAIN ========== -->
+  <main class="main">
+    <!-- Top line -->
+    <header class="top">
+      <div class="crumbs">
+        <span>Kevin OS</span>
+        <span class="sep">/</span>
+        <span class="last">Today</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="cmd">
+        <svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span>Search or jump to…</span>
+        <span class="k">⌘K</span>
+      </button>
+      <button class="btn sage">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+        Capture
+      </button>
+      <div class="avatar">KE</div>
+    </header>
+
+    <div class="content">
+
+      <!-- Greeting -->
+      <header class="greeting fade">
+        <div class="day">Sunday · April 26 · Week 17</div>
+        <h1 class="hello">God&nbsp;morgon,<br/><em>Kevin</em>.</h1>
+        <p class="summary">
+          Three things on your plate today, <span class="pill">4 drafts</span> waiting
+          for a read-through, and <span class="pill">5 meetings</span> between
+          11:00 and 17:30. The only thing that's <em>actually</em> time-critical
+          is the Almi signature by 16:00 — everything else can wait until you
+          feel like it.
+        </p>
+      </header>
+
+      <!-- THE ONE THING -->
+      <section class="focus fade" aria-label="Current focus">
+        <div class="focus-meta">
+          <span class="time">DUE 16:00</span>
+        </div>
+        <div class="focus-label">
+          <span class="tick"></span>
+          Right now
+        </div>
+        <h2 class="focus-title">
+          Sign the Almi Invest convertible note before&nbsp;16:00.
+        </h2>
+        <p class="focus-why">
+          Johanna already countersigned at 09:14. The DocuSign link is in Maria's
+          email from yesterday — one signature, two minutes. Everything else on
+          this page is optional until this is done.
+        </p>
+        <div class="focus-actions">
+          <button class="btn sage">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
+            Open DocuSign
+          </button>
+          <button class="btn">Mark done</button>
+          <button class="btn">Snooze 1h</button>
+          <span style="flex:1"></span>
+          <span style="font-family:var(--f-mono); font-size:11px; color:var(--ink-3); align-self:center;">
+            <a class="ent-link">Maria Lindqvist</a> · <span class="tag ob">OUTBEHAVING</span>
+          </span>
+        </div>
+      </section>
+
+      <!-- Next up -->
+      <div class="section-head fade">
+        <h2>Next up</h2>
+        <span class="count">2 of 3</span>
+        <span class="line"></span>
+        <a class="all" href="#">All priorities</a>
+      </div>
+      <div class="priorities fade">
+        <div class="pri">
+          <div class="pri-check" title="Complete"></div>
+          <div class="pri-body">
+            <div class="t">Review Tale Forge v2.3 — TestFlight build + release notes</div>
+            <div class="m">
+              <span class="tag tf">TALE FORGE</span>
+              <span>2 drafts ready</span>
+              <span>·</span>
+              <a class="ent-link">Release · v2.3</a>
+            </div>
+          </div>
+          <div class="when">anytime</div>
+        </div>
+        <div class="pri">
+          <div class="pri-check"></div>
+          <div class="pri-body">
+            <div class="t">Call with Erik Sundström — Outbehaving pilot scope</div>
+            <div class="m">
+              <a class="ent-link">Erik Sundström</a>
+              <span class="tag ob">OUTBEHAVING</span>
+              <span>· prep notes ready</span>
+            </div>
+          </div>
+          <div class="when soon">14:00</div>
+        </div>
+      </div>
+
+      <!-- Today's schedule -->
+      <div class="section-head fade">
+        <h2>Today's shape</h2>
+        <span class="count">5 meetings</span>
+        <span class="line"></span>
+        <a class="all" href="#">Open calendar</a>
+      </div>
+      <div class="timeline fade">
+        <div class="meet">
+          <div class="time">11:00</div>
+          <div class="t">Tale Forge standup</div>
+          <div class="m"><span>Meet</span><span>·</span><span>5 attendees</span></div>
+        </div>
+        <div class="meet">
+          <div class="time">12:30</div>
+          <div class="t">Lunch with Isabelle</div>
+          <div class="m"><span>Blocked</span><span>·</span><span>personal</span></div>
+        </div>
+        <div class="meet now">
+          <div class="time">14:00</div>
+          <div class="now-badge"><span>starts in 37m</span></div>
+          <div class="t">Erik Sundström — Outbehaving pilot</div>
+          <div class="m"><span>Zoom</span><span>·</span><span>prep notes ready</span></div>
+        </div>
+        <div class="meet">
+          <div class="time">16:00</div>
+          <div class="t">Almi · convertible signing</div>
+          <div class="m"><span>DocuSign</span><span>·</span><span>1 signer left</span></div>
+        </div>
+        <div class="meet">
+          <div class="time">17:30</div>
+          <div class="t">Pickup Lova från förskolan</div>
+          <div class="m"><span>Hard stop</span></div>
+        </div>
+      </div>
+
+      <!-- Drafts -->
+      <div class="section-head fade">
+        <h2>Drafts waiting on you</h2>
+        <span class="count">4</span>
+        <span class="line"></span>
+        <a class="all" href="#">Open inbox</a>
+      </div>
+
+      <article class="draft fade">
+        <div class="draft-head">
+          <span class="channel">Gmail · reply</span>
+          <span>to</span>
+          <a class="ent-link" style="text-transform:none; letter-spacing:0; font-family:var(--f-body); font-size:13px;">Maria Lindqvist</a>
+          <span class="tag ob">OUTBEHAVING</span>
+          <span class="spread"></span>
+          <span>drafted 09:42</span>
+        </div>
+        <div class="draft-quote">
+          Kort svar till Maria på Almi — bekräftar att vi tar emot konvertibeln
+          under vecka 17, dokumentation signerad innan fredag. Nämner att
+          Johanna är CC på allt avtalsflöde framåt.
+        </div>
+        <div class="draft-actions">
+          <button class="mini-btn primary">Approve &amp; send</button>
+          <button class="mini-btn">Edit</button>
+          <button class="mini-btn">Discard</button>
+        </div>
+      </article>
+
+      <article class="draft fade">
+        <div class="draft-head">
+          <span class="channel">LinkedIn · post</span>
+          <span class="tag ob">OUTBEHAVING</span>
+          <span class="spread"></span>
+          <span>drafted 10:14</span>
+        </div>
+        <div class="draft-quote">
+          "We signed our convertible note with Almi Invest this week. Three
+          things I'd tell past-me: [1, 2, 3]. Happy to swap notes with other
+          founders navigating this stage."
+        </div>
+        <div class="draft-actions">
+          <button class="mini-btn primary">Approve &amp; schedule</button>
+          <button class="mini-btn">Edit</button>
+          <button class="mini-btn">Discard</button>
+        </div>
+      </article>
+
+      <!-- Capture -->
+      <div class="capture fade">
+        <textarea placeholder="Something on your mind? Drop it here — KOS will route it to the right place."></textarea>
+        <div class="capture-foot">
+          <span class="hint">auto-routes</span>
+          <span class="hint">·</span>
+          <span class="hint">⇧↵ newline</span>
+          <span class="spread"></span>
+          <span class="hint">⌘↵ to capture</span>
+          <button class="btn sage" style="height: 30px; padding: 0 12px;">Capture</button>
+        </div>
+      </div>
+
+      <!-- Footer status -->
+      <footer class="footer-strip">
+        <span class="ch ok"><span class="d"></span>Gmail</span>
+        <span class="ch ok"><span class="d"></span>Slack</span>
+        <span class="ch warn"><span class="d"></span>Calendar</span>
+        <span class="ch ok"><span class="d"></span>Notion</span>
+        <span class="ch err"><span class="d"></span>LinkedIn · reauth</span>
+        <span class="spread"></span>
+        <span>last sync · 2m ago</span>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<div class="ribbon">MOCKUP V2 · <b>Warm Paper / ADHD-calm</b></div>
+
+</body>
+</html>

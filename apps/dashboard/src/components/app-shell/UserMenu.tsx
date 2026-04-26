@@ -41,13 +41,13 @@ export function UserMenu({ initial = 'K' }: { initial?: string }) {
           aria-label="Open user menu"
           data-slot="user-menu-trigger"
           data-testid="topbar-user-menu"
-          className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-[11px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface-1)]"
+          className="inline-flex h-[32px] w-[32px] items-center justify-center rounded-full border text-[12px] font-bold text-[color:var(--color-text-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-sect-priority)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-surface-1)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)] hover:bg-[color:var(--color-surface-hover)]"
           style={{
-            background:
-              'linear-gradient(135deg, var(--color-accent), var(--color-accent-2))',
+            background: 'var(--color-surface-3)',
+            borderColor: 'var(--color-border-hover)',
           }}
         >
-          {initial}
+          {initial.toUpperCase()}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={6} className="min-w-[160px]">

@@ -1,31 +1,34 @@
 'use client';
 
 /**
- * TodayView — client wrapper that composes the Today layout per
- * 03-UI-SPEC §"View 1 — Today" + Phase 11 D-07 mission-control rebuild.
+ * TodayView — v4 client wrapper composing the Today layout.
+ *
+ * Visual reference: mockup-v4.html § wide-screen rethink
  *
  * Layout (top to bottom):
- *   1. Page heading + meta line
- *   2. StatTileStrip — 4-up mission-control row (Phase 11 Plan 11-04)
- *   3. ChannelHealth strip — capture-channel snapshot (Plan 11-04)
- *   4. 2-column grid:
- *        main:  Brief → PriorityList → DraftsCard → DroppedThreads
- *        side:  MeetingsSideCard → Composer
- *   5. CapturesList — all-source today's-capture feed (Plan 11-04)
+ *   1. Page head — inline title + meta + week/date
+ *   2. KPI strip — 4-up full-width stat row
+ *   3. 2-column grid, 60/40:
+ *        LEFT  (1.5fr): Brief (hero) → Priorities → Drafts
+ *        RIGHT (1fr)  : Schedule → Capture → Channels → Inbox preview
+ *                       → Active entities (dropped)
  *
- * Subscribes to SSE `inbox_item` + `draft_ready` kinds to auto-refresh
- * via `router.refresh()` when the pipeline emits new items, announcing
- * via the app-shell LiveRegion for a11y. Phase 11 D-14 preserves this
- * behavior — all new sections re-fetch in lockstep on SSE refresh
- * because they're sourced from the same RSC payload.
+ * The previous 3-column rail layout is gone. 60/40 reads naturally on
+ * a 27" without cramping the middle column, and on <1200px it
+ * collapses to a single column (handled by the responsive Tailwind
+ * grid classes).
+ *
+ * SSE behavior preserved: subscribes to `inbox_item` + `draft_ready`
+ * to auto-refresh via router.refresh() and announces via LiveRegion.
  */
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 
 import type { TodayResponse } from '@kos/contracts/dashboard';
 import { useSseKind } from '@/components/system/SseProvider';
 import { useLiveRegion } from '@/components/system/LiveRegion';
-import { ChannelHealth } from '@/components/dashboard/ChannelHealth';
+import { ChannelsCompact } from '@/components/dashboard/ChannelsCompact';
 
 import { Brief } from './Brief';
 import { PriorityList } from './PriorityList';
@@ -53,64 +56,48 @@ export function TodayView({ data }: { data: TodayResponse }) {
   useSseKind('inbox_item', onInbox);
   useSseKind('draft_ready', onDraft);
 
-  const meta = [
-    `${data.priorities.length} ${data.priorities.length === 1 ? 'prioritering' : 'prioriteringar'}`,
-    `${data.drafts.length} drafts`,
-    `${data.meetings.length} ${data.meetings.length === 1 ? 'möte' : 'möten'}`,
-  ].join(' · ');
+  const now = new Date();
+  const dayLabel = format(now, 'EEEE, MMMM d');
+  const weekLabel = `Week ${format(now, 'II')}`;
 
   return (
-    <div className="fade-up">
-      <div className="mb-6">
+    <div className="stagger">
+      {/* Row 1 — page head */}
+      <header className="mb-[22px] flex items-baseline gap-[18px]">
         <h1 className="h-page">Today</h1>
-        <p className="h-page-meta mono">{meta}</p>
-      </div>
+        <span className="h-page-meta">{dayLabel}</span>
+        <span className="flex-1" />
+        <span className="font-mono text-[12px] uppercase tracking-[0.08em] text-[color:var(--color-text-4)]">
+          {weekLabel}
+        </span>
+      </header>
 
+      {/* Row 2 — KPI strip */}
       <StatTileStrip data={data.stat_tiles} />
 
+      {/* Row 3 — main 60/40 grid */}
       <div
-        data-testid="channel-health-strip"
+        className="grid items-start gap-7"
         style={{
-          marginBottom: 24,
-          padding: '16px 20px',
-          border: '1px solid var(--color-border)',
-          borderRadius: 12,
-          background: 'var(--color-surface-1)',
+          gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)',
         }}
+        data-slot="today-grid"
       >
-        <h2
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: 'var(--color-text-3)',
-            marginBottom: 12,
-          }}
-        >
-          Channels
-        </h2>
-        <ChannelHealth channels={data.channels} />
-      </div>
-
-      <div
-        className="grid"
-        style={{ gridTemplateColumns: '1fr 320px', gap: 32 }}
-      >
-        <section className="flex min-w-0 flex-col" style={{ gap: 28 }}>
+        {/* LEFT column (60%) */}
+        <section className="flex min-w-0 flex-col gap-6">
           <Brief brief={data.brief} />
           <PriorityList priorities={data.priorities} />
           <DraftsCard drafts={data.drafts} />
-          <DroppedThreads items={data.dropped} />
         </section>
-        <aside className="flex flex-col" style={{ gap: 24 }}>
+
+        {/* RIGHT column (40%) */}
+        <aside className="flex min-w-0 flex-col gap-6">
           <MeetingsSideCard meetings={data.meetings} />
           <Composer />
+          <ChannelsCompact channels={data.channels} />
+          <CapturesList captures={data.captures_today} />
+          <DroppedThreads items={data.dropped} />
         </aside>
-      </div>
-
-      <div style={{ marginTop: 24 }}>
-        <CapturesList captures={data.captures_today} />
       </div>
     </div>
   );

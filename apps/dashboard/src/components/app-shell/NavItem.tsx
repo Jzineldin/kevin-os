@@ -1,18 +1,20 @@
 'use client';
 
 /**
- * NavItem — single sidebar row. Encodes two UI-SPEC rules:
+ * NavItem — single sidebar row in the v4 visual system.
  *
- *   1. Active state uses --color-accent-bg + --color-accent-2 (§Sidebar
- *      "Active state").
- *   2. Active state application is INSTANT — no transition — per §Motion
- *      rule 8. Hover transitions still apply via Tailwind's transition-colors
- *      on the idle path. We force `transition: none` inline on the active
- *      state so the toggle class swap does not animate.
+ * v4 behavior (mockup-v4 § Sidebar):
+ *   1. Active state = surface-2 bg + accent-rail 3px on the left edge,
+ *      colored by the route's section tone (`tone` prop).
+ *   2. Motion rule 8 preserved — active-state toggle is INSTANT
+ *      (no background transition on the active class).
+ *   3. Hover on idle items = surface-2 fade, 140ms.
+ *   4. Icon inherits the section tone only on the active row; idle
+ *      rows use text-3 for the icon so the sidebar reads calmly.
+ *   5. Count chip = tabular mono, surface-3 pill, right-aligned.
+ *   6. Kbd hint = tiny mono, surface-1 pill, border-hover outline.
  *
- * Disabled items (e.g. Chat "Ships with Phase 4") render a non-link span
- * with a shadcn Tooltip explaining why. aria-disabled=true preserves
- * screen-reader semantics.
+ * Disabled items render a non-link span with a Tooltip explaining why.
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -23,12 +25,37 @@ import {
 } from '@/components/ui/tooltip';
 import { Kbd } from '@/components/ui/kbd';
 
+/**
+ * Section tone tokens consumed by NavItem for its active-state rail
+ * color. Mirrors the six --color-sect-* variables in globals.css so
+ * each route's tone is colocated with the rest of the v4 visual map.
+ */
+export type NavTone =
+  | 'priority' // Today
+  | 'inbox'
+  | 'schedule' // Calendar
+  | 'drafts' // Chat
+  | 'channels' // Health
+  | 'entities' // People / Projects
+  | 'neutral';
+
+const TONE_VAR: Record<NavTone, string> = {
+  priority: 'var(--color-sect-priority)',
+  inbox: 'var(--color-sect-inbox)',
+  schedule: 'var(--color-sect-schedule)',
+  drafts: 'var(--color-sect-drafts)',
+  channels: 'var(--color-sect-channels)',
+  entities: 'var(--color-sect-entities)',
+  neutral: 'var(--color-text-3)',
+};
+
 export interface NavItemProps {
   href: string;
   icon: React.ReactNode;
   label: string;
   kbd?: string;
   count?: number;
+  tone?: NavTone;
   disabled?: boolean;
   disabledTooltip?: string;
   /** Optional data-testid for parametric Playwright button-audit tests (Phase 11). */
@@ -36,13 +63,11 @@ export interface NavItemProps {
 }
 
 const BASE =
-  'flex items-center gap-[10px] rounded-md px-[10px] py-[6px] text-[13px] w-full';
-const ACTIVE =
-  'bg-[color:var(--color-accent-bg)] text-[color:var(--color-accent-2)]';
+  'relative flex items-center gap-[11px] rounded-md px-3 py-2 text-[14px] w-full font-medium';
+const ACTIVE = 'bg-[color:var(--color-surface-2)] text-[color:var(--color-text)]';
 const IDLE =
-  'text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-hover)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]';
-const DISABLED =
-  'text-[color:var(--color-text-4)] cursor-not-allowed';
+  'text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-2)] hover:text-[color:var(--color-text)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]';
+const DISABLED = 'text-[color:var(--color-text-4)] cursor-not-allowed';
 
 export function NavItem({
   href,
@@ -50,15 +75,13 @@ export function NavItem({
   label,
   kbd,
   count,
+  tone = 'neutral',
   disabled,
   disabledTooltip,
   testId,
 }: NavItemProps) {
   const pathname = usePathname();
-  // `pathname` is null during testing environments or initial SSR hydration.
   const safePath = pathname ?? '';
-  // href may include a querystring for entity filters — match against the
-  // pathname portion only.
   const hrefPath = href.split('?')[0] ?? href;
   const active =
     !disabled &&
@@ -66,21 +89,44 @@ export function NavItem({
     (safePath === hrefPath ||
       (hrefPath !== '/' && safePath.startsWith(hrefPath + '/')));
 
+  const toneVar = TONE_VAR[tone];
+
   const inner = (
-    <span className="flex w-full items-center justify-between gap-2">
-      <span className="flex items-center gap-[10px]">
+    <>
+      {/* Active-state left rail — 3px, section-tone colored. The
+          sidebar container applies overflow:visible so this can peek
+          out over the sidebar's own right border. */}
+      {active ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-[10px] bottom-[10px] -left-[14px] w-[3px] rounded-r-sm"
+          style={{ background: toneVar }}
+        />
+      ) : null}
+      <span
+        className="shrink-0 flex items-center justify-center"
+        style={{
+          color: active ? toneVar : 'var(--color-text-3)',
+          width: 16,
+          height: 16,
+        }}
+      >
         {icon}
-        <span>{label}</span>
       </span>
-      <span className="flex items-center gap-2">
-        {typeof count === 'number' && count > 0 && (
-          <span className="text-[11px] text-[color:var(--color-text-4)] font-mono">
-            {count}
-          </span>
-        )}
-        {kbd && <Kbd>{kbd}</Kbd>}
-      </span>
-    </span>
+      <span className="flex-1 truncate">{label}</span>
+      {typeof count === 'number' && count > 0 ? (
+        <span
+          className="inline-flex min-w-[20px] items-center justify-center rounded-[3px] border px-1.5 py-px font-mono text-[10px] text-[color:var(--color-text-3)]"
+          style={{
+            background: 'var(--color-surface-3)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
+          {count}
+        </span>
+      ) : null}
+      {kbd ? <Kbd>{kbd}</Kbd> : null}
+    </>
   );
 
   if (disabled) {
@@ -111,6 +157,7 @@ export function NavItem({
       href={href as never}
       data-slot="nav-item"
       data-active={active ? 'true' : 'false'}
+      data-tone={tone}
       data-testid={testId}
       className={`${BASE} ${active ? ACTIVE : IDLE}`}
       // Motion rule 8: instant active state toggle — no background transition.

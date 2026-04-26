@@ -1,18 +1,27 @@
 'use client';
 
 /**
- * PriorityList — Top 3 Priorities section. Each row shows a mono 01/02/03
- * priority number, the title, an entity link + bolag badge in the meta row,
- * and right-side pri-actions that fade in on hover (per UI-SPEC motion).
+ * PriorityList — v4 Top 3 Priorities section.
  *
- * AnimatePresence wraps row insertions so SSE-driven refreshes animate a
- * 4px fade-in slide per motion rule 6 (list-insertion only).
+ * Visual reference: mockup-v4.html § .pri-row (inside the Priorities
+ * panel). Row layout:
+ *
+ *   [ 32px num ] [ 1fr title + meta ] [ auto when-pill ]
+ *
+ * `.when.soon` (amber) and `.when.now` (sect-priority blue) variants
+ * replace the old fixed "anytime/DUE 16:00" strings — the pill itself
+ * carries the urgency. A row with neither flag renders the plain
+ * surface-2 variant.
+ *
+ * Animation primitive unchanged: AnimatePresence wraps row insertions
+ * so SSE-driven refreshes animate a 4px fade-up slide per motion rule 6.
  */
 import { AnimatePresence, motion } from 'framer-motion';
 
 import type { TodayPriority } from '@kos/contracts/dashboard';
 import { EntityLink } from '@/components/entity/EntityLink';
 import { BolagBadge } from '@/components/badge/BolagBadge';
+import { Panel, PanelAction } from '@/components/dashboard/Panel';
 
 const MOTION = {
   initial: { opacity: 0, y: 4 },
@@ -22,54 +31,57 @@ const MOTION = {
 };
 
 export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
+  const count = priorities.length;
   return (
-    <section aria-label="Top 3 priorities">
-      <div className="flex items-center">
-        <div className="h-section">TOP 3 PRIORITIES</div>
-        {priorities.length > 0 ? (
-          <span className="count-chip mono" aria-hidden="true">
-            {priorities.length}
-          </span>
-        ) : null}
-      </div>
-      {priorities.length === 0 ? (
-        <div className="side-card">
-          <p className="text-[13px] text-[color:var(--color-text-3)]">
-            No priorities yet. KOS surfaces them from Command Center every morning.
-          </p>
+    <Panel
+      tone="priority"
+      name="Priorities"
+      count={count > 0 ? `· Top ${Math.min(count, 3)}` : undefined}
+      action={count > 1 ? <PanelAction>Reprioritize</PanelAction> : undefined}
+      bodyPadding="flush"
+      aria-label="Top 3 priorities"
+      testId="priority-list"
+    >
+      {count === 0 ? (
+        <div className="px-5 py-5 text-[13px] text-[color:var(--color-text-3)]">
+          No priorities yet. KOS surfaces them from Command Center every
+          morning.
         </div>
       ) : (
-        <div className="priority-list">
-          <AnimatePresence initial={false}>
-            {priorities.slice(0, 3).map((p, idx) => (
-              <motion.div
-                key={p.id}
-                className="pri-row"
-                initial={MOTION.initial}
-                animate={MOTION.animate}
-                exit={MOTION.exit}
-                transition={MOTION.transition}
+        <AnimatePresence initial={false}>
+          {priorities.slice(0, 3).map((p, idx) => (
+            <motion.div
+              key={p.id}
+              className="pri-row"
+              initial={MOTION.initial}
+              animate={MOTION.animate}
+              exit={MOTION.exit}
+              transition={MOTION.transition}
+            >
+              <div className="pri-num">
+                {String(idx + 1).padStart(2, '0')}
+              </div>
+              <div className="min-w-0">
+                <div className="pri-title truncate">{p.title}</div>
+                <div className="pri-meta">
+                  {p.entity_id && p.entity_name ? (
+                    <EntityLink id={p.entity_id} name={p.entity_name} />
+                  ) : p.entity_name ? (
+                    <span className="ent">{p.entity_name}</span>
+                  ) : null}
+                  <BolagBadge org={p.bolag} />
+                </div>
+              </div>
+              <div
+                className={`when${idx === 0 ? ' soon' : ''}`}
+                aria-label="when"
               >
-                <div className="pri-num">
-                  {String(idx + 1).padStart(2, '0')}
-                </div>
-                <div className="min-w-0">
-                  <div className="pri-title truncate">{p.title}</div>
-                  <div className="pri-meta">
-                    {p.entity_id && p.entity_name ? (
-                      <EntityLink id={p.entity_id} name={p.entity_name} />
-                    ) : p.entity_name ? (
-                      <span className="ent-tag">{p.entity_name}</span>
-                    ) : null}
-                    <BolagBadge org={p.bolag} />
-                  </div>
-                </div>
-                <div className="pri-actions" aria-hidden="true" />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+                {idx === 0 ? 'DUE TODAY' : 'anytime'}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       )}
-    </section>
+    </Panel>
   );
 }

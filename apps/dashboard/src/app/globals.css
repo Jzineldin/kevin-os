@@ -2,109 +2,144 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* ============================================================
+ * Kevin OS — Visual System v4 ("Wide-screen rethink")
+ * ------------------------------------------------------------
+ * Single source of truth for every surface, border, text ramp,
+ * section color, motion primitive, and type scale in the app.
+ *
+ * The Phase 11 @theme duplication against shadcn's oklch :root
+ * block has been removed — one palette, no collisions. Shadcn
+ * semantic tokens (--primary, --border, --card, …) are mapped
+ * onto the v4 token set at the bottom so the existing UI
+ * primitives (button, input, card, dialog, …) auto-inherit.
+ *
+ * Source of record: .planning/visual/mockup-v4.html
+ * ============================================================ */
+
 @custom-variant dark (&:is(.dark *));
 
-/* Port from TFOS-ui.html :root block, 1:1 — see 03-RESEARCH.md §2. */
 @theme {
-  /* Surfaces */
-  --color-bg: #0a0c11;
+  /* ── Surfaces (cool navy, graduated) ── */
+  --color-bg: #0b0d12;
   --color-surface-1: #11141b;
-  --color-surface-2: #161a23;
-  --color-surface-3: #1c2029;
-  --color-surface-hover: #1f2430;
+  --color-surface-2: #181c25;
+  --color-surface-3: #20242f;
+  --color-surface-hover: #262b38;
 
-  /* Borders */
-  --color-border: #232732;
-  --color-border-hover: #2d3340;
-  --color-border-strong: #383e4d;
+  /* ── Borders ── */
+  --color-border: #232834;
+  --color-border-hover: #2f3545;
+  --color-border-strong: #3d4458;
 
-  /* Text */
-  --color-text: #e7eaf0;
-  --color-text-2: #b1b6c2;
-  --color-text-3: #71768a;
-  --color-text-4: #4d5263;
+  /* ── Text ramp (AA verified on surface-1 at 14px) ── */
+  --color-text: #eef1f7;
+  --color-text-2: #c8cedc;
+  --color-text-3: #8c93a5;
+  --color-text-4: #5d6477;
 
-  /* Accent — restrained violet */
-  --color-accent: #7c5bff;
-  --color-accent-2: #9d80ff;
+  /* ── Section palette — every surface of the app maps to one ── */
+  --color-sect-priority: #5a8dd6;  /* priorities, primary CTA, Today nav */
+  --color-sect-brief:    #c79a55;  /* AI brief, generative moments */
+  --color-sect-schedule: #56a69a;  /* calendar, timeline, schedule */
+  --color-sect-drafts:   #9181c4;  /* drafts, chat, generative outputs */
+  --color-sect-inbox:    #c47a9a;  /* inbox, incoming, notifications */
+  --color-sect-channels: #6ba37c;  /* channel health, sync status */
+  --color-sect-entities: #cc8a6b;  /* people, projects */
 
-  /* Status (desaturated per mockup) */
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-info: #38bdf8;
-  --color-pink: #f472b6;
+  /* ── Legacy accent alias — mapped to priority section color so any
+   *    component still reading --color-accent keeps working until we
+   *    migrate it in phase 2/3. Once all call sites are on
+   *    --color-sect-* we can retire these. */
+  --color-accent: var(--color-sect-priority);
+  --color-accent-2: #7ca9ff;
 
-  /* Bolag tints — data-attribute driven at runtime */
-  --color-tale-forge: #38bdf8;
-  --color-outbehaving: #fb923c;
-  --color-personal: #a78bfa;
+  /* ── Status (restrained, same family as sections) ── */
+  --color-success: #6ba37c;
+  --color-warning: #c79a55;
+  --color-danger:  #c47575;
+  --color-info:    #5a8dd6;
+  --color-pink:    #c47a9a;
 
-  /* Motion */
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --transition-fast: 120ms;
-  --transition-base: 180ms;
-  --transition-slow: 280ms;
+  /* ── Bolag tints — echo the section palette so nothing clashes ── */
+  --color-tale-forge:  #56a69a;  /* teal */
+  --color-outbehaving: #c79a55;  /* amber */
+  --color-personal:    #9181c4;  /* violet */
 
-  /* Type scale */
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 13px;
-  --text-md: 14px;
-  --text-lg: 16px;
-  --text-xl: 20px;
-  --text-2xl: 28px;
-  --text-3xl: 36px;
+  /* ── Motion ── */
+  --ease:             cubic-bezier(0.2, 0.9, 0.3, 1);
+  --ease-out:         cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast:  140ms;
+  --transition-base:  200ms;
+  --transition-slow:  320ms;
 
-  /* Radii */
+  /* ── Type scale (baseline moved up from 13→14 for readability) ── */
+  --text-xs:  10px;
+  --text-sm:  11px;
+  --text-base: 12px;
+  --text-md:  13px;
+  --text-body: 14px;
+  --text-lg:  15px;
+  --text-xl:  16px;
+  --text-2xl: 20px;
+  --text-3xl: 28px;
+
+  /* ── Radii ── */
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
 
-  /* Fonts — names only; actual family injected via next/font */
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* ── Fonts — injected by next/font in layout.tsx ── */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-/* Accent with alpha — not a theme token but a utility var */
+/* Accent-with-alpha utilities (not theme tokens) */
 :root {
-  --accent-bg: rgba(124, 91, 255, 0.10);
-  --accent-border: rgba(124, 91, 255, 0.25);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --accent-bg:     color-mix(in srgb, var(--color-sect-priority) 10%, transparent);
+  --accent-border: color-mix(in srgb, var(--color-sect-priority) 28%, transparent);
+  --rail:          color-mix(in srgb, var(--color-border) 55%, transparent);
+
+  /* ── Shadcn semantic tokens, mapped onto v4 ──
+   * These were previously defined in a conflicting oklch block that
+   * competed with @theme. Mapping them here (instead of redeclaring)
+   * means shadcn components (Button, Input, Card, Dialog, Command,
+   * Popover, Tooltip, Sheet) pick up the v4 palette with zero edits.
+   */
+  --background:            var(--color-bg);
+  --foreground:            var(--color-text);
+  --card:                  var(--color-surface-1);
+  --card-foreground:       var(--color-text);
+  --popover:               var(--color-surface-2);
+  --popover-foreground:    var(--color-text);
+  --primary:               var(--color-sect-priority);
+  --primary-foreground:    #ffffff;
+  --secondary:             var(--color-surface-2);
+  --secondary-foreground:  var(--color-text);
+  --muted:                 var(--color-surface-2);
+  --muted-foreground:      var(--color-text-3);
+  --accent:                var(--color-surface-2);
+  --accent-foreground:     var(--color-text);
+  --destructive:           var(--color-danger);
+  --border:                var(--color-border);
+  --input:                 var(--color-surface-2);
+  --ring:                  var(--color-sect-priority);
+  --chart-1:               var(--color-sect-priority);
+  --chart-2:               var(--color-sect-schedule);
+  --chart-3:               var(--color-sect-drafts);
+  --chart-4:               var(--color-sect-brief);
+  --chart-5:               var(--color-sect-channels);
+  --radius:                var(--radius-md);
+  --sidebar:               var(--color-surface-1);
+  --sidebar-foreground:    var(--color-text);
+  --sidebar-primary:       var(--color-sect-priority);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:        var(--color-surface-2);
+  --sidebar-accent-foreground: var(--color-text);
+  --sidebar-border:        var(--color-border);
+  --sidebar-ring:          var(--color-sect-priority);
 }
 
 html,
@@ -112,149 +147,677 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
-  font-size: var(--text-base);
+  font-size: var(--text-body);
   line-height: 1.5;
-  font-feature-settings: "cv11", "ss01", "ss03";
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 .mono {
   font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1;
 }
 
 ::selection {
-  background: var(--accent-bg);
-  color: var(--color-accent-2);
+  background: color-mix(in srgb, var(--color-sect-priority) 30%, transparent);
+  color: var(--color-text);
 }
 
-/* Mockup motion primitive — single pulsing dot replaces all skeletons (D-12). */
+/* ============================================================
+ * Motion primitives
+ * ============================================================ */
+
 @keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.12);
-  }
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.15); }
 }
 
 .pulse-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--color-accent);
-  animation: pulse-dot 1.4s var(--ease) infinite;
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--color-success);
+  animation: pulse-dot 2.4s var(--ease) infinite;
 }
 
-/* Bolag badges — per 03-UI-SPEC.md §"Bolag Color Mapping — Binding Rules".
- * Matches TFOS-ui.html .badge.bolag-* classes 1:1. `color-mix` keeps the
- * tint pair (background 6%, border 18%, foreground 100%) derivable from a
- * single token so future theming never touches the component layer. */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up var(--transition-slow) var(--ease) backwards; }
+
+/* Staggered load cascade — used by the Today view sections. */
+.stagger > * { animation: fade-up 320ms var(--ease) both; }
+.stagger > *:nth-child(1) { animation-delay:  0ms; }
+.stagger > *:nth-child(2) { animation-delay: 50ms; }
+.stagger > *:nth-child(3) { animation-delay: 100ms; }
+.stagger > *:nth-child(4) { animation-delay: 150ms; }
+.stagger > *:nth-child(5) { animation-delay: 200ms; }
+.stagger > *:nth-child(6) { animation-delay: 250ms; }
+
+/* ============================================================
+ * Bolag badges (per 03-UI-SPEC § Bolag Color Mapping)
+ * Now derived from the section palette for zero-clash coexistence.
+ * ============================================================ */
 .badge {
   display: inline-flex;
   align-items: center;
-  height: 20px;
+  height: 19px;
   padding: 0 8px;
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: 600;
   font-family: var(--font-mono);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   border: 1px solid transparent;
 }
-
 .bolag-tf {
-  background: color-mix(in srgb, var(--color-tale-forge) 6%, transparent);
-  border-color: color-mix(in srgb, var(--color-tale-forge) 18%, transparent);
+  background: color-mix(in srgb, var(--color-tale-forge) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-tale-forge) 26%, transparent);
   color: var(--color-tale-forge);
 }
-
 .bolag-ob {
-  background: color-mix(in srgb, var(--color-outbehaving) 6%, transparent);
-  border-color: color-mix(in srgb, var(--color-outbehaving) 18%, transparent);
+  background: color-mix(in srgb, var(--color-outbehaving) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-outbehaving) 26%, transparent);
   color: var(--color-outbehaving);
 }
-
 .bolag-pe {
-  background: color-mix(in srgb, var(--color-personal) 6%, transparent);
-  border-color: color-mix(in srgb, var(--color-personal) 18%, transparent);
+  background: color-mix(in srgb, var(--color-personal) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-personal) 26%, transparent);
   color: var(--color-personal);
 }
 
-/* ------------------------------------------------------------------ */
-/* Plan 03-08 — Today view primitives (EntityLink .ent + page chrome)  */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+ * Entity link (inline mention) + page headings
+ * ============================================================ */
+.ent {
+  color: var(--color-text);
+  border-bottom: 1px dotted var(--color-border-strong);
+  padding: 0 2px 1px;
+  border-radius: 2px;
+  font-weight: 500;
+  transition: background var(--transition-fast) var(--ease);
+}
+.ent:hover { background: var(--color-surface-2); }
+.ent:focus-visible {
+  outline: 2px solid var(--color-sect-priority);
+  outline-offset: 2px;
+}
 
-.ent { color: var(--color-accent-2); text-decoration: none; border-bottom: 1px dotted var(--accent-border); padding: 0 2px; border-radius: var(--radius-sm); transition: background var(--transition-fast) var(--ease), border-color var(--transition-fast) var(--ease); }
-.ent:hover { background: var(--accent-bg); border-bottom-color: var(--color-accent-2); }
-.ent:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.h-page { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.012em; line-height: 1.2; color: var(--color-text); }
-.h-page-meta { font-size: var(--text-base); color: var(--color-text-3); margin-top: 4px; }
-.h-section { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-3); margin-bottom: 8px; }
-.brief { background: linear-gradient(180deg, var(--color-surface-2), var(--color-surface-1)); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 22px 24px; }
-.draft-card { background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
-.side-card { background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 16px 18px; }
-.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.fade-up { animation: fade-up var(--transition-slow) var(--ease) backwards; }
+.h-page {
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  color: var(--color-text);
+}
+.h-page-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--color-text-3);
+  letter-spacing: 0.02em;
+}
+.h-section {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-3);
+}
 
-/* Today view — mockup-faithful sub-primitives (TFOS-ui.html §01) */
-.brief-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-success); animation: pulse-dot 2.4s var(--ease) infinite; }
-.priority-list { display: flex; flex-direction: column; gap: 1px; background: var(--color-border); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--color-border); }
-.pri-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 14px; align-items: center; padding: 12px 14px; background: var(--color-surface-1); transition: background var(--transition-fast) var(--ease); }
-.pri-row:hover { background: var(--color-surface-hover); }
-.pri-num { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-3); letter-spacing: 0.02em; }
-.pri-title { font-size: var(--text-md); color: var(--color-text); font-weight: 500; }
-.pri-meta { font-size: var(--text-xs); color: var(--color-text-3); display: flex; gap: 10px; align-items: center; margin-top: 2px; }
-.pri-meta .ent-tag { color: var(--color-accent-2); }
-.pri-actions { display: flex; gap: 4px; opacity: 0; transition: opacity var(--transition-fast) var(--ease); }
-.pri-row:hover .pri-actions { opacity: 1; }
-.meeting-row { display: flex; gap: 12px; padding: 10px 0; align-items: flex-start; border-bottom: 1px dashed var(--color-border); }
-.meeting-row:last-child { border-bottom: none; }
-.meeting-time { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-3); width: 56px; flex-shrink: 0; padding-top: 1px; }
-.meeting-now { color: var(--color-accent-2); }
-.meeting-title { font-size: var(--text-base); color: var(--color-text); }
-.meeting-meta { font-size: var(--text-xs); color: var(--color-text-3); margin-top: 2px; }
-.thread-row { display: flex; gap: 10px; padding: 10px 10px; align-items: center; border-bottom: 1px dashed var(--color-border); cursor: pointer; transition: background var(--transition-fast) var(--ease); margin: 0 -10px; border-radius: var(--radius-md); }
-.thread-row:last-child { border-bottom: none; }
-.thread-row:hover { background: var(--color-surface-hover); }
-.thread-avatar { width: 28px; height: 28px; border-radius: 999px; background: var(--color-surface-3); color: var(--color-text-2); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); font-weight: 600; flex-shrink: 0; }
-.thread-title { font-size: var(--text-base); color: var(--color-text); }
-.thread-meta { font-size: var(--text-xs); color: var(--color-text-3); margin-top: 1px; }
-.count-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--color-surface-2); border: 1px solid var(--color-border); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-2); margin-left: 6px; }
+/* ============================================================
+ * Panel system — the v4 building block
+ * Every section of the app is built from .panel + .panel-head +
+ * .panel-body (optionally .panel-body.tight). The section tone
+ * is set via CSS var --tone on the panel element.
+ * ============================================================ */
 
-/* Entity dossier — AI block + stats rail (Plan 03-10) */
-.ai-block { background: linear-gradient(180deg, rgba(124, 91, 255, 0.06), transparent); border: 1px solid var(--accent-border); border-radius: var(--radius-xl); padding: 20px 22px; }
-.ai-block::before { content: ""; display: block; width: 32px; height: 2px; background: var(--color-accent); margin-bottom: 10px; border-radius: 2px; }
-.pstat-label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-3); font-weight: 600; }
-.pstat-value { font-size: var(--text-md); color: var(--color-text); margin-top: 4px; }
-.tl-snippet { font-size: var(--text-sm); color: var(--color-text-2); font-style: italic; line-height: 1.45; }
+.panel {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 
-/* Calendar Week view (Plan 03-10) — §View 4. The .cal-event hover is the
- * single sanctioned hover-transform in the app per UI-SPEC line 428; the
- * exception is scoped to this selector and nowhere else. */
-.week-grid { display: grid; grid-template-columns: 64px repeat(7, 1fr); background: var(--color-border); gap: 1px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--color-border); }
-.week-th { background: var(--color-surface-1); padding: 10px 8px; text-align: center; font-size: var(--text-xs); color: var(--color-text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
-.week-th.today-col { border-top: 2px solid var(--color-accent); color: var(--color-accent-2); }
-.week-th .day-num { font-size: var(--text-xl); color: var(--color-text); font-weight: 600; margin-top: 4px; text-transform: none; letter-spacing: 0; }
-.week-th.today-col .day-num { color: white; background: var(--color-accent); border-radius: 50%; width: 30px; height: 30px; display: inline-grid; place-items: center; margin-top: 2px; font-size: var(--text-md); }
-.week-time { padding: 4px 8px; font-size: var(--text-xs); color: var(--color-text-4); text-align: right; background: var(--color-surface-1); }
-.week-cell { background: var(--color-surface-1); min-height: 48px; position: relative; }
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rail);
+}
+.panel-head .panel-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--tone, var(--color-sect-priority));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone, var(--color-sect-priority)) 15%, transparent);
+  flex-shrink: 0;
+}
+.panel-head .panel-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tone, var(--color-sect-priority));
+}
+.panel-head .panel-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-4);
+}
+.panel-head .panel-spread { flex: 1; }
+.panel-head .panel-action {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-3);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+  transition: background var(--transition-fast) var(--ease), color var(--transition-fast) var(--ease);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+.panel-head .panel-action:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.panel-body { padding: 20px; }
+.panel-body.tight { padding: 14px 20px; }
+.panel-body.flush { padding: 0; }
+
+/* ============================================================
+ * Hero Brief — the ONE visually distinct surface on Today.
+ * Soft amber radial in the top-right corner. No other surface
+ * gets a gradient; the exception is deliberate and scoped.
+ * ============================================================ */
+.hero-brief {
+  position: relative;
+  background:
+    radial-gradient(
+      ellipse at top right,
+      color-mix(in srgb, var(--color-sect-brief) 6%, transparent) 0%,
+      transparent 55%
+    ),
+    var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px 22px;
+}
+
+.hero-brief-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-sect-brief);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.hero-brief-meta .dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--color-sect-brief);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-sect-brief) 18%, transparent);
+}
+.hero-brief-meta .sub {
+  color: var(--color-text-4);
+  letter-spacing: 0.12em;
+  font-weight: 500;
+}
+
+.hero-brief-body {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--color-text);
+  max-width: 860px;
+}
+.hero-brief-body .hi {
+  color: var(--color-sect-brief);
+  font-weight: 600;
+}
+
+.hero-brief-foot {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--rail);
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-4);
+  letter-spacing: 0.1em;
+}
+.hero-brief-foot .k { text-transform: uppercase; font-weight: 600; }
+.hero-brief-foot .v { color: var(--color-text-2); font-weight: 400; }
+
+/* ============================================================
+ * KPI tile (top strip on Today)
+ * ============================================================ */
+.kpi {
+  position: relative;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.kpi::before {
+  content: "";
+  position: absolute; left: 0; top: 14px; bottom: 14px;
+  width: 2px; border-radius: 0 2px 2px 0;
+  background: var(--tone, var(--color-sect-priority));
+}
+.kpi-ico {
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--tone, var(--color-sect-priority)) 10%, transparent);
+  color: var(--tone, var(--color-sect-priority));
+  flex-shrink: 0;
+}
+.kpi-lbl {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-3);
+  font-weight: 600;
+}
+.kpi-val {
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-delta {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-4);
+  letter-spacing: 0.02em;
+}
+.kpi-delta .up { color: var(--color-success); }
+.kpi-delta .dn { color: var(--color-danger); }
+
+/* ============================================================
+ * Priority row
+ * ============================================================ */
+.pri-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rail);
+  transition: background var(--transition-fast) var(--ease);
+}
+.pri-row:last-child { border-bottom: none; }
+.pri-row:hover { background: color-mix(in srgb, var(--color-surface-2) 60%, transparent); }
+.pri-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-4);
+  letter-spacing: 0.02em;
+}
+.pri-title {
+  font-size: var(--text-lg);
+  color: var(--color-text);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.pri-meta {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-3);
+}
+
+.when {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-3);
+  white-space: nowrap;
+  font-weight: 500;
+}
+.when.soon {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning) 28%, transparent);
+}
+.when.now {
+  color: var(--color-sect-priority);
+  background: color-mix(in srgb, var(--color-sect-priority) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-sect-priority) 28%, transparent);
+}
+
+/* ============================================================
+ * Schedule timeline
+ * ============================================================ */
+.schedule {
+  position: relative;
+  padding-left: 78px;
+}
+.schedule::before {
+  content: "";
+  position: absolute;
+  left: 70px; top: 14px; bottom: 14px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    var(--rail) 0%,
+    color-mix(in srgb, var(--color-sect-schedule) 40%, transparent) 40%,
+    color-mix(in srgb, var(--color-sect-schedule) 40%, transparent) 60%,
+    var(--rail) 100%
+  );
+}
+.meet-row {
+  position: relative;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rail);
+}
+.meet-row:last-child  { border-bottom: none; padding-bottom: 8px; }
+.meet-row:first-child { padding-top: 8px; }
+.meet-row .meet-time {
+  position: absolute;
+  left: -78px; top: 17px;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--color-text-3);
+  width: 54px; text-align: right;
+  letter-spacing: 0.02em;
+}
+.meet-row::before {
+  content: "";
+  position: absolute;
+  left: -14px; top: 21px;
+  width: 9px; height: 9px; border-radius: 999px;
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-hover);
+}
+.meet-row.now::before {
+  background: var(--color-sect-schedule);
+  border-color: var(--color-sect-schedule);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-sect-schedule) 18%, transparent);
+}
+.meet-row.now .meet-time {
+  color: var(--color-sect-schedule);
+  font-weight: 600;
+}
+.meet-title { font-size: var(--text-body); color: var(--color-text); font-weight: 500; }
+.meet-row.now .meet-title { font-weight: 600; }
+.meet-sub {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-3);
+}
+.now-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-sect-schedule);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+/* ============================================================
+ * Draft card (inside Drafts panel)
+ * ============================================================ */
+.draft-row {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--rail);
+}
+.draft-row:last-child { border-bottom: none; }
+.draft-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-3);
+  letter-spacing: 0.06em;
+}
+.draft-chip {
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-sect-drafts) 10%, transparent);
+  color: var(--color-sect-drafts);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: var(--text-xs);
+}
+.draft-text {
+  font-size: var(--text-body);
+  color: var(--color-text-2);
+  line-height: 1.6;
+  padding-left: 14px;
+  border-left: 2px solid color-mix(in srgb, var(--color-sect-drafts) 40%, transparent);
+  margin-bottom: 12px;
+}
+.draft-actions { display: flex; gap: 6px; }
+
+/* ============================================================
+ * Channel health row (compact list in right column)
+ * ============================================================ */
+.ch-list { display: flex; flex-direction: column; gap: 9px; }
+.ch-row-compact {
+  display: flex; align-items: center; gap: 10px;
+}
+.ch-row-compact .d {
+  width: 7px; height: 7px; border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+}
+.ch-row-compact.ok   { color: var(--color-success); }
+.ch-row-compact.ok   .d { background: var(--color-success); }
+.ch-row-compact.warn { color: var(--color-warning); }
+.ch-row-compact.warn .d { background: var(--color-warning); }
+.ch-row-compact.err  { color: var(--color-danger); }
+.ch-row-compact.err  .d { background: var(--color-danger); }
+.ch-row-compact .nm {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ch-row-compact .n {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-4);
+}
+
+/* ============================================================
+ * Inbox preview row (right column)
+ * ============================================================ */
+.inbox-row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rail);
+}
+.inbox-row:last-child  { border-bottom: none; padding-bottom: 0; }
+.inbox-row:first-child { padding-top: 0; }
+.inbox-row .inbox-when {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-4);
+}
+.inbox-row .inbox-title {
+  font-size: var(--text-md);
+  color: var(--color-text-2);
+  line-height: 1.4;
+}
+.inbox-row.unread .inbox-title {
+  color: var(--color-text);
+  font-weight: 500;
+}
+.inbox-row .inbox-ch {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-4);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+ * Calendar Week view (retained from Phase 3) — tones remapped
+ * onto the v4 section palette. Single sanctioned hover-transform
+ * per UI-SPEC line 428; still scoped to .cal-event.
+ * ============================================================ */
+.week-grid {
+  display: grid;
+  grid-template-columns: 64px repeat(7, 1fr);
+  background: var(--color-border);
+  gap: 1px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+.week-th {
+  background: var(--color-surface-1);
+  padding: 10px 8px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.week-th.today-col {
+  border-top: 2px solid var(--color-sect-priority);
+  color: var(--color-sect-priority);
+}
+.week-th .day-num {
+  font-size: var(--text-2xl);
+  color: var(--color-text);
+  font-weight: 600;
+  margin-top: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--font-sans);
+}
+.week-th.today-col .day-num {
+  color: white;
+  background: var(--color-sect-priority);
+  border-radius: 50%;
+  width: 30px; height: 30px;
+  display: inline-grid;
+  place-items: center;
+  margin-top: 2px;
+  font-size: var(--text-md);
+}
+.week-time {
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-4);
+  text-align: right;
+  background: var(--color-surface-1);
+}
+.week-cell {
+  background: var(--color-surface-1);
+  min-height: 48px;
+  position: relative;
+}
 .week-cell.today-col { background: var(--color-surface-2); }
-.cal-event { position: absolute; left: 4px; right: 4px; background: color-mix(in srgb, var(--color-accent) 12%, transparent); border-left: 4px solid var(--color-accent); border-radius: var(--radius-sm); padding: 4px 8px; font-size: var(--text-xs); color: var(--color-text); cursor: pointer; transition: background var(--transition-fast) var(--ease), transform var(--transition-fast) var(--ease); overflow: hidden; }
-.cal-event:hover { background: color-mix(in srgb, var(--color-accent) 22%, transparent); transform: translateY(-1px); }
+.cal-event {
+  position: absolute;
+  left: 4px; right: 4px;
+  background: color-mix(in srgb, var(--color-sect-priority) 12%, transparent);
+  border-left: 4px solid var(--color-sect-priority);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--transition-fast) var(--ease),
+              transform var(--transition-fast) var(--ease);
+  overflow: hidden;
+}
+.cal-event:hover {
+  background: color-mix(in srgb, var(--color-sect-priority) 22%, transparent);
+  transform: translateY(-1px);
+}
 .cal-event.tf { background: color-mix(in srgb, var(--color-tale-forge) 12%, transparent); border-left-color: var(--color-tale-forge); }
 .cal-event.tf:hover { background: color-mix(in srgb, var(--color-tale-forge) 22%, transparent); }
 .cal-event.ob { background: color-mix(in srgb, var(--color-outbehaving) 12%, transparent); border-left-color: var(--color-outbehaving); }
 .cal-event.ob:hover { background: color-mix(in srgb, var(--color-outbehaving) 22%, transparent); }
 .cal-event.pe { background: color-mix(in srgb, var(--color-personal) 12%, transparent); border-left-color: var(--color-personal); }
 .cal-event.pe:hover { background: color-mix(in srgb, var(--color-personal) 22%, transparent); }
-.cal-event-title { font-weight: 500; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-event-meta { font-size: 10px; color: var(--color-text-3); margin-top: 2px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-event-title {
+  font-weight: 500; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cal-event-meta {
+  font-size: 10px;
+  color: var(--color-text-3);
+  margin-top: 2px;
+  line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
+/* ============================================================
+ * Chat bubble (global composer trigger) — retained from Phase 11
+ * ============================================================ */
+.mc-chat-bubble {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  z-index: 50;
+  width: 48px; height: 48px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-sect-priority);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-sect-priority) 35%, transparent);
+  transition: transform var(--transition-fast) var(--ease),
+              background var(--transition-fast) var(--ease);
+}
+.mc-chat-bubble:hover {
+  background: color-mix(in srgb, var(--color-sect-priority) 90%, white);
+  transform: translateY(-1px);
+}
+.mc-chat-bubble:focus-visible {
+  outline: 2px solid var(--color-sect-priority);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+ * Shadcn-facing inline theme map (kept for the tailwind
+ * compiler so `bg-card`, `border-border`, etc. resolve to the
+ * v4 values). These used to duplicate --background into oklch
+ * space; we now map straight onto :root vars above.
+ * ============================================================ */
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
@@ -298,38 +861,36 @@ body {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* The app is dark-always — .dark class kept as alias for any shadcn
+ * component that gates styles on `:is(.dark *)`. Values identical to
+ * :root because we don't ship a light theme (D-03). */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background:         var(--color-bg);
+  --foreground:         var(--color-text);
+  --card:               var(--color-surface-1);
+  --card-foreground:    var(--color-text);
+  --popover:            var(--color-surface-2);
+  --popover-foreground: var(--color-text);
+  --primary:            var(--color-sect-priority);
+  --primary-foreground: #ffffff;
+  --secondary:          var(--color-surface-2);
+  --secondary-foreground: var(--color-text);
+  --muted:              var(--color-surface-2);
+  --muted-foreground:   var(--color-text-3);
+  --accent:             var(--color-surface-2);
+  --accent-foreground:  var(--color-text);
+  --destructive:        var(--color-danger);
+  --border:             var(--color-border);
+  --input:              var(--color-surface-2);
+  --ring:               var(--color-sect-priority);
+  --sidebar:            var(--color-surface-1);
+  --sidebar-foreground: var(--color-text);
+  --sidebar-primary:    var(--color-sect-priority);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:     var(--color-surface-2);
+  --sidebar-accent-foreground: var(--color-text);
+  --sidebar-border:     var(--color-border);
+  --sidebar-ring:       var(--color-sect-priority);
 }
 
 @layer base {
@@ -344,58 +905,12 @@ body {
   }
 }
 
-/* ============================================================
- * Phase 11 — mission-control aesthetic primitives
- * Layered on top of the 03-UI-SPEC token system. NO new color
- * values — all rules consume existing --color-* tokens.
- * APPEND-ONLY: do not mutate the @theme block above.
- * ============================================================ */
-
-.mc-stat-tile {
-  transition: background var(--transition-fast) var(--ease);
-}
-.mc-stat-tile:hover {
-  background: var(--color-surface-2);
-}
-
-.mc-channel-bar {
-  transition: background var(--transition-fast) var(--ease);
-}
-.mc-channel-bar:hover {
-  background: var(--color-surface-1);
-}
-
-.mc-pill[data-pulse="true"] .pulse-dot {
-  width: 6px;
-  height: 6px;
-}
-
-.mc-chat-bubble {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 50;
-  width: 48px;
-  height: 48px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-accent);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 4px 16px
-    color-mix(in srgb, var(--color-accent) 35%, transparent);
-  transition:
-    transform var(--transition-fast) var(--ease),
-    background var(--transition-fast) var(--ease);
-}
-.mc-chat-bubble:hover {
-  background: color-mix(in srgb, var(--color-accent) 90%, white);
-  transform: translateY(-1px);
-}
-.mc-chat-bubble:focus-visible {
-  outline: 2px solid var(--color-accent-2);
-  outline-offset: 2px;
+/* ------------------------------------------------------------ */
+/* line-clamp helper retained for brief-previews                */
+/* ------------------------------------------------------------ */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

@@ -1,20 +1,23 @@
 'use client';
 
 /**
- * Sidebar — persistent left-dock chrome across every (app)/* route.
- * Structure mirrors 03-UI-SPEC.md §Sidebar verbatim:
+ * Sidebar — v4 persistent left-dock chrome across every (app)/* route.
  *
- *   1. Brand row (BrandMark + wordmark + pulsing success status dot)
- *   2. Views group: Today [T] · Inbox [I] + count · Calendar [C] · Health · Chat
- *      (Phase 11 Plan 11-07: Chat enabled, Settings entry removed per D-06)
- *   3. Entities label + People / Projects (with counts)
- *   4. Quick label + Search trigger (opens command palette, ⌘K badge)
- *   5. Bottom-pinned: Logout
+ * v4 structure (mockup-v4.html § Sidebar):
+ *   1. Brand row — BrandMark + wordmark + pulsing success status dot,
+ *      divided from nav by a hairline rail.
+ *   2. "Views" group — Today [T] · Inbox [I] + count · Calendar [C] ·
+ *      Chat · Health. Each item carries a section tone so the active
+ *      rail inherits the route's color.
+ *   3. "Entities" group — People / Projects with entity-tone counts.
+ *   4. "Quick" group — Search (opens command palette, ⌘K).
+ *   5. Bottom-pinned Logout — quiet text-3 default.
  *
- * Fixed width 220px, --color-surface-1 background, border-right.
+ * Fixed width 232px, surface-1 bg, border-right. Overflow: visible so
+ * the active NavItem's 3px rail can peek out past the sidebar's own
+ * right edge without clipping.
  *
- * T / I / C single-key shortcuts fire only when the user is not typing into
- * an input/textarea (isTypingInField guard).
+ * Single-key T / I / C shortcuts remain gated via isTypingInField.
  */
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -42,6 +45,8 @@ export interface SidebarCounts {
   projects: number;
   inbox: number;
 }
+
+const ICON_SIZE = 16;
 
 export function Sidebar({
   entityCounts,
@@ -86,114 +91,137 @@ export function Sidebar({
   return (
     <aside
       data-slot="sidebar"
-      className="w-[220px] shrink-0 border-r border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] flex flex-col py-[18px] px-3 gap-1"
+      // overflow: visible so NavItem's active -left-[14px] rail can
+      // render past the aside's padding without being clipped.
+      className="w-[232px] shrink-0 border-r border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] flex flex-col py-[22px] px-[14px] gap-[2px] overflow-visible"
     >
-      {/* Brand row */}
-      <div className="flex items-center gap-2 pl-[10px] pb-[18px]">
-        <BrandMark />
-        <span className="text-[14px] font-semibold text-[color:var(--color-text)]">
+      {/* Brand row — hairline rail separates it from the nav groups,
+          matching mockup-v4's visual separation. */}
+      <div className="flex items-center gap-[11px] pb-[22px] mb-[16px] px-[10px] pt-[4px] border-b border-[color:var(--rail)]">
+        <BrandMark size={28} />
+        <span className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text)]">
           Kevin OS
         </span>
         <PulseDot tone="success" />
       </div>
 
       {/* Views group */}
-      <nav aria-label="Views" className="flex flex-col gap-1">
+      <NavGroupLabel>Views</NavGroupLabel>
+      <nav aria-label="Views" className="flex flex-col gap-[2px]">
         <NavItem
           href="/today"
-          icon={<Home size={14} />}
+          icon={<Home size={ICON_SIZE} strokeWidth={1.7} />}
           label="Today"
           kbd="T"
+          tone="priority"
           testId="nav-today"
         />
         <NavItem
           href="/inbox"
-          icon={<InboxIcon size={14} />}
+          icon={<InboxIcon size={ICON_SIZE} strokeWidth={1.7} />}
           label="Inbox"
           kbd="I"
           count={entityCounts.inbox}
+          tone="inbox"
           testId="nav-inbox"
         />
         <NavItem
           href="/calendar"
-          icon={<Calendar size={14} />}
+          icon={<Calendar size={ICON_SIZE} strokeWidth={1.7} />}
           label="Calendar"
           kbd="C"
+          tone="schedule"
           testId="nav-calendar"
         />
-        {/* Phase 11 Plan 11-06 — D-07 channel-health surface entry.
-            data-testid="nav-integrations-health" passes through NavItem
-            for the Phase 11 button-audit Playwright spec. */}
         <NavItem
           href="/integrations-health"
-          icon={<Activity size={14} />}
+          icon={<Activity size={ICON_SIZE} strokeWidth={1.7} />}
           label="Health"
+          tone="channels"
           testId="nav-integrations-health"
         />
-        {/* Phase 11 Plan 11-07 — Chat link enabled. Backend ships with
-            Phase 11-ter; this link points at the visual-only /chat shell
-            so the global ChatBubble has a deep-link counterpart. */}
         <NavItem
           href="/chat"
-          icon={<MessageSquare size={14} />}
+          icon={<MessageSquare size={ICON_SIZE} strokeWidth={1.7} />}
           label="Chat"
+          tone="drafts"
           testId="nav-chat"
         />
       </nav>
 
-      {/* Entities section */}
-      <div className="mt-4 px-[10px] text-[11px] uppercase tracking-wider text-[color:var(--color-text-4)]">
-        Entities
-      </div>
-      <nav aria-label="Entities" className="flex flex-col gap-1">
+      {/* Entities group */}
+      <NavGroupLabel>Entities</NavGroupLabel>
+      <nav aria-label="Entities" className="flex flex-col gap-[2px]">
         <NavItem
           href="/entities?type=person"
-          icon={<Users size={14} />}
+          icon={<Users size={ICON_SIZE} strokeWidth={1.7} />}
           label="People"
           count={entityCounts.people}
+          tone="entities"
           testId="nav-people"
         />
         <NavItem
           href="/entities?type=project"
-          icon={<Folder size={14} />}
+          icon={<Folder size={ICON_SIZE} strokeWidth={1.7} />}
           label="Projects"
           count={entityCounts.projects}
+          tone="entities"
           testId="nav-projects"
         />
       </nav>
 
-      {/* Quick section */}
-      <div className="mt-4 px-[10px] text-[11px] uppercase tracking-wider text-[color:var(--color-text-4)]">
-        Quick
-      </div>
-      <nav aria-label="Quick actions" className="flex flex-col gap-1">
+      {/* Quick group */}
+      <NavGroupLabel>Quick</NavGroupLabel>
+      <nav aria-label="Quick actions" className="flex flex-col gap-[2px]">
         <button
           type="button"
           onClick={openPalette}
           data-slot="palette-trigger-sidebar"
           data-testid="sidebar-cmdk"
-          className="flex items-center gap-[10px] rounded-md px-[10px] py-[6px] text-[13px] text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-hover)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
+          className="relative flex items-center gap-[11px] rounded-md px-3 py-2 text-[14px] font-medium text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-2)] hover:text-[color:var(--color-text)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
         >
-          <Search size={14} />
-          <span className="flex-1 text-left">Search…</span>
+          <span
+            className="shrink-0 flex items-center justify-center"
+            style={{ color: 'var(--color-text-3)', width: 16, height: 16 }}
+          >
+            <Search size={ICON_SIZE} strokeWidth={1.7} />
+          </span>
+          <span className="flex-1 text-left">Search</span>
           <Kbd>⌘K</Kbd>
         </button>
       </nav>
 
-      {/* Bottom pinned — Settings entry removed in Phase 11 Plan 11-07
-          (D-06: no half-implemented buttons). Phase 12 reintroduces. */}
-      <div className="mt-auto flex flex-col gap-1">
+      {/* Bottom pinned — logout. Settings entry remains removed per D-06
+          (Phase 11 Plan 11-07). Phase 12 may reintroduce. */}
+      <div className="mt-auto flex flex-col gap-[2px] pt-4 border-t border-[color:var(--rail)]">
         <button
           type="button"
           onClick={handleLogout}
           data-slot="logout"
           data-testid="sidebar-logout"
-          className="flex items-center gap-[10px] rounded-md px-[10px] py-[6px] text-[13px] text-[color:var(--color-text-3)] hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-text-2)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
+          className="flex items-center gap-[11px] rounded-md px-3 py-2 text-[14px] font-medium text-[color:var(--color-text-3)] hover:bg-[color:var(--color-surface-2)] hover:text-[color:var(--color-text)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
         >
-          <LogOut size={14} />
+          <span
+            className="shrink-0 flex items-center justify-center"
+            style={{ color: 'var(--color-text-3)', width: 16, height: 16 }}
+          >
+            <LogOut size={ICON_SIZE} strokeWidth={1.7} />
+          </span>
           <span>Logout</span>
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Uppercase mono group label — visually subdivides the nav without
+ * drawing a line. Matches mockup-v4 § .nav-group.
+ */
+function NavGroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 pt-4 pb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-text-4)]">
+      {children}
+    </div>
   );
 }

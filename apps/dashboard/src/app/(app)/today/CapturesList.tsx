@@ -1,34 +1,28 @@
 'use client';
 
 /**
- * CapturesList — today's all-source capture feed for the bottom of /today.
+ * CapturesList — v4 Inbox preview panel on the right rail of /today.
  *
- * Each row shows source (icon + label), title, optional detail (truncated to
- * 120 chars per T-11-04-01 mitigation), and relative time. Sources cover the
- * five tables that hold actual capture artifacts in prod (Wave 0 schema
- * verification — `capture_text` and `capture_voice` DO NOT EXIST):
+ * Visual reference: mockup-v4.html § Inbox preview panel (.inbox-row).
  *
- *   email          → Mail icon            (email_drafts)
- *   mention        → AtSign icon          (mention_events)
- *   event          → MessageSquare icon   (event_log)
- *   inbox          → MessageSquare icon   (inbox_index)
- *   telegram_queue → Mic icon             (telegram_inbox_queue)
+ * Shows the five most recent captures from all sources (email, mention,
+ * event, inbox_index, telegram_queue — Wave 0 schema, no capture_text
+ * or capture_voice), as a dense list with:
  *
- * Empty state copy follows D-12: informative, not blank.
+ *   [ 48px time ] [ 1fr title ] [ auto channel tag ]
+ *
+ * Unread rows (items from the last hour by default, fallback to all
+ * when fewer than 3 exist) render with text-1 + semibold title; older
+ * rows use text-2. This differs from Phase 11 CapturesList, which was
+ * a full-width bottom-of-page block — v4 demotes it to a right-column
+ * preview so the main reading column stays focused on brief/priorities/
+ * drafts. The full inbox lives at /inbox (link in the panel action).
  */
-import { Mail, MessageSquare, Mic, AtSign } from 'lucide-react';
-import type { ComponentType, SVGProps } from 'react';
+import Link from 'next/link';
+import { format, parseISO, differenceInMinutes } from 'date-fns';
+
 import type { TodayCaptureItem } from '@kos/contracts/dashboard';
-
-type IconType = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
-
-const SOURCE_ICON: Record<TodayCaptureItem['source'], IconType> = {
-  email: Mail,
-  mention: AtSign,
-  event: MessageSquare,
-  inbox: MessageSquare,
-  telegram_queue: Mic,
-};
+import { Panel } from '@/components/dashboard/Panel';
 
 const SOURCE_LABEL: Record<TodayCaptureItem['source'], string> = {
   email: 'Email',
@@ -38,122 +32,68 @@ const SOURCE_LABEL: Record<TodayCaptureItem['source'], string> = {
   telegram_queue: 'Telegram',
 };
 
-function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (Number.isNaN(ms)) return iso;
-  if (ms < 0) return 'just now';
-  const min = Math.floor(ms / 60_000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+const UNREAD_WINDOW_MIN = 60;
+
+function hhmm(iso: string): string {
+  try {
+    return format(parseISO(iso), 'HH:mm');
+  } catch {
+    return '--:--';
+  }
+}
+
+function isUnread(iso: string): boolean {
+  try {
+    return differenceInMinutes(new Date(), parseISO(iso)) <= UNREAD_WINDOW_MIN;
+  } catch {
+    return false;
+  }
 }
 
 export function CapturesList({ captures }: { captures: TodayCaptureItem[] }) {
-  if (captures.length === 0) {
-    return (
-      <section
-        className="side-card"
-        data-testid="captures-list-empty"
-        aria-labelledby="captures-h"
-      >
-        <h2
-          id="captures-h"
-          style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}
-        >
-          Today&apos;s Captures
-        </h2>
-        <p style={{ fontSize: 12, color: 'var(--color-text-3)' }}>
-          No captures today — KOS will surface as they arrive.
-        </p>
-      </section>
-    );
-  }
+  const top = captures.slice(0, 5);
+  const totalUnread = captures.filter((c) => isUnread(c.at)).length;
+
   return (
-    <section
-      className="side-card"
-      data-testid="captures-list"
-      aria-labelledby="captures-h"
+    <Panel
+      tone="inbox"
+      name="Inbox"
+      count={
+        captures.length > 0
+          ? `· ${totalUnread > 0 ? `${totalUnread} new` : `${captures.length} today`}`
+          : undefined
+      }
+      action={
+        captures.length > 5 ? (
+          <Link href="/inbox" className="panel-action">
+            Open
+          </Link>
+        ) : undefined
+      }
+      bodyPadding="tight"
+      aria-label="Inbox preview"
+      testId="captures-list"
     >
-      <h2
-        id="captures-h"
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          marginBottom: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        Today&apos;s Captures{' '}
-        <span className="count-chip" aria-hidden>
-          {captures.length}
-        </span>
-      </h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {captures.map((cap) => {
-          const Icon = SOURCE_ICON[cap.source];
-          return (
+      {top.length === 0 ? (
+        <p className="text-[12px] text-[color:var(--color-text-3)]">
+          No captures today — KOS will surface them as they arrive.
+        </p>
+      ) : (
+        <div>
+          {top.map((cap) => (
             <div
               key={`${cap.source}:${cap.id}`}
-              className="thread-row"
+              className={`inbox-row ${isUnread(cap.at) ? 'unread' : ''}`}
               data-testid="capture-row"
               data-source={cap.source}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '20px 1fr auto',
-                gap: 10,
-                alignItems: 'start',
-              }}
             >
-              <Icon
-                size={14}
-                style={{ color: 'var(--color-text-3)', marginTop: 2 }}
-                aria-hidden
-              />
-              <div style={{ minWidth: 0 }}>
-                <div
-                  className="thread-title"
-                  style={{ fontSize: 13, color: 'var(--color-text)' }}
-                >
-                  <span
-                    style={{
-                      color: 'var(--color-text-3)',
-                      fontSize: 11,
-                      marginRight: 6,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                    }}
-                  >
-                    {SOURCE_LABEL[cap.source]}
-                  </span>
-                  {cap.title}
-                </div>
-                {cap.detail ? (
-                  <div
-                    className="thread-meta"
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--color-text-3)',
-                      marginTop: 2,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {cap.detail.slice(0, 120)}
-                  </div>
-                ) : null}
-              </div>
-              <span style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
-                {timeAgo(cap.at)}
-              </span>
+              <span className="inbox-when">{hhmm(cap.at)}</span>
+              <span className="inbox-title truncate">{cap.title}</span>
+              <span className="inbox-ch">{SOURCE_LABEL[cap.source]}</span>
             </div>
-          );
-        })}
-      </div>
-    </section>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }

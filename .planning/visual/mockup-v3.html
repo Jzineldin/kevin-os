@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kevin OS — Mockup v3 (Sectioned / Color-coded)</title>
+
+<!--
+  Direction v3: "Sectioned Mission Control"
+
+  What changed from v1 & v2:
+  - Back to dark (v1 lineage), no warm paper
+  - NO serif, NO italic, NO display face — one single sans, used at
+    different weights & sizes for hierarchy
+  - Strong section division: each block is its own "panel" with a
+    tinted top rail + mono label + real breathing room between panels
+  - Muted color-coding per section (not per bolag):
+      · PRIORITIES  → signal blue
+      · BRIEF       → amber (AI/generative)
+      · SCHEDULE    → teal
+      · DRAFTS      → violet
+      · INBOX       → pink-muted
+      · CHANNELS    → sage
+    Bolag tints still exist for entities but use the same desaturated
+    family, never compete with the section rails.
+
+  Font choice: "Geist Sans" replaced with "Söhne-equivalent free":
+  we use INTER TIGHT at specific weights. It's:
+    - Neutral, calm, enterprise — like Stripe, Linear, Vercel dashboard
+    - Designed for UI sizes (11-16px), not marketing display
+    - Very legible at 13px on dark backgrounds thanks to open apertures
+    - Free, self-hostable
+  Body text size increased to 14px baseline (up from v1's 13px) — one of
+  the biggest readability wins.
+
+  Mono face: Geist Mono replaced with IBM Plex Mono — warmer than
+  JetBrains, more characterful than SF Mono, excellent at tiny sizes.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    /* ── Dark surfaces (cooler navy, graduated) ── */
+    --bg:         #0b0d12;
+    --s-1:        #11141b;
+    --s-2:        #181c25;
+    --s-3:        #20242f;
+    --s-hover:    #262b38;
+
+    /* ── Borders ── */
+    --border:     #232834;
+    --border-2:   #2f3545;
+    --border-3:   #3d4458;
+    --rail:       color-mix(in srgb, var(--border) 60%, transparent);
+
+    /* ── Text ramp (AA verified on --bg / --s-1) ── */
+    --t-1:        #eef1f7;
+    --t-2:        #c8cedc;
+    --t-3:        #8c93a5;
+    --t-4:        #5d6477;
+
+    /* ── Section colors (muted, desaturated — no bright) ── */
+    --sect-priority: #5a8dd6;    /* blue — signal / priority */
+    --sect-brief:    #c79a55;    /* amber — AI / brief */
+    --sect-schedule: #56a69a;    /* teal — time / schedule */
+    --sect-drafts:   #9181c4;    /* violet — generative drafts */
+    --sect-inbox:    #c47a9a;    /* dusty pink — inbox / incoming */
+    --sect-channels: #6ba37c;    /* sage — health / channels */
+    --sect-entities: #cc8a6b;    /* terracotta — people / projects */
+
+    /* ── Status (restrained) ── */
+    --ok:   #6ba37c;
+    --warn: #c79a55;
+    --err:  #c47575;
+    --info: #5a8dd6;
+
+    /* ── Bolag tints (echo section palette for consistency) ── */
+    --tf: #56a69a;   /* Tale Forge — teal */
+    --ob: #c79a55;   /* Outbehaving — amber */
+    --pe: #9181c4;   /* Personal — violet */
+
+    /* ── Type ── */
+    --f-sans: "Inter Tight", -apple-system, ui-sans-serif, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+    /* ── Motion ── */
+    --ease:  cubic-bezier(0.2, 0.9, 0.3, 1);
+    --fast:  140ms;
+    --med:   220ms;
+
+    /* ── Radii ── */
+    --r-sm: 4px;
+    --r-md: 8px;
+    --r-lg: 12px;
+    --r-xl: 16px;
+
+    /* ── Spacing ── */
+    --gap-section: 36px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--t-1);
+    font-family: var(--f-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: color-mix(in srgb, var(--sect-priority) 30%, transparent); color: var(--t-1); }
+  .mono { font-family: var(--f-mono); font-feature-settings: "tnum" 1; }
+
+  /* =========================================================
+     SHELL
+     ========================================================= */
+  .shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ── */
+  .side {
+    background: var(--s-1);
+    border-right: 1px solid var(--border);
+    padding: 22px 14px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 11px;
+    padding: 4px 10px 22px;
+    border-bottom: 1px solid var(--rail);
+    margin-bottom: 16px;
+  }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--sect-priority), #2e5bb0);
+    position: relative;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+  .brand-mark::after {
+    content:""; position:absolute; inset:6px;
+    border-radius: 3px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent 70%);
+  }
+  .brand-name { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+  .brand-status { margin-left: auto; width: 6px; height: 6px; border-radius: 999px; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+
+  .nav-group {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--t-4);
+    padding: 16px 12px 8px;
+    font-weight: 600;
+  }
+
+  .nav {
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px 12px;
+    border-radius: var(--r-md);
+    color: var(--t-2);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+    position: relative;
+  }
+  .nav:hover { background: var(--s-2); color: var(--t-1); }
+  .nav.active {
+    background: var(--s-2);
+    color: var(--t-1);
+  }
+  .nav.active::before {
+    content: ""; position: absolute; left: -14px; top: 10px; bottom: 10px;
+    width: 3px; border-radius: 0 2px 2px 0;
+    background: var(--nav-tone, var(--sect-priority));
+  }
+  .nav .ic {
+    width: 16px; height: 16px;
+    color: var(--nav-tone, var(--t-3));
+    flex-shrink: 0;
+  }
+  .nav:not(.active) .ic { color: var(--t-3); }
+  .nav .label { flex: 1; }
+  .nav .meta {
+    font-family: var(--f-mono); font-size: 10px;
+    padding: 1px 6px; border-radius: 3px;
+    background: var(--s-3); border: 1px solid var(--border);
+    color: var(--t-3);
+    min-width: 20px; text-align: center;
+  }
+  .nav .kbd {
+    font-family: var(--f-mono); font-size: 10px;
+    color: var(--t-4);
+    padding: 1px 5px; border-radius: 3px;
+    background: transparent; border: 1px solid var(--border);
+  }
+
+  .side-foot { margin-top: auto; }
+
+  /* ── Topbar ── */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .top {
+    height: 56px;
+    padding: 0 32px;
+    display: flex; align-items: center; gap: 18px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--s-1) 85%, transparent);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .crumbs {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px;
+  }
+  .crumbs .rest { color: var(--t-4); }
+  .crumbs .sep  { color: var(--t-4); }
+  .crumbs .last {
+    color: var(--t-1); font-weight: 600;
+    padding: 3px 10px;
+    background: color-mix(in srgb, var(--sect-priority) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sect-priority) 28%, transparent);
+    border-radius: var(--r-sm);
+  }
+  .spacer { flex: 1; }
+
+  .search {
+    display: flex; align-items: center; gap: 10px;
+    height: 34px; padding: 0 12px;
+    min-width: 300px;
+    background: var(--s-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--t-3);
+    font-size: 13px;
+    transition: border-color var(--fast) var(--ease);
+  }
+  .search:hover { border-color: var(--border-2); }
+  .search .k {
+    margin-left: auto;
+    font-family: var(--f-mono); font-size: 10px;
+    background: var(--s-3); border: 1px solid var(--border-2);
+    padding: 2px 6px; border-radius: 3px;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 34px; padding: 0 14px;
+    border-radius: var(--r-md);
+    font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--s-2);
+    color: var(--t-2);
+    transition: all var(--fast) var(--ease);
+  }
+  .btn:hover { background: var(--s-hover); border-color: var(--border-2); color: var(--t-1); }
+  .btn.primary {
+    background: var(--sect-priority);
+    color: #fff;
+    border-color: color-mix(in srgb, var(--sect-priority) 60%, #000);
+    box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--sect-priority) 70%, transparent),
+                inset 0 1px 0 rgba(255,255,255,0.14);
+  }
+  .btn.primary:hover { background: color-mix(in srgb, var(--sect-priority) 88%, white); }
+  .btn.ghost { background: transparent; }
+  .btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 999px;
+    background: var(--s-3);
+    border: 1px solid var(--border-2);
+    display: inline-grid; place-items: center;
+    font-size: 12px; font-weight: 700; color: var(--t-2);
+  }
+
+  /* =========================================================
+     CONTENT
+     ========================================================= */
+  .content {
+    padding: 28px 36px 60px;
+    max-width: 1800px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* ── Page head ── */
+  .page-head {
+    display: flex; align-items: flex-end; gap: 20px;
+    margin-bottom: var(--gap-section);
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--rail);
+  }
+  .page-head .h1 {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    color: var(--t-1);
+    margin: 0;
+  }
+  .page-head .sub {
+    padding-bottom: 4px;
+    font-family: var(--f-mono); font-size: 12px;
+    color: var(--t-3);
+    display: flex; gap: 12px; align-items: center;
+  }
+  .page-head .sub .b { color: var(--t-2); font-weight: 500; }
+  .page-head .date {
+    margin-left: auto;
+    padding-bottom: 4px;
+    font-family: var(--f-mono); font-size: 12px;
+    color: var(--t-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* =========================================================
+     SECTIONS — the new panel system
+
+     Each section has:
+       - A colored top rail (4px, 50% opacity gradient)
+       - A mono label row at top with the section's color dot
+       - A right-side meta slot
+       - Generous internal padding, hard border around the whole thing
+     ========================================================= */
+  .panel {
+    position: relative;
+    background: var(--s-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    margin-bottom: var(--gap-section);
+  }
+  .panel::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+      var(--sect-tone, var(--sect-priority)) 0%,
+      color-mix(in srgb, var(--sect-tone, var(--sect-priority)) 40%, transparent) 40%,
+      transparent 85%);
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid var(--rail);
+  }
+  .panel-head .dot {
+    width: 7px; height: 7px; border-radius: 999px;
+    background: var(--sect-tone, var(--sect-priority));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sect-tone, var(--sect-priority)) 18%, transparent);
+  }
+  .panel-head .name {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--sect-tone, var(--sect-priority));
+  }
+  .panel-head .count {
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--t-4);
+    padding-left: 2px;
+  }
+  .panel-head .spread { flex: 1; }
+  .panel-head .action {
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--t-3);
+    padding: 4px 9px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    transition: background var(--fast) var(--ease);
+  }
+  .panel-head .action:hover { background: var(--s-2); color: var(--t-1); }
+  .panel-body { padding: 18px 22px 22px; }
+
+  /* =========================================================
+     PRIORITIES panel
+     ========================================================= */
+  .priorities { display: flex; flex-direction: column; }
+  .pri {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rail);
+    transition: background var(--fast) var(--ease);
+  }
+  .pri:last-child { border-bottom: none; padding-bottom: 0; }
+  .pri:first-child { padding-top: 0; }
+  .pri-num {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--t-4);
+    letter-spacing: 0.02em;
+  }
+  .pri-body .t {
+    font-size: 15px;
+    color: var(--t-1);
+    font-weight: 500;
+    line-height: 1.4;
+  }
+  .pri-body .m {
+    margin-top: 5px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--t-3);
+  }
+  .when {
+    font-family: var(--f-mono); font-size: 12px;
+    padding: 4px 10px;
+    border-radius: var(--r-sm);
+    background: var(--s-2);
+    border: 1px solid var(--border);
+    color: var(--t-3);
+    white-space: nowrap;
+  }
+  .when.soon {
+    color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 10%, transparent);
+    border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+  }
+  .when.now {
+    color: var(--sect-priority);
+    background: color-mix(in srgb, var(--sect-priority) 10%, transparent);
+    border-color: color-mix(in srgb, var(--sect-priority) 28%, transparent);
+  }
+
+  .ent {
+    color: var(--t-1);
+    border-bottom: 1px dotted var(--border-3);
+    padding-bottom: 1px;
+    font-family: var(--f-sans);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .ent:hover { background: var(--s-2); }
+
+  .tag {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: var(--f-mono); font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border: 1px solid transparent;
+  }
+  .tag.tf { background: color-mix(in srgb, var(--tf) 10%, transparent); border-color: color-mix(in srgb, var(--tf) 26%, transparent); color: var(--tf); }
+  .tag.ob { background: color-mix(in srgb, var(--ob) 10%, transparent); border-color: color-mix(in srgb, var(--ob) 26%, transparent); color: var(--ob); }
+  .tag.pe { background: color-mix(in srgb, var(--pe) 10%, transparent); border-color: color-mix(in srgb, var(--pe) 26%, transparent); color: var(--pe); }
+
+  /* =========================================================
+     BRIEF panel
+     ========================================================= */
+  .brief-body {
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--t-1);
+    max-width: 720px;
+  }
+  .brief-body .hi {
+    color: var(--sect-brief);
+    font-weight: 600;
+  }
+  .brief-foot {
+    margin-top: 18px; padding-top: 14px;
+    border-top: 1px dashed var(--rail);
+    display: flex; gap: 16px; flex-wrap: wrap;
+    font-family: var(--f-mono); font-size: 11px; color: var(--t-4);
+    letter-spacing: 0.04em;
+  }
+  .brief-foot .k { color: var(--t-3); text-transform: uppercase; font-weight: 600; letter-spacing: 0.12em; }
+  .brief-foot .v { color: var(--t-2); }
+
+  /* =========================================================
+     SCHEDULE panel — timeline
+     ========================================================= */
+  .schedule {
+    display: flex; flex-direction: column;
+    position: relative;
+    padding-left: 86px;
+  }
+  .schedule::before {
+    content: "";
+    position: absolute; left: 78px; top: 10px; bottom: 10px;
+    width: 1px;
+    background: linear-gradient(180deg,
+      var(--rail) 0%,
+      var(--sect-schedule) 40%,
+      var(--sect-schedule) 60%,
+      var(--rail) 100%);
+    opacity: 0.5;
+  }
+  .meet {
+    position: relative;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rail);
+  }
+  .meet:last-child { border-bottom: none; padding-bottom: 0; }
+  .meet:first-child { padding-top: 0; }
+  .meet .time {
+    position: absolute; left: -86px; top: 16px;
+    font-family: var(--f-mono); font-size: 12px;
+    color: var(--t-3);
+    width: 62px; text-align: right;
+    letter-spacing: 0.02em;
+  }
+  .meet::before {
+    content: ""; position: absolute;
+    left: -14px; top: 20px;
+    width: 10px; height: 10px; border-radius: 999px;
+    background: var(--s-1);
+    border: 1.5px solid var(--border-2);
+  }
+  .meet.now::before {
+    background: var(--sect-schedule);
+    border-color: var(--sect-schedule);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--sect-schedule) 18%, transparent);
+  }
+  .meet.now .time { color: var(--sect-schedule); font-weight: 600; }
+  .meet .t { font-size: 14px; color: var(--t-1); font-weight: 500; }
+  .meet.now .t { font-weight: 600; }
+  .meet .m {
+    margin-top: 4px;
+    font-family: var(--f-mono); font-size: 11px; color: var(--t-3);
+  }
+  .meet .now-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--f-mono); font-size: 10px;
+    color: var(--sect-schedule);
+    text-transform: uppercase; letter-spacing: 0.14em;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  /* =========================================================
+     DRAFTS panel
+     ========================================================= */
+  .draft {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rail);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .draft:last-child { border-bottom: none; padding-bottom: 0; }
+  .draft:first-child { padding-top: 0; }
+  .draft-head {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--t-3); letter-spacing: 0.06em;
+  }
+  .draft-head .ch {
+    padding: 2px 8px; border-radius: 3px;
+    background: color-mix(in srgb, var(--sect-drafts) 10%, transparent);
+    color: var(--sect-drafts);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+    font-size: 10px;
+  }
+  .draft-head .spread { flex: 1; }
+  .draft-text {
+    font-size: 14px;
+    color: var(--t-2);
+    line-height: 1.6;
+    padding-left: 14px;
+    border-left: 2px solid color-mix(in srgb, var(--sect-drafts) 40%, transparent);
+  }
+  .draft-actions { display: flex; gap: 6px; }
+
+  /* =========================================================
+     LAYOUT — wide-screen 3-col
+     ========================================================= */
+  .wide {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 320px;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  .wide > .col {
+    display: flex; flex-direction: column; gap: 24px;
+    min-width: 0;
+  }
+  /* Panels inside the grid have no bottom margin — gap handles it */
+  .wide .panel { margin-bottom: 0; }
+
+  @media (max-width: 1500px) {
+    .wide { grid-template-columns: minmax(0, 1fr) 320px; }
+    .wide > .col.middle { grid-column: 1; }
+  }
+  @media (max-width: 1100px) {
+    .wide { grid-template-columns: 1fr; }
+  }
+
+  /* =========================================================
+     CHANNELS panel (compact)
+     ========================================================= */
+  .channels {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+  }
+  .ch {
+    padding: 2px 16px 2px 0;
+    display: flex; align-items: center; gap: 10px;
+    border-right: 1px solid var(--rail);
+  }
+  .ch:last-child { border-right: none; }
+  .ch .d {
+    width: 8px; height: 8px; border-radius: 999px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+  }
+  .ch.ok { color: var(--ok); }
+  .ch.ok .d { background: var(--ok); }
+  .ch.warn { color: var(--warn); }
+  .ch.warn .d { background: var(--warn); }
+  .ch.err { color: var(--err); }
+  .ch.err .d { background: var(--err); }
+  .ch .nm {
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--t-2); letter-spacing: 0.06em;
+    font-weight: 500; text-transform: uppercase;
+  }
+  .ch .n {
+    margin-left: auto;
+    font-family: var(--f-mono); font-size: 11px; color: var(--t-4);
+  }
+
+  /* =========================================================
+     CAPTURE
+     ========================================================= */
+  .capture textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    outline: none;
+    resize: none;
+    font: inherit;
+    color: var(--t-1);
+    min-height: 80px;
+    transition: border-color var(--fast) var(--ease);
+  }
+  .capture textarea:focus { border-color: var(--sect-priority); }
+  .capture textarea::placeholder { color: var(--t-4); }
+  .capture-foot {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 12px;
+  }
+  .capture-foot .hint {
+    font-family: var(--f-mono); font-size: 11px; color: var(--t-4);
+  }
+  .capture-foot .spread { flex: 1; }
+
+  /* =========================================================
+     Load cascade
+     ========================================================= */
+  .fade { animation: fi 320ms var(--ease) both; }
+  .fade:nth-child(1) { animation-delay: 0ms; }
+  .fade:nth-child(2) { animation-delay: 50ms; }
+  .fade:nth-child(3) { animation-delay: 100ms; }
+  .fade:nth-child(4) { animation-delay: 150ms; }
+  .fade:nth-child(5) { animation-delay: 200ms; }
+  .fade:nth-child(6) { animation-delay: 250ms; }
+  @keyframes fi { from { opacity: 0; transform: translateY(6px);} to { opacity:1; transform:none;} }
+
+  .ribbon {
+    position: fixed; bottom: 16px; right: 18px;
+    background: var(--s-2); border: 1px solid var(--border-2);
+    color: var(--t-2); font-family: var(--f-mono); font-size: 11px;
+    padding: 6px 12px; border-radius: var(--r-sm);
+    letter-spacing: 0.04em; z-index: 30;
+  }
+  .ribbon b { color: var(--sect-priority); }
+
+  /* Nav tones per route */
+  .nav.nav-today    { --nav-tone: var(--sect-priority); }
+  .nav.nav-inbox    { --nav-tone: var(--sect-inbox); }
+  .nav.nav-calendar { --nav-tone: var(--sect-schedule); }
+  .nav.nav-chat     { --nav-tone: var(--sect-drafts); }
+  .nav.nav-health   { --nav-tone: var(--sect-channels); }
+  .nav.nav-people   { --nav-tone: var(--sect-entities); }
+  .nav.nav-projects { --nav-tone: var(--sect-entities); }
+
+  .ic { stroke-width: 1.7; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-name">Kevin OS</div>
+      <div class="brand-status" title="System OK"></div>
+    </div>
+
+    <div class="nav-group">Views</div>
+    <a class="nav nav-today active">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span class="label">Today</span>
+      <span class="kbd">T</span>
+    </a>
+    <a class="nav nav-inbox">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6L18.5 5a2 2 0 00-1.8-1H7.3a2 2 0 00-1.8 1z"/></svg>
+      <span class="label">Inbox</span>
+      <span class="meta">24</span>
+    </a>
+    <a class="nav nav-calendar">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span class="label">Calendar</span>
+      <span class="kbd">C</span>
+    </a>
+    <a class="nav nav-chat">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <span class="label">Chat</span>
+    </a>
+    <a class="nav nav-health">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <span class="label">Health</span>
+    </a>
+
+    <div class="nav-group">Entities</div>
+    <a class="nav nav-people">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <span class="label">People</span>
+      <span class="meta">142</span>
+    </a>
+    <a class="nav nav-projects">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      <span class="label">Projects</span>
+      <span class="meta">18</span>
+    </a>
+
+    <div class="nav-group">Quick</div>
+    <a class="nav">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <span class="label">Search</span>
+      <span class="kbd">⌘K</span>
+    </a>
+
+    <div class="side-foot">
+      <a class="nav">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        <span class="label">Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <main class="main">
+    <header class="top">
+      <div class="crumbs">
+        <span class="rest">Kevin OS</span>
+        <span class="sep">/</span>
+        <span class="last">Today</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="search">
+        <svg width="14" height="14" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span>Search entities, views…</span>
+        <span class="k">⌘K</span>
+      </button>
+      <button class="btn primary">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+        New capture
+      </button>
+      <div class="avatar">KE</div>
+    </header>
+
+    <div class="content">
+
+      <!-- Page head -->
+      <div class="page-head fade">
+        <h1 class="h1">Today</h1>
+        <div class="sub">
+          <span class="b">3</span><span>priorities</span>
+          <span>·</span>
+          <span class="b">4</span><span>drafts</span>
+          <span>·</span>
+          <span class="b">5</span><span>meetings</span>
+        </div>
+        <div class="date">Sun · Apr 26 · Week 17</div>
+      </div>
+
+      <!-- 3-column wide layout -->
+      <div class="wide">
+
+        <!-- COL 1: Brief + Priorities + Drafts -->
+        <div class="col primary">
+
+          <!-- BRIEF -->
+          <section class="panel fade" style="--sect-tone: var(--sect-brief);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Morning Brief</span>
+              <span class="count">· 07:02</span>
+              <span class="spread"></span>
+              <button class="action">Regenerate</button>
+            </div>
+            <div class="panel-body">
+              <p class="brief-body">
+                Three things matter today. <span class="hi">Almi convertible</span> needs
+                your signature by 16:00 — Johanna already countersigned at 09:14. The
+                <span class="hi">Tale Forge review queue</span> is at 4 drafts, two are
+                over 24 hours old. And you're meeting <span class="hi">Erik Sundström</span>
+                at 14:00 about the Outbehaving pilot — last thread went quiet after your
+                proposal on Tuesday, so open strong.
+              </p>
+              <div class="brief-foot">
+                <span><span class="k">Sources</span> <span class="v">gmail, calendar, notion</span></span>
+                <span><span class="k">Model</span> <span class="v">claude-opus-4</span></span>
+                <span><span class="k">Tokens</span> <span class="v">1,842</span></span>
+              </div>
+            </div>
+          </section>
+
+          <!-- PRIORITIES -->
+          <section class="panel fade" style="--sect-tone: var(--sect-priority);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Priorities</span>
+              <span class="count">· 3</span>
+              <span class="spread"></span>
+              <button class="action">Reprioritize</button>
+            </div>
+            <div class="panel-body">
+              <div class="priorities">
+                <div class="pri">
+                  <div class="pri-num">01</div>
+                  <div class="pri-body">
+                    <div class="t">Sign Almi Invest convertible note</div>
+                    <div class="m">
+                      <a class="ent">Maria Lindqvist</a>
+                      <span>·</span>
+                      <span class="tag ob">OUTBEHAVING</span>
+                      <span>·</span>
+                      <span>Johanna already countersigned</span>
+                    </div>
+                  </div>
+                  <div class="when soon">DUE 16:00</div>
+                </div>
+                <div class="pri">
+                  <div class="pri-num">02</div>
+                  <div class="pri-body">
+                    <div class="t">Review Tale Forge v2.3 release build + notes</div>
+                    <div class="m">
+                      <a class="ent">Release · v2.3</a>
+                      <span>·</span>
+                      <span class="tag tf">TALE FORGE</span>
+                      <span>·</span>
+                      <span>2 drafts ready</span>
+                    </div>
+                  </div>
+                  <div class="when">anytime</div>
+                </div>
+                <div class="pri">
+                  <div class="pri-num">03</div>
+                  <div class="pri-body">
+                    <div class="t">Call with Erik Sundström — Outbehaving pilot scope</div>
+                    <div class="m">
+                      <a class="ent">Erik Sundström</a>
+                      <span>·</span>
+                      <span class="tag ob">OUTBEHAVING</span>
+                      <span>·</span>
+                      <span>prep notes ready</span>
+                    </div>
+                  </div>
+                  <div class="when now">14:00</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- DRAFTS -->
+          <section class="panel fade" style="--sect-tone: var(--sect-drafts);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Drafts</span>
+              <span class="count">· 4 pending</span>
+              <span class="spread"></span>
+              <button class="action">Open inbox</button>
+            </div>
+            <div class="panel-body">
+              <div class="draft">
+                <div class="draft-head">
+                  <span class="ch">GMAIL · REPLY</span>
+                  <span>to</span>
+                  <a class="ent">Maria Lindqvist</a>
+                  <span class="tag ob">OUTBEHAVING</span>
+                  <span class="spread"></span>
+                  <span>09:42</span>
+                </div>
+                <p class="draft-text">
+                  Kort svar till Maria på Almi — bekräftar att vi tar emot
+                  konvertibeln under vecka 17, dokumentation signerad innan
+                  fredag. Nämner att Johanna är CC på allt avtalsflöde framåt.
+                </p>
+                <div class="draft-actions">
+                  <button class="btn sm primary">Approve &amp; send</button>
+                  <button class="btn sm">Edit</button>
+                  <button class="btn sm ghost">Discard</button>
+                </div>
+              </div>
+              <div class="draft">
+                <div class="draft-head">
+                  <span class="ch">LINKEDIN · POST</span>
+                  <span class="tag ob">OUTBEHAVING</span>
+                  <span class="spread"></span>
+                  <span>10:14</span>
+                </div>
+                <p class="draft-text">
+                  "We signed our convertible note with Almi Invest this week.
+                  Three things I'd tell past-me: [1, 2, 3]. Happy to swap notes
+                  with other founders navigating this stage."
+                </p>
+                <div class="draft-actions">
+                  <button class="btn sm primary">Approve &amp; schedule</button>
+                  <button class="btn sm">Edit</button>
+                  <button class="btn sm ghost">Discard</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- COL 2: Schedule (tall) + Capture -->
+        <div class="col middle">
+
+          <!-- SCHEDULE -->
+          <section class="panel fade" style="--sect-tone: var(--sect-schedule);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Schedule</span>
+              <span class="count">· 5 meetings</span>
+              <span class="spread"></span>
+              <button class="action">Open calendar</button>
+            </div>
+            <div class="panel-body">
+              <div class="schedule">
+                <div class="meet">
+                  <div class="time">11:00</div>
+                  <div class="t">Tale Forge standup</div>
+                  <div class="m">Meet · 5 attendees</div>
+                </div>
+                <div class="meet">
+                  <div class="time">12:30</div>
+                  <div class="t">Lunch · Isabelle</div>
+                  <div class="m">Blocked · personal</div>
+                </div>
+                <div class="meet now">
+                  <div class="time">14:00</div>
+                  <div class="now-pill">starts in 37m</div>
+                  <div class="t">Erik Sundström — Outbehaving pilot</div>
+                  <div class="m">Zoom · prep notes ready</div>
+                </div>
+                <div class="meet">
+                  <div class="time">16:00</div>
+                  <div class="t">Almi · convertible signing</div>
+                  <div class="m">DocuSign · 1 signer left</div>
+                </div>
+                <div class="meet">
+                  <div class="time">17:30</div>
+                  <div class="t">Pickup · Lova från förskolan</div>
+                  <div class="m">Hard stop</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- CAPTURE -->
+          <section class="panel fade" style="--sect-tone: var(--sect-priority);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Capture</span>
+              <span class="spread"></span>
+              <span class="count mono">⌘ ↵</span>
+            </div>
+            <div class="panel-body">
+              <div class="capture">
+                <textarea placeholder="Drop a note — auto-routes to the right entity."></textarea>
+                <div class="capture-foot">
+                  <span class="hint">auto-detects entity</span>
+                  <span class="spread"></span>
+                  <button class="btn sm primary">Capture</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- COL 3: rail — Channels + Inbox -->
+        <aside class="col rail">
+
+          <!-- CHANNELS -->
+          <section class="panel fade" style="--sect-tone: var(--sect-channels);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Channels</span>
+              <span class="count">· 2m ago</span>
+              <span class="spread"></span>
+            </div>
+            <div class="panel-body">
+              <div style="display:flex; flex-direction:column; gap: 10px;">
+                <div class="ch ok" style="border:none; padding: 0;">
+                  <span class="d"></span><span class="nm">Gmail</span><span class="n">324</span>
+                </div>
+                <div class="ch ok" style="border:none; padding: 0;">
+                  <span class="d"></span><span class="nm">Slack</span><span class="n">1.2k</span>
+                </div>
+                <div class="ch warn" style="border:none; padding: 0;">
+                  <span class="d"></span><span class="nm">Calendar</span><span class="n">23</span>
+                </div>
+                <div class="ch ok" style="border:none; padding: 0;">
+                  <span class="d"></span><span class="nm">Notion</span><span class="n">87</span>
+                </div>
+                <div class="ch err" style="border:none; padding: 0;">
+                  <span class="d"></span><span class="nm">LinkedIn</span><span class="n">REAUTH</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- INBOX TEASER -->
+          <section class="panel fade" style="--sect-tone: var(--sect-inbox);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Inbox</span>
+              <span class="count">· 24 new</span>
+              <span class="spread"></span>
+              <button class="action">Open</button>
+            </div>
+            <div class="panel-body" style="padding-top: 8px;">
+              <div style="display:flex; flex-direction:column; gap: 10px; font-size: 13px;">
+                <div style="display:flex; gap: 10px; align-items: baseline;">
+                  <span class="mono" style="font-size: 11px; color: var(--t-4); width: 38px;">09:14</span>
+                  <span style="flex:1; color: var(--t-1);">Johanna Ribe signed the convertible</span>
+                </div>
+                <div style="display:flex; gap: 10px; align-items: baseline;">
+                  <span class="mono" style="font-size: 11px; color: var(--t-4); width: 38px;">08:50</span>
+                  <span style="flex:1; color: var(--t-2);">Apple TestFlight build #247 available</span>
+                </div>
+                <div style="display:flex; gap: 10px; align-items: baseline;">
+                  <span class="mono" style="font-size: 11px; color: var(--t-4); width: 38px;">08:22</span>
+                  <span style="flex:1; color: var(--t-2);">Sundström · "confirming 14:00 Zoom link"</span>
+                </div>
+                <div style="display:flex; gap: 10px; align-items: baseline;">
+                  <span class="mono" style="font-size: 11px; color: var(--t-4); width: 38px;">07:45</span>
+                  <span style="flex:1; color: var(--t-2);">GitHub · 3 PRs awaiting review</span>
+                </div>
+                <div style="display:flex; gap: 10px; align-items: baseline;">
+                  <span class="mono" style="font-size: 11px; color: var(--t-4); width: 38px;">07:12</span>
+                  <span style="flex:1; color: var(--t-2);">Stripe · monthly invoice generated</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- PEOPLE quick list -->
+          <section class="panel fade" style="--sect-tone: var(--sect-entities);">
+            <div class="panel-head">
+              <span class="dot"></span>
+              <span class="name">Active entities</span>
+              <span class="count">· today</span>
+              <span class="spread"></span>
+            </div>
+            <div class="panel-body" style="padding-top: 10px;">
+              <div style="display:flex; flex-direction:column; gap: 10px;">
+                <div style="display:flex; gap: 10px; align-items: center;">
+                  <div class="avatar" style="width:24px;height:24px;font-size:10px;">ML</div>
+                  <span style="flex:1; color: var(--t-1); font-size: 13px;">Maria Lindqvist</span>
+                  <span class="tag ob">OB</span>
+                </div>
+                <div style="display:flex; gap: 10px; align-items: center;">
+                  <div class="avatar" style="width:24px;height:24px;font-size:10px;">ES</div>
+                  <span style="flex:1; color: var(--t-1); font-size: 13px;">Erik Sundström</span>
+                  <span class="tag ob">OB</span>
+                </div>
+                <div style="display:flex; gap: 10px; align-items: center;">
+                  <div class="avatar" style="width:24px;height:24px;font-size:10px;">JR</div>
+                  <span style="flex:1; color: var(--t-1); font-size: 13px;">Johanna Ribe</span>
+                  <span class="tag ob">OB</span>
+                </div>
+                <div style="display:flex; gap: 10px; align-items: center;">
+                  <div class="avatar" style="width:24px;height:24px;font-size:10px;">IS</div>
+                  <span style="flex:1; color: var(--t-1); font-size: 13px;">Isabelle</span>
+                  <span class="tag pe">PE</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </aside>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div class="ribbon">MOCKUP V3 · <b>Sectioned Mission Control</b></div>
+
+</body>
+</html>

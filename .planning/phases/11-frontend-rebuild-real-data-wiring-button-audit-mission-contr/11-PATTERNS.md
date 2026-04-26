@@ -438,7 +438,7 @@ export const ChannelHealthSchema = z.object({
   status: z.enum(['healthy', 'degraded', 'down']),
   last_event_at: IsoDateTimeSchema.nullable(),
 });
-export const SchedulerHealthSchema = z.object({
+export const SchedulerHealthItemSchema = z.object({
   name: z.string(),
   next_run_at: IsoDateTimeSchema.nullable(),
   last_run_at: IsoDateTimeSchema.nullable(),
@@ -446,7 +446,7 @@ export const SchedulerHealthSchema = z.object({
 });
 export const IntegrationsHealthResponseSchema = z.object({
   channels: z.array(ChannelHealthSchema),
-  schedulers: z.array(SchedulerHealthSchema),
+  schedulers: z.array(SchedulerHealthItemSchema),
 });
 export type IntegrationsHealthResponse = z.infer<typeof IntegrationsHealthResponseSchema>;
 ```
@@ -901,7 +901,6 @@ Files with no close existing match in this codebase:
 | File | Role | Reason |
 |------|------|--------|
 | `scripts/verify-phase-11-wipe.sh` | smoke / shell | No bash smoke test scripts in the repo. Closest pattern is `scripts/run-migrations.sh` if it exists; otherwise this is greenfield. Wave 0 task. |
-| `scripts/verify-startup-guard.mjs` | smoke / Node CLI | No analog. Pattern: `import { handler } from '../services/dashboard-api/dist/index.js'; const res = await handler(fakeEvent); assert(res.statusCode === 503);` |
 | `apps/dashboard/src/lib/button-registry.ts` | utility / TS const | No analog — a phase-specific data-testid catalog. Closest shape: `apps/dashboard/src/lib/bolag.ts` constant-table pattern. |
 
 ---
@@ -926,3 +925,6 @@ Files with no close existing match in this codebase:
 ---
 
 ## PATTERN MAPPING COMPLETE
+</content>
+</invoke>
+</invoke>

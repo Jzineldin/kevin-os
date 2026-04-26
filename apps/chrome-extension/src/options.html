@@ -13,14 +13,15 @@
   </head>
   <body>
     <h1>Kevin OS Capture</h1>
-    <p>Phase 5 Plan 05-00 scaffold — full options UI lands in Plan 05-01.</p>
-    <label for="webhook-url">Webhook URL</label>
-    <input id="webhook-url" type="url" placeholder="https://..." />
+    <p>One-time setup. All values stored in <code>chrome.storage.local</code> (Chrome-encrypted at rest).</p>
+    <label for="webhook-url">Webhook base URL</label>
+    <input id="webhook-url" type="url" placeholder="https://xxxx.lambda-url.eu-north-1.on.aws" />
     <label for="bearer">Bearer token</label>
-    <input id="bearer" type="password" placeholder="kos-..." />
+    <input id="bearer" type="password" placeholder="from AWS Secrets Manager: kos/chrome-extension-bearer" />
     <label for="hmac-secret">HMAC secret</label>
-    <input id="hmac-secret" type="password" placeholder="hex" />
+    <input id="hmac-secret" type="password" placeholder="from AWS Secrets Manager: kos/chrome-extension-hmac-secret" />
     <button id="save">Save</button>
+    <button id="test">Send test ping</button>
     <div class="status" id="status"></div>
     <script src="options.js"></script>
   </body>

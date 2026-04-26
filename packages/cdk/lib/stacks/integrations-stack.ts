@@ -38,6 +38,10 @@ import {
   wireIosWebhook,
   type IosWebhookWiring,
 } from './integrations-ios-webhook.js';
+import {
+  wireChromeWebhook,
+  type ChromeWebhookWiring,
+} from './integrations-chrome-webhook.js';
 import { wireSesInbound, type SesInboundWiring } from './integrations-ses-inbound.js';
 import {
   wireEmailEngine,
@@ -96,6 +100,12 @@ export interface IntegrationsStackProps extends StackProps {
   // along with `blobsBucket` (already optional) so wireIosWebhook can grant
   // SecretsManager:GetSecretValue + S3:PutObject on `audio/*`.
   iosShortcutWebhookSecret?: ISecret;
+  // Phase 5 Plan 05-01 (CAP-04): chrome-webhook auth pair (Bearer + HMAC).
+  // Both must be supplied to activate the chrome-webhook wiring. Production
+  // CDK app passes both from DataStack; existing test fixtures synth without
+  // them and the chrome-webhook is simply not provisioned.
+  chromeExtensionBearerSecret?: ISecret;
+  chromeExtensionHmacSecret?: ISecret;
   // Phase 4 Plan 04-02 (CAP-03) — ses-inbound Lambda. Activated only when
   // `enableSesInbound` is explicitly true so existing test fixtures synth
   // without an extra Lambda. Production deploy passes `enableSesInbound: true`
@@ -135,6 +145,14 @@ export class IntegrationsStack extends Stack {
    * boundary); replay table TTL on `expires_at`.
    */
   public readonly iosWebhook?: IosWebhookWiring;
+  /**
+   * Phase 5 Plan 05-01 (CAP-04) chrome-webhook wiring. Populated only when
+   * BOTH `chromeExtensionBearerSecret` and `chromeExtensionHmacSecret` props
+   * are supplied. Plan 05-01 invariant: Function URL authType=NONE; Bearer
+   * + HMAC pair IS the auth boundary; no replay-cache table (v1 accepts
+   * the risk).
+   */
+  public readonly chromeWebhook?: ChromeWebhookWiring;
   /**
    * Phase 4 Plan 04-02 (CAP-03) — populated only when `enableSesInbound`
    * is explicitly set. Holds the ses-inbound Lambda; the eu-west-1 bucket +
@@ -285,6 +303,21 @@ export class IntegrationsStack extends Stack {
         blobsBucket: props.blobsBucket,
         iosShortcutWebhookSecret: props.iosShortcutWebhookSecret,
         sentryDsnSecret: props.sentryDsnSecret,
+      });
+    }
+
+    // Plan 05-01 (Phase 5 CAP-04): Chrome highlight webhook. Synth gated on
+    // BOTH `chromeExtensionBearerSecret` and `chromeExtensionHmacSecret` —
+    // keeps existing test fixtures green; production CDK app supplies both.
+    // Helper installs the Lambda + Function URL (authType=NONE) + grants.
+    if (props.chromeExtensionBearerSecret && props.chromeExtensionHmacSecret) {
+      this.chromeWebhook = wireChromeWebhook(this, {
+        captureBus: props.captureBus,
+        chromeExtensionBearerSecret: props.chromeExtensionBearerSecret,
+        chromeExtensionHmacSecret: props.chromeExtensionHmacSecret,
+        sentryDsnSecret: props.sentryDsnSecret,
+        langfusePublicKeySecret: props.langfusePublicKeySecret,
+        langfuseSecretKeySecret: props.langfuseSecretKeySecret,
       });
     }
 

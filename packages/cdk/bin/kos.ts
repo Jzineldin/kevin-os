@@ -18,6 +18,7 @@ import { CaptureStack } from '../lib/stacks/capture-stack.js';
 import { AgentsStack } from '../lib/stacks/agents-stack.js';
 import { ObservabilityStack } from '../lib/stacks/observability-stack.js';
 import { DashboardStack } from '../lib/stacks/dashboard-stack.js';
+import { MigrationStack } from '../lib/stacks/integrations-migration.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const transcribeRegion = (() => {
@@ -246,6 +247,31 @@ dashboard.addDependency(network);
 dashboard.addDependency(data);
 dashboard.addDependency(events);
 void dashboard;
+
+// MigrationStack — Phase 10 Plan 10-00 (Migration & Decommission).
+// Provisions the Wave-0 Lambda + Function URL + Scheduler + DynamoDB cursor
+// + KMS-encrypted archive bucket scaffolds. Wave 1+ plans (10-01..10-06)
+// fill in handler bodies; the CDK wiring stays stable across waves.
+const migration = new MigrationStack(app, 'KosMigration', {
+  env,
+  captureBus: events.buses.capture,
+  kevinOwnerId:
+    process.env.KEVIN_OWNER_ID ??
+    (app.node.tryGetContext('kevinOwnerId') as string | undefined) ??
+    '',
+  discordChannelIds: ((): string[] => {
+    const raw =
+      process.env.DISCORD_BRAIN_DUMP_CHANNEL_IDS ??
+      (app.node.tryGetContext('discordBrainDumpChannelIds') as string | undefined) ??
+      '';
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  })(),
+});
+migration.addDependency(events);
+void migration;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

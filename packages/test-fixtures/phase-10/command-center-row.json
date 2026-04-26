@@ -1,0 +1,55 @@
+{
+  "object": "page",
+  "id": "9f2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "created_time": "2026-01-15T07:00:00.000Z",
+  "last_edited_time": "2026-04-25T08:30:00.000Z",
+  "archived": false,
+  "in_trash": false,
+  "parent": {
+    "type": "database_id",
+    "database_id": "2b2b2b2b-2b2b-2b2b-2b2b-2b2b2b2b2b2b"
+  },
+  "properties": {
+    "Name": {
+      "id": "title",
+      "type": "title",
+      "title": [
+        {
+          "type": "text",
+          "text": { "content": "Damien — sprint planning Q2 (migrated row 042/167)" },
+          "plain_text": "Damien — sprint planning Q2 (migrated row 042/167)"
+        }
+      ]
+    },
+    "Status": {
+      "id": "status",
+      "type": "status",
+      "status": { "name": "In progress" }
+    },
+    "Owner": {
+      "id": "owner",
+      "type": "people",
+      "people": []
+    },
+    "Source URL": {
+      "id": "source_url",
+      "type": "url",
+      "url": "notion://kos/legacy-inbox/8e1a2b3c-4d5e-4f6a-9b8c-7d6e5f4a3b2c"
+    },
+    "Migration Marker": {
+      "id": "marker",
+      "type": "rich_text",
+      "rich_text": [
+        {
+          "type": "text",
+          "text": { "content": "[MIGRERAD]" }
+        }
+      ]
+    },
+    "Migration Source": {
+      "id": "mig_source",
+      "type": "select",
+      "select": { "name": "vps-freeze-patched/migrate_command_center" }
+    }
+  }
+}

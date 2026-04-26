@@ -14,5 +14,5 @@
       "@kos/*": ["./node_modules/@kos/*/src/index.ts", "./node_modules/@kos/*"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "../_shared/**/*.ts"]
 }

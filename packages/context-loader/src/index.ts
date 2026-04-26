@@ -14,7 +14,11 @@
  *
  * Reference: .planning/phases/06-granola-semantic-memory/06-05-PLAN.md
  */
-export { loadContext, type LoadContextInput } from './loadContext.js';
+export {
+  loadContext,
+  type LoadContextInput,
+  type ContextBundleWithCalendar,
+} from './loadContext.js';
 export { loadKevinContextBlock, loadKevinContextMarkdown } from './kevin.js';
 export { buildDossierMarkdown } from './markdown.js';
 export {
@@ -23,3 +27,13 @@ export {
   invalidateDossierCache,
   computeLastTouchHash,
 } from './cache.js';
+// Phase 8 Plan 08-01 / D-11 — calendar window helper for the morning brief
+// + per-entity context. Always-exported for downstream consumers (Phase 7
+// + mutation-proposer); the loadContext-level integration is gated on the
+// `includeCalendar` flag.
+export {
+  loadCalendarWindow,
+  formatCalendarMarkdown,
+  type CalendarWindowRow,
+  type CalendarWindowAttendee,
+} from './calendar.js';

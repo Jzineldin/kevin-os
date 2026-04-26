@@ -68,9 +68,12 @@ const ACCOUNTS: readonly GmailAccount[] = [
 
 /**
  * Overlap window. 5 min cron + 6 min query = 1 min overlap to absorb
- * Lambda cold-start drift + Gmail's per-message indexing lag.
+ * Lambda cold-start drift + Gmail's per-message indexing lag. Gmail's
+ * `newer_than` operator only supports day/month/year units (NOT minutes),
+ * so the handler computes a Unix epoch lower bound and passes it via
+ * `after:<sec>` instead.
  */
-const NEWER_THAN = '6m';
+const POLL_LOOKBACK_SECONDS = 6 * 60;
 
 let ebClient: EventBridgeClient | null = null;
 function getEventBridge(): EventBridgeClient {
@@ -114,7 +117,7 @@ async function processAccount(
       const token = await getAccessToken(account);
       const metas = await listNewMessageIds({
         accessToken: token,
-        newerThan: NEWER_THAN,
+        afterEpochSec: Math.floor(Date.now() / 1000) - POLL_LOOKBACK_SECONDS,
       });
       if (metas.length === 0) {
         return { account, fetched: 0, emitted: 0, skipped_duplicates: 0 };

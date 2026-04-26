@@ -44,7 +44,7 @@ describe('listNewMessageIds', () => {
       }),
       text: async () => '',
     });
-    const out = await listNewMessageIds({ accessToken: 'tok', newerThan: '5m' });
+    const out = await listNewMessageIds({ accessToken: 'tok', afterEpochSec: 1714000000 });
     expect(out).toEqual([
       { id: 'm1', threadId: 't1' },
       { id: 'm2', threadId: 't2' },
@@ -53,7 +53,7 @@ describe('listNewMessageIds', () => {
     expect(url.origin + url.pathname).toBe(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages',
     );
-    expect(url.searchParams.get('q')).toBe('newer_than:5m in:inbox -in:chats');
+    expect(url.searchParams.get('q')).toBe('after:1714000000 in:inbox -in:chats');
   });
 
   it('paginates via nextPageToken (caps at 5 pages)', async () => {

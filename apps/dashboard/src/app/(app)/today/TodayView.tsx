@@ -37,6 +37,7 @@ import { DroppedThreads } from './DroppedThreads';
 import { MeetingsSideCard } from './MeetingsSideCard';
 import { Composer } from './Composer';
 import { StatTileStrip } from './StatTileStrip';
+import { PendingProposalsCard } from './PendingProposalsCard';
 import { CapturesList } from './CapturesList';
 
 export function TodayView({ data }: { data: TodayResponse }) {
@@ -89,6 +90,7 @@ export function TodayView({ data }: { data: TodayResponse }) {
         {/* LEFT column (60%) */}
         <section className="flex min-w-0 flex-col gap-6">
           <Brief brief={data.brief} />
+          <PendingProposalsCard />
           <PriorityList priorities={data.priorities} />
           <DraftsCard drafts={data.drafts} />
         </section>

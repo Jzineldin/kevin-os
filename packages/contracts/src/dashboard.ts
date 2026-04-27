@@ -27,21 +27,37 @@ export const UuidSchema = z.string().uuid();
 export const BolagSchema = z.enum(['tale-forge', 'outbehaving', 'personal']);
 export type Bolag = z.infer<typeof BolagSchema>;
 
-export const IsoDateTimeSchema = z.preprocess(
-  // Postgres/pg driver can return TIMESTAMP as a JS Date or as a string
-  // like '2026-04-26 23:15:45.727+00' (::text cast) which is NOT strict
-  // ISO8601. Normalize both to ISO8601 before .datetime() validation.
-  // Also passes already-ISO strings straight through.
-  (v) => {
-    if (v instanceof Date) return v.toISOString();
-    if (typeof v === 'string') {
-      const d = new Date(v);
-      if (!isNaN(d.getTime())) return d.toISOString();
-    }
-    return v;
-  },
-  z.string().datetime(),
-);
+/**
+ * Accepts:
+ *   - strict ISO8601 strings (straight through)
+ *   - pg-driver loose strings like "2026-04-26 23:15:45.727+00" (normalized)
+ *   - JS Date objects from the pg driver (normalized via toISOString)
+ *
+ * Returns: ISO8601 UTC string (Zod output type is `string`).
+ *
+ * History: prior `z.string().datetime()` rejected every postgres timestamp
+ * because the pg driver returns either a Date or a `::text`-cast string
+ * whose shape isn't strict ISO8601. Replacing with a plain z.string()
+ * transform keeps the output type as `string` (important — ZodEffects /
+ * ZodPipeline broke `z.infer` for several consumers).
+ */
+export const IsoDateTimeSchema = z.string().transform((s, ctx) => {
+  // Strict-ISO fast path.
+  if (
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/.test(s)
+  ) {
+    return s;
+  }
+  const d = new Date(s);
+  if (isNaN(d.getTime())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Not a parseable datetime: ${s}`,
+    });
+    return z.NEVER;
+  }
+  return d.toISOString();
+});
 
 // -- Today view (GET /today) — RESEARCH §9 -------------------------------
 

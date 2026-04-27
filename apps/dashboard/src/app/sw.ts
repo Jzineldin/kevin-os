@@ -35,7 +35,7 @@
  */
 import { defaultCache } from '@serwist/turbopack/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
-import { Serwist, StaleWhileRevalidate } from 'serwist';
+import { Serwist, StaleWhileRevalidate, NetworkFirst } from 'serwist';
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -60,23 +60,31 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    // Today view — HTML navigation request. 24h stale-while-revalidate per
-    // D-31. Matches both `/` (default landing) and `/today` so the home
-    // screen install from either URL benefits.
+    // Today view — HTML navigation request. NetworkFirst (not
+    // StaleWhileRevalidate) so Kevin always gets the latest brief /
+    // priorities / proposals. Falls back to cache offline. Prior SWR
+    // caused the 'I deployed 5 times but browser shows old UI' bug
+    // where Vercel had the fix but SW served yesterday's HTML for
+    // minutes at a time.
+    // cacheName bumped to v2 so existing installs drop the SWR cache
+    // on first hit after deploy.
     {
       matcher: ({ request, url }: { request: Request; url: URL }) =>
         request.mode === 'navigate' &&
         (url.pathname === '/' || url.pathname === '/today'),
-      handler: new StaleWhileRevalidate({
-        cacheName: 'today-html',
+      handler: new NetworkFirst({
+        cacheName: 'today-html-v2',
+        networkTimeoutSeconds: 3,
         plugins: [only200],
       }),
     },
-    // /api/today JSON — StaleWhileRevalidate for instant offline bootstrap.
+    // /api/today JSON — NetworkFirst so we don't show yesterday's brief
+    // when today's has generated. Same reason as the HTML handler.
     {
       matcher: ({ url }: { url: URL }) => url.pathname === '/api/today',
-      handler: new StaleWhileRevalidate({
-        cacheName: 'today-api',
+      handler: new NetworkFirst({
+        cacheName: 'today-api-v2',
+        networkTimeoutSeconds: 3,
         plugins: [only200],
       }),
     },

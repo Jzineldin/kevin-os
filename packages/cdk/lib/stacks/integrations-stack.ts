@@ -657,6 +657,7 @@ export class IntegrationsStack extends Stack {
         rdsProxyDbiResourceId: props.rdsProxyDbiResourceId,
         notionTokenSecret: props.notionTokenSecret,
         azureSearchAdminSecret: props.azureSearchAdminSecret,
+        kevinOwnerId: props.kevinOwnerId ?? '',
         telegramCapTable: props.telegramCapTable,
         alarmTopic: props.alarmTopic,
         captureBus: props.captureBus,

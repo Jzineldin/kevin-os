@@ -55,6 +55,14 @@ export interface WireLifecycleAutomationProps {
   rdsProxyDbiResourceId: string;
   notionTokenSecret: ISecret;
   azureSearchAdminSecret: ISecret;
+  /**
+   * Canonical KEVIN_OWNER_ID for the 4 brief Lambdas. MUST match the owner
+   * UUID used by every other service (dashboard-api, triage, gmail-poller,
+   * etc.) or the briefs will be written under a ghost owner and the
+   * dashboard won't surface them. Previously hardcoded to a stale UUID here
+   * — fixed 2026-04-27.
+   */
+  kevinOwnerId: string;
   /** SafetyStack DynamoDB cap table — verify-notification-cap reads it. */
   telegramCapTable: ITable;
   /** SafetyStack SNS topic — verify-notification-cap publishes violations. */
@@ -104,7 +112,7 @@ export function wireLifecycleAutomation(
     RDS_PROXY_ENDPOINT: props.rdsProxyEndpoint,
     RDS_IAM_USER: 'kos_admin',
     RDS_DATABASE: 'kos',
-    KEVIN_OWNER_ID: '9e4be978-cc7d-571b-98ec-a1e92373682c',
+    KEVIN_OWNER_ID: props.kevinOwnerId,
     NOTION_TOKEN_SECRET_ARN: props.notionTokenSecret.secretArn,
     AZURE_SEARCH_ADMIN_SECRET_ARN: props.azureSearchAdminSecret.secretArn,
     OUTPUT_BUS_NAME: props.outputBus.eventBusName,

@@ -1,0 +1,11 @@
+{
+  "name": "kos-entity-enrich-backfill",
+  "type": "module",
+  "private": true,
+  "description": "One-shot entity metadata enrichment — see README.md",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
+    "pg": "^8.13.1",
+    "@anthropic-ai/bedrock-sdk": "^0.28.1"
+  }
+}

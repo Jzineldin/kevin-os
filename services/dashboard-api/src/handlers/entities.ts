@@ -135,10 +135,30 @@ async function entitiesGetHandler(ctx: Ctx): Promise<RouteResponse> {
         ? firstContactRaw
         : null;
 
+  // ai_block: prefer the cached Sonnet-4.6 synthesis written by
+  // /entities/:id/synthesize (Phase 11 Plan 11-04 C). Fall back to the
+  // raw seed_context, then to the generic placeholder.
+  const cachedSynth = (await db.execute(sql`
+    SELECT bundle, created_at::text AS created_at
+    FROM entity_dossiers_cached
+    WHERE owner_id = ${OWNER_ID}
+      AND entity_id = ${idParam}::uuid
+      AND expires_at > now()
+    LIMIT 1
+  `)) as unknown as {
+    rows: Array<{ bundle: Record<string, unknown>; created_at: string }>;
+  };
+  const cachedSynthesisBody =
+    cachedSynth.rows[0]?.bundle &&
+    typeof (cachedSynth.rows[0].bundle as { synthesis?: unknown }).synthesis === 'string'
+      ? ((cachedSynth.rows[0].bundle as { synthesis: string }).synthesis)
+      : null;
+  const cachedSynthesisAt = cachedSynth.rows[0]?.created_at ?? null;
   const aiBody =
-    row.seedContext && row.seedContext.trim().length > 0
+    cachedSynthesisBody ??
+    (row.seedContext && row.seedContext.trim().length > 0
       ? row.seedContext.trim()
-      : 'Based on last known summary · Full AI context coming soon';
+      : 'Based on last known summary · Full AI context coming soon');
 
   // Phase 3 entity type is loose; coerce to contract enum or fall through.
   const allowedTypes = new Set(['Person', 'Project', 'Company', 'Document']);
@@ -163,7 +183,7 @@ async function entitiesGetHandler(ctx: Ctx): Promise<RouteResponse> {
       total_mentions: stats0?.total_mentions ?? 0,
       active_threads: active0?.n ?? 0,
     },
-    ai_block: { body: aiBody, cached_at: null },
+    ai_block: { body: aiBody, cached_at: cachedSynthesisAt },
   });
 
   return {

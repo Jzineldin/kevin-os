@@ -53,6 +53,15 @@ export interface AgentsStackProps extends StackProps {
   azureSearchAdminSecret?: ISecret;
   /** Optional override; defaults to 'kos-memory-v2' (matches integrations-azure-indexers default). */
   azureSearchIndexName?: string;
+  /**
+   * Phase 11 Plan 11-04 part B — voice-to-chat routing.
+   * When both are set, voice-capture can HTTP-POST question-shaped
+   * transcripts to the Vercel /api/chat proxy and reply via kos.output
+   * instead of writing a Notion task. Both optional — when absent the
+   * routing silently disables (voice memos flow as captures as before).
+   */
+  kosChatEndpoint?: string;
+  kosDashboardBearerSecret?: ISecret;
 }
 
 export class AgentsStack extends Stack {

@@ -207,6 +207,64 @@ export async function toolSearchEntities(args: SearchEntitiesArgs): Promise<{
   return { results: r.rows };
 }
 
+// --- Tool: search_emails ---------------------------------------------------
+
+export interface SearchEmailsArgs {
+  query: string;
+  from?: string;
+  limit?: number;
+}
+
+export async function toolSearchEmails(args: SearchEmailsArgs): Promise<{
+  results: Array<{
+    id: string;
+    from_email: string;
+    subject: string;
+    received_at: string;
+    classification: string | null;
+    preview: string | null;
+  }>;
+}> {
+  const db = await getDb();
+  const limit = Math.max(1, Math.min(10, args.limit ?? 5));
+  const q = `%${args.query.toLowerCase()}%`;
+  const fromQ = args.from ? `%${args.from.toLowerCase()}%` : null;
+  // Full-text-ish: match against subject, from_email, body_preview,
+  // body_plain. Order by received_at DESC so the most recent hit wins.
+  // body_plain may be NULL on legacy pre-2026-04-27 rows; COALESCE to
+  // '' so they still match on subject alone.
+  const r = (await db.execute(sql`
+    SELECT
+      id::text AS id,
+      from_email,
+      COALESCE(subject, '(no subject)') AS subject,
+      received_at::text AS received_at,
+      classification,
+      COALESCE(body_preview, LEFT(body_plain, 300), '(body not captured)') AS preview
+    FROM email_drafts
+    WHERE owner_id = ${OWNER_ID}
+      AND (
+        lower(COALESCE(subject, '')) LIKE ${q}
+        OR lower(COALESCE(body_preview, '')) LIKE ${q}
+        OR lower(COALESCE(body_plain, '')) LIKE ${q}
+        OR lower(from_email) LIKE ${q}
+      )
+      ${fromQ ? sql`AND lower(from_email) LIKE ${fromQ}` : sql``}
+    ORDER BY received_at DESC
+    LIMIT ${limit}
+  `)) as unknown as {
+    rows: Array<{
+      id: string;
+      from_email: string;
+      subject: string;
+      received_at: string;
+      classification: string | null;
+      preview: string | null;
+    }>;
+  };
+  return { results: r.rows };
+}
+
 // --- Tool: list_open_tasks --------------------------------------------------
 
 export async function toolListOpenTasks(): Promise<{
@@ -477,6 +535,28 @@ export const TOOL_DEFS = [
       required: ['query'],
     },
   },
+  {
+    name: 'search_emails',
+    description:
+      "Search Kevin's email history by text match against subject, body, sender, and preview. Use when Kevin asks about a specific email thread, what someone wrote, or to summarise a past exchange. Results are ordered most-recent-first. Optionally filter by sender email.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            "Substring to match across subject + body + sender. Example: 'convertible loan' or 'Almi' or 'vesting'.",
+        },
+        from: {
+          type: 'string',
+          description:
+            "Optional: narrow to emails where from_email CONTAINS this substring. Example: 'damien' or 'almi.se'.",
+        },
+        limit: { type: 'number', description: 'Default 5, max 10.' },
+      },
+      required: ['query'],
+    },
+  },
 ];
 
 export type ToolName =
@@ -484,7 +564,8 @@ export type ToolName =
   | 'update_task_priority'
   | 'update_task_status'
   | 'add_task'
-  | 'search_entities';
+  | 'search_entities'
+  | 'search_emails';
 
 export async function dispatchTool(name: string, input: unknown): Promise<unknown> {
   try {
@@ -499,6 +580,8 @@ export async function dispatchTool(name: string, input: unknown): Promise<unknow
         return await toolAddTask(input as AddTaskArgs);
       case 'search_entities':
         return await toolSearchEntities(input as SearchEntitiesArgs);
+      case 'search_emails':
+        return await toolSearchEmails(input as SearchEmailsArgs);
       default:
         return { ok: false, error: `Unknown tool: ${name}` };
     }

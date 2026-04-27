@@ -225,6 +225,13 @@ const agents = new AgentsStack(app, 'KosAgents', {
   // Phase 6 AGT-04 gap closure (Plan 06-07): all 4 agent Lambdas now inject
   // hybridQuery via loadContext, which reads this secret + Azure index name.
   azureSearchAdminSecret: data.azureSearchAdminSecret,
+  // Phase 11 Plan 11-04 part B: voice-to-chat routing. Voice-capture
+  // HTTP-POSTs question-shaped transcripts to Vercel /api/chat.
+  kosChatEndpoint:
+    process.env.KOS_CHAT_ENDPOINT ??
+    (app.node.tryGetContext('kosChatEndpoint') as string | undefined) ??
+    'https://kos-dashboard-navy.vercel.app/api/chat',
+  kosDashboardBearerSecret: data.dashboardBearerSecret,
 });
 agents.addDependency(data);
 agents.addDependency(events);

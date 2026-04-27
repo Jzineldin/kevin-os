@@ -36,6 +36,8 @@ describe('CaptureStack', () => {
     captureBus: events.buses.capture,
     systemBus: events.buses.system,
     kevinTelegramUserId: '111222333',
+    kosChatEndpoint: 'https://kos-dashboard-navy.vercel.app/api/chat',
+    kosDashboardBearerSecret: data.dashboardBearerSecret,
   });
   const tpl = Template.fromStack(capture);
 

@@ -109,6 +109,15 @@ export interface AgentsWiringProps {
    */
   gmailOauthSecret?: ISecret;
   /**
+   * Phase 11 Plan 11-04 part B: voice-to-chat routing needs the Vercel
+   * /api/chat URL + the dashboard bearer so voice-capture can route
+   * question-shaped transcripts to the chat backend instead of Notion.
+   * Both optional — if either is absent, routing is disabled and voice
+   * memos always flow as captures (safe default).
+   */
+  kosChatEndpoint?: string;
+  kosDashboardBearerSecret?: ISecret;
+  /**
    * Phase 6 AGT-04 gap closure (Plan 06-07): each agent Lambda calls
    * loadContext({ azureSearch: hybridQuery }) which reads
    * AZURE_SEARCH_ADMIN_SECRET_ARN at cold start. Optional so existing test
@@ -293,6 +302,15 @@ export function wireTriageAndVoiceCapture(scope: Construct, p: AgentsWiringProps
       LANGFUSE_PUBLIC_KEY_SECRET_ARN: p.langfusePublicSecret.secretArn,
       LANGFUSE_SECRET_KEY_SECRET_ARN: p.langfuseSecretSecret.secretArn,
       CLAUDE_CODE_USE_BEDROCK: '1',
+      // Phase 11 Plan 11-04 part B: voice-to-chat routing. If the
+      // transcribed voice memo reads like a question, voice-capture
+      // HTTP-POSTs it to the Vercel /api/chat proxy and replies via
+      // kos.output instead of writing a Notion task. Same env vars
+      // as telegram-bot's /ask command.
+      KOS_CHAT_ENDPOINT: p.kosChatEndpoint ?? 'https://kos-dashboard-navy.vercel.app/api/chat',
+      KOS_DASHBOARD_BEARER_TOKEN: p.kosDashboardBearerSecret
+        ? p.kosDashboardBearerSecret.secretValue.unsafeUnwrap()
+        : '',
       // Phase 6 AGT-04 gap closure (Plan 06-07): see triage block.
       ...(p.azureSearchAdminSecret
         ? {

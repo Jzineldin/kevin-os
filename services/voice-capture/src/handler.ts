@@ -28,6 +28,11 @@ import {
   flush as langfuseFlush,
   tagTraceWithCaptureId,
 } from '../../_shared/tracing.js';
+import {
+  isChatQuestion,
+  stripGreetingPrefix,
+  invokeChat,
+} from './chat-route.js';
 import { runVoiceCaptureAgent } from './agent.js';
 import {
   findPriorOkRun,
@@ -70,6 +75,62 @@ export const handler = wrapHandler(async (event: EBEvent) => {
 
     // Cross-agent correlation: Langfuse session.id = capture_id (D-25).
     tagTraceWithCaptureId(d.capture_id);
+
+    // Phase 11 Plan 11-04 part B: voice-to-chat routing. If the transcript
+    // reads like a question to KOS ("hej kos vem är Robin?", "what did
+    // Damien email about?"), skip the Notion/Command Center write and
+    // route to the /chat backend instead. Reply via kos.output like
+    // normal voice-capture, just with the answer as body.
+    if (d.telegram && isChatQuestion({ text: d.source_text })) {
+      const runId = await insertAgentRun({
+        ownerId,
+        captureId: d.capture_id,
+        agentName: 'voice-capture:chat',
+        status: 'started',
+      });
+      try {
+        const query = stripGreetingPrefix(d.source_text);
+        const { answer } = await invokeChat(query);
+        const body = (answer || '(tomt svar — försök igen)').slice(0, 4000);
+        await eb.send(
+          new PutEventsCommand({
+            Entries: [
+              {
+                EventBusName: 'kos.output',
+                Source: 'kos.output',
+                DetailType: 'output.push',
+                Detail: JSON.stringify({
+                  capture_id: d.capture_id,
+                  is_reply: true,
+                  body,
+                  telegram: {
+                    chat_id: d.telegram.chat_id,
+                    reply_to_message_id: d.telegram.message_id,
+                  },
+                }),
+              },
+            ],
+          }),
+        );
+        await updateAgentRun(runId, {
+          status: 'ok',
+          outputJson: {
+            routed_to: 'chat',
+            answer_length: body.length,
+            original_text_length: d.source_text.length,
+          },
+        });
+        return { routed_to_chat: d.capture_id };
+      } catch (err) {
+        await updateAgentRun(runId, {
+          status: 'error',
+          errorMessage: String((err as Error).message).slice(0, 400),
+        });
+        // Fall through to normal capture flow on chat failure — losing
+        // a capture is worse than doubling up.
+        console.warn('[voice-capture] chat route failed, falling through to capture:', err);
+      }
+    }
 
     const runId = await insertAgentRun({
       ownerId,

@@ -39,6 +39,9 @@ import './routes/email-drafts.js';
 import './routes/inbox.js';
 // Phase 11 Plan 11-01: POST /chat (grounded AI conversational surface).
 import './routes/chat.js';
+// Phase 11 Plan 11-04 C: POST /entities/:id/synthesize (on-demand Sonnet 4.6
+// dossier synthesis written into entity_dossiers_cached).
+import './routes/entity-synthesize.js';
 
 /**
  * Constant-time string compare — prevents timing oracles on the shared

@@ -62,10 +62,18 @@ export async function assertNoSeedPollution(): Promise<void> {
     throw new Error('[dashboard-api] seed pollution detected — refusing to serve');
   }
   const db = await getDb();
+  // NOTE: drizzle's `sql` template tag binds array JS parameters as a
+  // record/tuple, not a text[] — so `${[...NAMES]}::text[]` fails with
+  // `cannot cast type record to text[]` (Postgres code 42846). Use `IN`
+  // with sql.join over a per-element placeholder list instead, which
+  // generates `title IN ($2, $3, ...)` and is natively supported.
   const r = (await db.execute(sql`
     SELECT 1 FROM inbox_index
     WHERE owner_id = ${OWNER_ID}::uuid
-      AND title = ANY(${[...SEED_NAMES]}::text[])
+      AND title IN (${sql.join(
+        SEED_NAMES.map((n) => sql`${n}`),
+        sql`, `,
+      )})
     LIMIT 1
   `)) as unknown as { rows: unknown[] };
   if (r.rows.length > 0) {

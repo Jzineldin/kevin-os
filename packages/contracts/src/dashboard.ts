@@ -27,7 +27,21 @@ export const UuidSchema = z.string().uuid();
 export const BolagSchema = z.enum(['tale-forge', 'outbehaving', 'personal']);
 export type Bolag = z.infer<typeof BolagSchema>;
 
-export const IsoDateTimeSchema = z.string().datetime();
+export const IsoDateTimeSchema = z.preprocess(
+  // Postgres/pg driver can return TIMESTAMP as a JS Date or as a string
+  // like '2026-04-26 23:15:45.727+00' (::text cast) which is NOT strict
+  // ISO8601. Normalize both to ISO8601 before .datetime() validation.
+  // Also passes already-ISO strings straight through.
+  (v) => {
+    if (v instanceof Date) return v.toISOString();
+    if (typeof v === 'string') {
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+    return v;
+  },
+  z.string().datetime(),
+);
 
 // -- Today view (GET /today) — RESEARCH §9 -------------------------------
 

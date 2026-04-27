@@ -153,40 +153,125 @@ async function loadAgentRunsAggregate(): Promise<Map<string, AggRow>> {
   return map;
 }
 
-function loadChannels(agg: Map<string, AggRow>): ChannelHealthItem[] {
+/**
+ * Fallback data-source freshness for each channel.
+ *
+ * Most pollers (gmail, calendar, notion, etc.) don't write to `agent_runs` on
+ * every run, so `loadAgentRunsAggregate` reports `last_event_at=null` and the
+ * channel shows "down" even though data is flowing. To make the health panel
+ * reflect reality, we supplement agent_runs with a MAX(timestamp) query on
+ * the actual source tables — whichever is more recent wins.
+ */
+async function loadDataSourceFreshness(): Promise<
+  Record<string, string | null>
+> {
+  const db = await getDb();
+  const r = (await db.execute(sql`
+    SELECT
+      (SELECT MAX(received_at)::text FROM email_drafts
+         WHERE owner_id = ${OWNER_ID})                       AS gmail_last,
+      (SELECT MAX(cached_at)::text FROM calendar_events_cache
+         WHERE owner_id = ${OWNER_ID})                       AS calendar_last,
+      (SELECT MAX(occurred_at)::text FROM event_log
+         WHERE owner_id = ${OWNER_ID}
+           AND actor = 'notion-indexer')                      AS notion_last,
+      (SELECT MAX(occurred_at)::text FROM event_log
+         WHERE owner_id = ${OWNER_ID}
+           AND actor IN ('telegram-bot','voice-capture'))     AS telegram_last,
+      (SELECT MAX(occurred_at)::text FROM event_log
+         WHERE owner_id = ${OWNER_ID}
+           AND actor = 'granola-poller')                      AS granola_last,
+      (SELECT MAX(occurred_at)::text FROM event_log
+         WHERE owner_id = ${OWNER_ID}
+           AND actor = 'chrome-webhook')                      AS chrome_last,
+      (SELECT MAX(occurred_at)::text FROM event_log
+         WHERE owner_id = ${OWNER_ID}
+           AND actor = 'linkedin-webhook')                    AS linkedin_last
+  `)) as unknown as {
+    rows: Array<{
+      gmail_last: string | null;
+      calendar_last: string | null;
+      notion_last: string | null;
+      telegram_last: string | null;
+      granola_last: string | null;
+      chrome_last: string | null;
+      linkedin_last: string | null;
+    }>;
+  };
+  const row: {
+    gmail_last?: string | null;
+    calendar_last?: string | null;
+    notion_last?: string | null;
+    telegram_last?: string | null;
+    granola_last?: string | null;
+    chrome_last?: string | null;
+    linkedin_last?: string | null;
+  } = r.rows[0] ?? {};
+  return {
+    'gmail-poller': row.gmail_last ?? null,
+    'calendar-reader': row.calendar_last ?? null,
+    'notion-indexer': row.notion_last ?? null,
+    'telegram-bot': row.telegram_last ?? null,
+    'granola-poller': row.granola_last ?? null,
+    'chrome-webhook': row.chrome_last ?? null,
+    'linkedin-webhook': row.linkedin_last ?? null,
+  };
+}
+
+function pickMostRecent(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return new Date(a).getTime() > new Date(b).getTime() ? a : b;
+}
+
+function loadChannels(
+  agg: Map<string, AggRow>,
+  freshness: Record<string, string | null>,
+): ChannelHealthItem[] {
   return CHANNEL_SPEC.map((spec) => {
     const a = agg.get(spec.agent_name);
-    const last_ok = a?.last_ok ?? null;
+    // Channel is "up" if EITHER agent_runs logged a success OR the underlying
+    // data source has a fresh write. Most pollers don't log to agent_runs on
+    // every cycle so the data-source signal is what usually carries.
+    const last_event_at = pickMostRecent(
+      a?.last_ok ?? null,
+      freshness[spec.agent_name] ?? null,
+    );
     return ChannelHealthItemSchema.parse({
       name: spec.name,
       type: 'capture',
-      status: classifyChannel(last_ok, spec.max_age_min),
-      last_event_at: last_ok,
+      status: classifyChannel(last_event_at, spec.max_age_min),
+      last_event_at,
     });
   });
 }
 
-function loadSchedulers(agg: Map<string, AggRow>): SchedulerHealthItem[] {
+function loadSchedulers(
+  agg: Map<string, AggRow>,
+  freshness: Record<string, string | null>,
+): SchedulerHealthItem[] {
   return SCHEDULER_SPEC.map((spec) => {
     const a = agg.get(spec.agent_name);
+    const last_any = pickMostRecent(
+      a?.last_any ?? null,
+      freshness[spec.agent_name] ?? null,
+    );
     return SchedulerHealthItemSchema.parse({
       name: spec.name,
-      // Surfaces the most-recent run regardless of success — Kevin needs
-      // to know whether the cron *fired*, not just whether it succeeded.
-      last_run_at: a?.last_any ?? null,
-      // EventBridge Scheduler NextInvocationTime requires a per-job
-      // GetSchedule call that we don't make here. Future polish plan:
-      // batch GetSchedule on cold-start, cache 60s.
+      last_run_at: last_any,
       next_run_at: null,
-      last_status: a?.last_status ?? null,
+      last_status: a?.last_status ?? (last_any ? 'ok' : null),
     });
   });
 }
 
 async function integrationsHealthHandler(_ctx: Ctx): Promise<RouteResponse> {
-  const agg = await loadAgentRunsAggregate();
-  const channels = loadChannels(agg);
-  const schedulers = loadSchedulers(agg);
+  const [agg, freshness] = await Promise.all([
+    loadAgentRunsAggregate(),
+    loadDataSourceFreshness(),
+  ]);
+  const channels = loadChannels(agg, freshness);
+  const schedulers = loadSchedulers(agg, freshness);
   const payload = IntegrationsHealthResponseSchema.parse({
     channels,
     schedulers,

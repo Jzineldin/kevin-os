@@ -56,22 +56,47 @@ async function loadBrief(): Promise<TodayBrief> {
   const pageId = process.env.NOTION_TODAY_PAGE_ID;
   if (!pageId) return null;
   try {
-    const page = (await getNotion().pages.retrieve({ page_id: pageId })) as {
-      last_edited_time?: string;
-      properties?: Record<string, unknown>;
-    };
-    const props = page.properties ?? {};
-    const briefProp = (props as Record<string, { rich_text?: Array<{ plain_text?: string }> }>)[
-      'Brief'
-    ];
-    const body = (briefProp?.rich_text ?? [])
-      .map((r) => r.plain_text ?? '')
-      .join('')
-      .trim();
+    // The brief is stored as BLOCKS (heading + paragraph + numbered_list)
+    // by morning-brief/day-close, NOT as a rich_text property. Iterate the
+    // page children and assemble a plaintext body. Schema verified via
+    // Notion API 2026-04-27.
+    const [page, children] = await Promise.all([
+      getNotion().pages.retrieve({ page_id: pageId }) as Promise<{
+        last_edited_time?: string;
+      }>,
+      getNotion().blocks.children.list({ block_id: pageId, page_size: 50 }),
+    ]);
+    const lines: string[] = [];
+    for (const b of children.results as Array<{
+      type: string;
+      [k: string]: unknown;
+    }>) {
+      const richContainer = b[b.type] as
+        | { rich_text?: Array<{ plain_text?: string }> }
+        | undefined;
+      const text = (richContainer?.rich_text ?? [])
+        .map((r) => r.plain_text ?? '')
+        .join('')
+        .trim();
+      if (!text) continue;
+      if (b.type === 'heading_1' || b.type === 'heading_2') {
+        lines.push(`\n${text}\n`);
+      } else if (b.type === 'numbered_list_item') {
+        lines.push(`• ${text}`);
+      } else if (b.type === 'bulleted_list_item') {
+        lines.push(`• ${text}`);
+      } else {
+        lines.push(text);
+      }
+    }
+    const body = lines.join('\n').trim();
     if (!body) return null;
-    return { body, generated_at: page.last_edited_time ?? new Date().toISOString() };
+    return {
+      body,
+      generated_at: page.last_edited_time ?? new Date().toISOString(),
+    };
   } catch {
-    // Pre-Phase-7 or Notion unavailable — UI renders D-05 placeholder.
+    // Notion unreachable or page missing — UI renders D-05 placeholder.
     return null;
   }
 }

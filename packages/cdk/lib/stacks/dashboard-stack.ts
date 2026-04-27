@@ -129,7 +129,6 @@ export class DashboardStack extends Stack {
         'Bearer token for Vercel cookie auth (D-19); populated post-deploy.',
       removalPolicy: RemovalPolicy.DESTROY,
     });
-    void bearerSecret;
 
     const sentrySecret = new Secret(this, 'SentryDsnDashboardSecret', {
       secretName: 'kos/sentry-dsn-dashboard',
@@ -174,6 +173,14 @@ export class DashboardStack extends Stack {
         NOTION_COMMAND_CENTER_DB_ID: props.notionCommandCenterDbId,
         KOS_CAPTURE_BUS: 'kos.capture',
         KOS_OUTPUT_BUS: props.outputBus.eventBusName,
+        // Phase 11 D-19: Vercel sends Bearer <kos_session> cookie value on
+        // every cross-Origin call, and dashboard-api checks it against this
+        // env. Inject at deploy time (same unsafeUnwrap pattern as
+        // NOTION_TOKEN) so the Lambda doesn't need SecretsManager access at
+        // runtime. Previously this was missing from CDK wiring and had to be
+        // hotfixed via `update-function-configuration` after every CDK
+        // deploy — now permanent.
+        KOS_DASHBOARD_BEARER_TOKEN: bearerSecret.secretValue.unsafeUnwrap(),
       },
     });
 

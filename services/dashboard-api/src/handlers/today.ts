@@ -88,27 +88,52 @@ async function loadPriorities(): Promise<
   const cmdCenterDb = process.env.NOTION_COMMAND_CENTER_DB_ID;
   if (!cmdCenterDb) return [];
   try {
+    // Kevin's Command Center uses Swedish schema (verified via Notion API
+    // 2026-04-27):
+    //   title property    = 'Uppgift'
+    //   priority property = 'Prioritet' (select: 🔴 Hög / 🟡 Medel / 🟢 Låg)
+    //   status property   = 'Status' (select: 📥 Inbox / 🔥 Idag / 🔨 Pågår
+    //                                / ✅ Klart / ⏳ Väntar / ❌ Skippat)
+    //   bolag property    = 'Bolag' (select: Tale Forge / Outbehaving /
+    //                                Personal / Other)
+    // We surface tasks that are NOT Klart/Skippat and have a Prioritet set.
+    // Ordering: Hög > Medel > Låg > none. Notion can't sort emoji selects
+    // meaningfully, so we fetch up to 25 unfiltered-by-prio and rank in JS.
     const res = await getNotion().databases.query({
       database_id: cmdCenterDb,
       filter: {
         and: [
           {
-            property: 'Prio',
-            select: { does_not_equal: '' },
+            property: 'Status',
+            select: { does_not_equal: '✅ Klart' },
           },
-          { property: 'Status', status: { does_not_equal: 'Done' } },
+          {
+            property: 'Status',
+            select: { does_not_equal: '❌ Skippat' },
+          },
+          {
+            property: 'Prioritet',
+            select: { is_not_empty: true },
+          },
         ],
       },
-      sorts: [{ property: 'Prio', direction: 'ascending' }],
-      page_size: 3,
+      page_size: 25,
     });
-    return (res.results as Array<{ id: string; properties: Record<string, unknown> }>)
+    const prioRank = (name: string | null): number => {
+      if (!name) return 99;
+      if (name.includes('Hög')) return 0;
+      if (name.includes('Medel')) return 1;
+      if (name.includes('Låg')) return 2;
+      return 99;
+    };
+    const mapped = (res.results as Array<{ id: string; properties: Record<string, unknown> }>)
       .map((p) => {
         const props = p.properties as Record<string, unknown>;
-        const titleProp = props['Name'] as
+        const titleProp = props['Uppgift'] as
           | { title?: Array<{ plain_text?: string }> }
           | undefined;
         const bolagProp = props['Bolag'] as { select?: { name?: string } } | undefined;
+        const prioProp = props['Prioritet'] as { select?: { name?: string } } | undefined;
         const title = (titleProp?.title ?? [])
           .map((t) => t.plain_text ?? '')
           .join('')
@@ -122,9 +147,22 @@ async function loadPriorities(): Promise<
               : rawBolag === 'personal'
                 ? ('personal' as const)
                 : null;
-        return { id: p.id, title, bolag, entity_id: null, entity_name: null };
+        return {
+          id: p.id,
+          title,
+          bolag,
+          entity_id: null,
+          entity_name: null,
+          _prio: prioRank(prioProp?.select?.name ?? null),
+        };
       })
       .filter((r) => r.title.length > 0);
+    mapped.sort((a, b) => a._prio - b._prio);
+    return mapped.slice(0, 3).map((r) => {
+      const { _prio: _, ...rest } = r;
+      void _;
+      return rest;
+    });
   } catch {
     return [];
   }
@@ -262,6 +300,17 @@ async function loadCapturesToday(db: NodePgDatabase): Promise<TodayCaptureItem[]
            occurred_at::text AS at
       FROM event_log, today_window
       WHERE owner_id = ${OWNER_ID}::uuid AND occurred_at >= d_start
+        -- Filter out indexer heartbeat noise. notion-indexed-other is
+        -- emitted by notion-indexer every 5 min for every command_center
+        -- page it sees and completely drowns out real captures. Same for
+        -- other internal signal events that are not user-visible captures.
+        AND kind NOT IN (
+          'notion-indexed-other',
+          'notion-write-confirmed',
+          'capture.received',
+          'agent-run-started',
+          'agent-run-finished'
+        )
     UNION ALL
     SELECT 'inbox' AS source,
            id::text,
@@ -409,16 +458,64 @@ async function loadTodayChannels(db: NodePgDatabase): Promise<ChannelItem[]> {
   });
 }
 
+async function loadMeetings(db: NodePgDatabase): Promise<
+  Array<{
+    id: string;
+    start_at: string;
+    end_at: string;
+    title: string;
+    is_now: boolean;
+    bolag: 'tale-forge' | 'outbehaving' | 'personal' | null;
+  }>
+> {
+  // Today's meetings (Europe/Stockholm day boundaries).
+  const r = (await db.execute(sql`
+    WITH today_window AS (
+      SELECT
+        date_trunc('day', now() AT TIME ZONE 'Europe/Stockholm')
+          AT TIME ZONE 'Europe/Stockholm' AS d_start,
+        (date_trunc('day', now() AT TIME ZONE 'Europe/Stockholm')
+          + interval '1 day') AT TIME ZONE 'Europe/Stockholm' AS d_end
+    )
+    SELECT event_id::text AS id,
+           start_utc::text AS start_at,
+           end_utc::text AS end_at,
+           COALESCE(summary, '(no title)') AS title,
+           (now() BETWEEN start_utc AND end_utc) AS is_now
+      FROM calendar_events_cache, today_window
+      WHERE owner_id = ${OWNER_ID}::uuid
+        AND start_utc >= d_start
+        AND start_utc < d_end
+        AND ignored_by_kevin = false
+      ORDER BY start_utc ASC
+      LIMIT 10
+  `)) as unknown as {
+    rows: Array<{
+      id: string;
+      start_at: string;
+      end_at: string;
+      title: string;
+      is_now: boolean;
+    }>;
+  };
+  return r.rows.map((row) => ({
+    ...row,
+    bolag: null,
+  }));
+}
+
 async function todayHandler(_ctx: Ctx): Promise<RouteResponse> {
   const db = await getDb();
-  const [brief, priorities, drafts, dropped, captures, channels] = await Promise.all([
-    loadBrief(),
-    loadPriorities(),
-    loadDrafts(),
-    loadDropped(),
-    loadCapturesToday(db),
-    loadTodayChannels(db),
-  ]);
+  const [brief, priorities, drafts, dropped, meetings, captures, channels] =
+    await Promise.all([
+      loadBrief(),
+      loadPriorities(),
+      loadDrafts(),
+      loadDropped(),
+      loadMeetings(db),
+      loadCapturesToday(db),
+      loadTodayChannels(db),
+    ]);
   // stat_tiles needs the captures count, so it runs after the parallel block.
   const stat_tiles = await loadStatTiles(db, captures.length);
 
@@ -427,7 +524,7 @@ async function todayHandler(_ctx: Ctx): Promise<RouteResponse> {
     priorities,
     drafts,
     dropped,
-    meetings: [],
+    meetings,
     captures_today: captures,
     stat_tiles,
     channels,

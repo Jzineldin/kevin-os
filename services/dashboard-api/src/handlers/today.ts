@@ -352,6 +352,10 @@ async function loadCapturesToday(db: NodePgDatabase): Promise<TodayCaptureItem[]
            queued_at::text AS at
       FROM telegram_inbox_queue, today_window
       WHERE owner_id = ${OWNER_ID}::uuid AND queued_at >= d_start
+        -- Phase 11 polish: filter cap-exceeded rows from the /today inbox
+        -- preview. They're diagnostic ("brief hit 3/day cap"), not user-
+        -- actionable captures. Still reachable via /integrations-health.
+        AND reason != 'cap-exceeded'
     ORDER BY at DESC
     LIMIT 100
   `)) as unknown as {

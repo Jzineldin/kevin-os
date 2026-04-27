@@ -35,9 +35,11 @@
  */
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { EmailApprovedSchema } from '@kos/contracts';
 import { register, type Ctx, type RouteResponse } from '../router.js';
 import { getDb } from '../db.js';
+import { OWNER_ID } from '../owner-scoped.js';
 import { publishApproveGateEvent } from '../events.js';
 import {
   loadDraftById,
@@ -216,6 +218,146 @@ export async function skipEmailDraftHandler(ctx: Ctx): Promise<RouteResponse> {
 }
 
 /**
+ * POST /email-drafts/:id/delete — archive the draft permanently.
+ *
+ * This is NOT status='skipped' (reversible, still appears in /inbox
+ * filtered views). delete actually archives — sets status='deleted'
+ * and hides from all /inbox list views. Irreversible from the UI
+ * (row still exists in DB for audit / legal recovery).
+ */
+export async function deleteEmailDraftHandler(ctx: Ctx): Promise<RouteResponse> {
+  const draftId = ctx.params['id'];
+  if (!draftId) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'missing_id' }) };
+  }
+  const db = await getDb();
+  const existing = await loadDraftById(db, draftId);
+  if (!existing) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'not_found' }) };
+  }
+  if (existing.status === 'approved' || existing.status === 'sent') {
+    return {
+      statusCode: 409,
+      body: JSON.stringify({
+        error: 'already_sent',
+        status: existing.status,
+        message: 'cannot delete a draft that has been approved or sent',
+      }),
+    };
+  }
+  await db.execute(sql`
+    UPDATE email_drafts
+       SET status = 'deleted', triaged_at = COALESCE(triaged_at, now())
+     WHERE owner_id = ${OWNER_ID}
+       AND id = ${draftId}::uuid
+  `);
+  // Audit — event_log
+  try {
+    await db.execute(sql`
+      INSERT INTO event_log (owner_id, kind, actor, occurred_at, detail)
+      VALUES (${OWNER_ID}, 'email-draft:deleted', 'dashboard-api', now(),
+              ${JSON.stringify({ draft_id: draftId, prior_status: existing.status })}::jsonb)
+    `);
+  } catch {
+    /* non-fatal */
+  }
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ ok: true, status: 'deleted', draft_id: draftId }),
+    headers: { 'cache-control': 'no-store' },
+  };
+}
+
+/**
+ * POST /email-drafts/:id/draft — generate a draft reply on demand.
+ *
+ * For emails the triage classified as 'informational' or 'junk'
+ * (status='skipped'), no draft_body exists. This endpoint calls
+ * Sonnet 4.6 to produce one — e.g. Kevin realises he DOES want to
+ * reply to that "junk" marketing email or ask a follow-up question
+ * on an "informational" receipt.
+ *
+ * Body: { intent?: 'quick'|'detailed'|'decline', note?: string }
+ *   - intent shapes tone: quick reply / detailed thoughtful reply /
+ *     polite decline
+ *   - note is Kevin's freeform hint about what to include
+ *
+ * Side-effect: updates email_drafts.draft_subject + draft_body +
+ * status='draft' (so the standard approve flow works after).
+ */
+const GenerateDraftBodySchema = z
+  .object({
+    intent: z.enum(['quick', 'detailed', 'decline']).default('quick'),
+    note: z.string().max(500).optional(),
+  })
+  .default({});
+
+export async function generateDraftOnDemandHandler(
+  ctx: Ctx,
+): Promise<RouteResponse> {
+  const draftId = ctx.params['id'];
+  if (!draftId) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'missing_id' }) };
+  }
+  let body: z.infer<typeof GenerateDraftBodySchema>;
+  try {
+    body = GenerateDraftBodySchema.parse(
+      ctx.body ? JSON.parse(ctx.body) : {},
+    );
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: 'invalid_body' }) };
+  }
+  const db = await getDb();
+  const existing = await loadDraftById(db, draftId);
+  if (!existing) {
+    return { statusCode: 404, body: JSON.stringify({ error: 'not_found' }) };
+  }
+  if (existing.status === 'approved' || existing.status === 'sent') {
+    return {
+      statusCode: 409,
+      body: JSON.stringify({
+        error: 'already_sent',
+        status: existing.status,
+      }),
+    };
+  }
+
+  // Defer the actual Bedrock call into this function to avoid loading the
+  // SDK on the hot /email-drafts GET path.
+  const { draftWithBedrock } = await import('../email-draft-generator.js');
+  const generated = await draftWithBedrock({
+    fromEmail: existing.from_email,
+    toEmail: existing.to_email,
+    subject: existing.subject ?? '(no subject)',
+    bodyPlain: existing.body_plain ?? existing.body_preview ?? '',
+    intent: body.intent,
+    kevinNote: body.note,
+  });
+
+  await db.execute(sql`
+    UPDATE email_drafts
+       SET status = 'draft',
+           draft_subject = ${generated.subject},
+           draft_body = ${generated.body},
+           triaged_at = COALESCE(triaged_at, now())
+     WHERE owner_id = ${OWNER_ID}
+       AND id = ${draftId}::uuid
+  `);
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      ok: true,
+      status: 'draft',
+      draft_id: draftId,
+      subject: generated.subject,
+      body: generated.body,
+    }),
+    headers: { 'cache-control': 'no-store' },
+  };
+}
+
+/**
  * GET /email-drafts/:id
  *
  * Returns the full draft row including the original email body
@@ -254,3 +396,5 @@ register('GET', '/email-drafts/:id', getEmailDraftHandler);
 register('POST', '/email-drafts/:id/approve', approveEmailDraftHandler);
 register('POST', '/email-drafts/:id/edit', editEmailDraftHandler);
 register('POST', '/email-drafts/:id/skip', skipEmailDraftHandler);
+register('POST', '/email-drafts/:id/delete', deleteEmailDraftHandler);
+register('POST', '/email-drafts/:id/draft', generateDraftOnDemandHandler);

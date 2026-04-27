@@ -12,7 +12,11 @@ cdk-outputs.json
 cdk-deploy*.log
 
 # Claude Code session state (IDE-local)
-.claude/
+# .claude/ contains agent definitions we want tracked (SOUL.md, BOOT.md,
+# per-agent markdown). Ignore only session-level scratch.
+.claude/sessions/
+.claude/cache/
+.claude/*.local.md
 
 # Kilo CLI session state (IDE-local — local skills/node_modules/config,
 # never committed; project-wide .kilo/command/.kilo/agent lives elsewhere).

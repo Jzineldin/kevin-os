@@ -155,10 +155,13 @@ export async function loadKevinContextBlockOnce(ownerId: string): Promise<string
 }
 
 // ---------------------------------------------------------------------------
-// mention_events bulk insert — uses the ACTUAL Phase 2 schema columns
-// (owner_id, capture_id, source, context, occurred_at). entity_id stays
-// NULL here; the resolver downstream attaches canonical entity_ids when it
-// consumes entity.mention.detected.
+// mention_events bulk insert.
+//
+// Post-Phase-11 (2026-04-27): we now attempt to resolve entity_id at write
+// time via a best-effort name match against entity_index. Rows that don't
+// match fall through with entity_id=NULL — those are either brand-new names
+// the resolver hasn't promoted yet, or genuine noise. A follow-up enrichment
+// migration (0026) mops up unresolved rows nightly.
 // ---------------------------------------------------------------------------
 
 export interface WriteMentionEventsInput {
@@ -175,12 +178,24 @@ export async function writeMentionEvents(input: WriteMentionEventsInput): Promis
   const placeholders: string[] = [];
   const occurredAt = new Date(); // single timestamp for the whole batch
   mentions.forEach((m, i) => {
-    const base = i * 5;
+    const base = i * 6;
+    // $base+1 = owner_id, $+2 = entity_id (lookup scalar subquery),
+    // $+3 = capture_id, $+4 = source, $+5 = context, $+6 = occurred_at
     placeholders.push(
-      `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::timestamptz)`,
+      `($${base + 1}, ` +
+        // Best-effort resolve at write time. Case-insensitive exact match
+        // OR exact-match against the aliases array. Scoped to the same
+        // owner_id to avoid cross-tenant leaks.
+        `(SELECT id FROM entity_index
+            WHERE owner_id = $${base + 1}
+              AND (lower(name) = lower($${base + 2})
+                   OR lower($${base + 2}) = ANY(SELECT lower(x) FROM unnest(aliases) x))
+            LIMIT 1), ` +
+        `$${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}::timestamptz)`,
     );
     args.push(
       detail.owner_id,
+      m.name,                                    // probe for the subquery
       detail.capture_id,
       'granola-transcript',
       `${m.name}: ${m.excerpt.slice(0, 480)}`.slice(0, 1000),
@@ -189,7 +204,7 @@ export async function writeMentionEvents(input: WriteMentionEventsInput): Promis
   });
 
   await p.query(
-    `INSERT INTO mention_events (owner_id, capture_id, source, context, occurred_at)
+    `INSERT INTO mention_events (owner_id, entity_id, capture_id, source, context, occurred_at)
        VALUES ${placeholders.join(', ')}`,
     args,
   );

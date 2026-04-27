@@ -30,16 +30,28 @@ const UlidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 // -- Building blocks ------------------------------------------------------
 
+// The LLM often returns non-UUID placeholders for entity_ids (especially
+// when entity_index is empty and it has nothing to reference). Rather than
+// rejecting the whole brief when that happens — which drops the top-three
+// list entirely — preprocess the array to keep only valid UUIDs. This
+// mirrors what the persistence layer does at fan-out time anyway.
+const UuidArraySchema = z.preprocess((v) => {
+  if (!Array.isArray(v)) return v;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return v.filter((x) => typeof x === 'string' && uuidRegex.test(x));
+}, z.array(z.string().uuid()).max(5));
+
 export const TopThreeItemSchema = z.object({
   title: z.string().min(1).max(200),
-  entity_ids: z.array(z.string().uuid()).max(5),
+  entity_ids: UuidArraySchema,
   urgency: z.enum(['high', 'med', 'low']),
 });
 export type TopThreeItem = z.infer<typeof TopThreeItemSchema>;
 
 export const DroppedThreadSchema = z.object({
   title: z.string().min(1).max(200),
-  entity_ids: z.array(z.string().uuid()).max(5),
+  entity_ids: UuidArraySchema,
   last_mentioned_at: z.string().datetime().optional(),
 });
 export type DroppedThread = z.infer<typeof DroppedThreadSchema>;
@@ -88,7 +100,7 @@ export type MorningBrief = z.infer<typeof MorningBriefSchema>;
 
 export const SlippedItemSchema = z.object({
   title: z.string().min(1).max(200),
-  entity_ids: z.array(z.string().uuid()).max(5),
+  entity_ids: UuidArraySchema,
   reason: z.string().max(200).optional(),
 });
 export type SlippedItem = z.infer<typeof SlippedItemSchema>;

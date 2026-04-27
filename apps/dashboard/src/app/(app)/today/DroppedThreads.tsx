@@ -39,7 +39,7 @@ export function DroppedThreads({ items }: { items: TodayDroppedThread[] }) {
     >
       {items.length === 0 ? (
         <p className="text-[12px] text-[color:var(--color-text-3)]">
-          All threads are active.
+          No stale threads.
         </p>
       ) : (
         <div className="flex flex-col gap-[10px]">

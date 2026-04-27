@@ -28,7 +28,7 @@ Read this first. It tells you what this project is, where the hard truths live, 
 - **`kevin_context` Notion ID is a PAGE, not a database.** See `kos-notion-gotchas`.
 - **Pollution guard** in `services/dashboard-api/src/seed-pollution-guard.ts` rejects the 10 historic seed-row titles. If seeding test data, bypass or rename.
 - **IAM auth tokens expire after 15 min.** Every `pg.Pool` using RDS Proxy must set `password: async () => signer.getAuthToken()` — NEVER a captured string. Baked-in tokens cause 100% failure on every invocation past the 15-min mark of a warm Lambda. See `kos-rds-ops` skill.
-- **`mockup-v4.html` is the visual target.** The currently-deployed dashboard is dark mission-control — wrong direction. Warm-paper / Things-3 / Atkinson Hyperlegible / Instrument Serif / sage accent `#4f7a5a` / bg `#f6f1e8` is what Kevin wants.
+- **`mockup-v4.html` is the visual target.** v4 is a refined **dark mission-control** (not a warm-paper reversion — AGENTS.md previously claimed warm-paper; that was about v2, which is obsolete). Palette: bg `#0b0d12`, surfaces `#11141b` / `#181c25` / `#20242f`, per-section muted accent colors (priority blue, brief amber, schedule teal, drafts violet, inbox pink, channels sage, entities terracotta). Fonts: **Inter Tight** (sans) + **IBM Plex Mono** (mono). Layout: 2-column 60/40, wide KPI strip, no third rail.
 
 ## Communication rules
 

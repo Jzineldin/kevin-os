@@ -92,16 +92,17 @@ export default async function EntitiesPage({
   const title = TITLES[filterType ?? 'all'];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[20px] font-semibold text-[color:var(--color-text)]">
+    <div className="stagger flex flex-col gap-6">
+      <header>
+        <h1 className="h-page" style={{ marginBottom: 8 }}>
           {title}
         </h1>
-        <p className="text-[13px] text-[color:var(--color-text-3)]">
+        <p className="h-page-meta">
           {filtered.length}{' '}
           {filtered.length === 1 ? 'entity' : 'entities'}
+          {filterType ? ` · filtered to ${filterType}` : ''}
         </p>
-      </div>
+      </header>
 
       {filterType === null && (
         <nav
@@ -112,7 +113,12 @@ export default async function EntitiesPage({
             <Link
               key={chip.type}
               href={`/entities?type=${chip.type}`}
-              className="inline-flex items-center gap-2 rounded-md border border-[color:var(--color-border)] px-3 py-1.5 text-[12px] text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-hover)] transition-colors"
+              className="inline-flex items-center gap-[8px] rounded-md border px-3 h-[30px] text-[12px] font-medium transition-[background,border-color,color] duration-[var(--transition-fast)] ease-[var(--ease)]"
+              style={{
+                borderColor: 'var(--color-border)',
+                background: 'var(--color-surface-2)',
+                color: 'var(--color-text-2)',
+              }}
               data-testid={`entity-filter-${chip.type}`}
             >
               <EntityIcon type={chip.type} />
@@ -123,27 +129,71 @@ export default async function EntitiesPage({
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-md border border-[color:var(--color-border)] px-4 py-6 text-[13px] text-[color:var(--color-text-3)]">
+        <div
+          className="rounded-lg border px-5 py-6"
+          style={{
+            borderColor: 'var(--color-border)',
+            background: 'var(--color-surface-1)',
+            boxShadow: 'var(--shadow-1)',
+            color: 'var(--color-text-3)',
+            fontSize: 13,
+          }}
+        >
           No {title.toLowerCase()} yet.
         </div>
       ) : (
-        <ul className="flex flex-col gap-1">
-          {filtered.map((e) => (
-            <li key={e.id}>
+        <ul
+          className="overflow-hidden rounded-lg border"
+          style={{
+            borderColor: 'var(--color-border)',
+            background: 'var(--color-surface-1)',
+            boxShadow: 'var(--shadow-1)',
+          }}
+        >
+          {filtered.map((e, i) => (
+            <li
+              key={e.id}
+              style={{
+                borderTop: i === 0 ? 'none' : '1px solid var(--rail)',
+              }}
+            >
               <Link
                 href={`/entities/${e.id}`}
-                className="flex items-center gap-3 rounded-md px-[10px] py-[8px] text-[13px] text-[color:var(--color-text-2)] hover:bg-[color:var(--color-surface-hover)] transition-colors"
+                className="flex items-center gap-3 px-[18px] py-[11px] text-[13px] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)] hover:bg-[color-mix(in_srgb,var(--color-surface-2)_50%,transparent)]"
               >
                 <EntityIcon type={e.type} />
-                <span className="flex-1 truncate text-[color:var(--color-text)]">
+                <span className="flex-1 truncate text-[color:var(--color-text)]" style={{ fontWeight: 500, letterSpacing: '-0.003em' }}>
                   {e.name}
                 </span>
                 {e.bolag && (
-                  <span className="text-[11px] uppercase tracking-wider text-[color:var(--color-text-4)]">
+                  <span
+                    className="mono"
+                    style={{
+                      fontSize: 10,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      color: 'var(--color-text-4)',
+                    }}
+                  >
                     {e.bolag}
                   </span>
                 )}
-                <span className="text-[11px] uppercase tracking-wider text-[color:var(--color-text-4)]">
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 8px',
+                    borderRadius: 3,
+                    background:
+                      'color-mix(in srgb, var(--color-sect-entities) 10%, transparent)',
+                    border:
+                      '1px solid color-mix(in srgb, var(--color-sect-entities) 26%, transparent)',
+                    color: 'var(--color-sect-entities)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    fontWeight: 600,
+                  }}
+                >
                   {e.type}
                 </span>
               </Link>

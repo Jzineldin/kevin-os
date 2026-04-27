@@ -196,13 +196,13 @@ export function CalendarWeekView({ initial }: { initial: CalendarWeekResponse })
   const hasEvents = data.events.length > 0;
 
   return (
-    <div className="flex flex-col gap-5" data-testid="calendar-week">
-      <div className="flex items-center justify-between">
+    <div className="stagger flex flex-col gap-5" data-testid="calendar-week">
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.012em] text-[color:var(--color-text)]">
+          <h1 className="h-page" style={{ marginBottom: 8 }}>
             Calendar
           </h1>
-          <p className="text-[13px] text-[color:var(--color-text-3)]">
+          <p className="h-page-meta">
             This week · {data.events.length} event{data.events.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -229,39 +229,42 @@ export function CalendarWeekView({ initial }: { initial: CalendarWeekResponse })
           {/* Plan 11-05 Task 2: Legend mapping accent colour → event kind. */}
           <div
             data-testid="cal-legend"
+            className="flex items-center gap-[18px] mono"
             style={{
-              display: 'flex',
-              gap: 16,
-              fontSize: 11,
+              fontSize: 10,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
               color: 'var(--color-text-3)',
-              alignItems: 'center',
+              fontWeight: 600,
             }}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span className="inline-flex items-center gap-[7px]">
               <span
                 aria-hidden
                 style={{
-                  display: 'inline-block',
                   width: 8,
                   height: 8,
                   background: 'var(--color-info)',
                   borderRadius: 2,
+                  boxShadow:
+                    '0 0 0 2px color-mix(in srgb, var(--color-info) 20%, transparent)',
                 }}
               />
-              Meetings (Google)
+              Meetings · Google
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span className="inline-flex items-center gap-[7px]">
               <span
                 aria-hidden
                 style={{
-                  display: 'inline-block',
                   width: 8,
                   height: 8,
                   background: 'var(--color-warning)',
                   borderRadius: 2,
+                  boxShadow:
+                    '0 0 0 2px color-mix(in srgb, var(--color-warning) 20%, transparent)',
                 }}
               />
-              Deadlines (Command Center)
+              Deadlines · Command Center
             </span>
           </div>
 
@@ -290,13 +293,34 @@ export function CalendarWeekView({ initial }: { initial: CalendarWeekResponse })
         </>
       ) : (
         <div
-          className="flex flex-col items-center justify-center gap-2 py-20"
+          className="flex flex-col items-center justify-center gap-3 py-24 rounded-lg border"
           data-testid="cal-empty"
+          style={{
+            borderColor: 'var(--color-border)',
+            background: 'var(--color-surface-1)',
+            boxShadow: 'var(--shadow-1)',
+          }}
         >
-          <p className="text-[14px] text-[color:var(--color-text-2)]">
+          <p
+            style={{
+              fontSize: 15,
+              color: 'var(--color-text)',
+              fontWeight: 500,
+              margin: 0,
+            }}
+          >
             No meetings or deadlines this week — your calendar is clear.
           </p>
-          <p className="text-[12px] text-[color:var(--color-text-3)]">
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--color-text-3)',
+              margin: 0,
+              maxWidth: 420,
+              textAlign: 'center',
+              lineHeight: 1.55,
+            }}
+          >
             Google Calendar meetings and Command Center deadlines surface here as they arrive.
           </p>
         </div>

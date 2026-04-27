@@ -251,18 +251,25 @@ export function InboxClient({
 
   if (optimistic.length === 0) {
     return (
-      <div className="h-full grid place-items-center">
+      <div className="h-full grid place-items-center py-24">
         <div className="text-center flex flex-col gap-3 items-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-[10px]">
             <PulseDot tone="success" />
             <span
-              className="font-medium"
+              className="text-[15px] font-medium"
               style={{ color: 'var(--color-text)' }}
             >
               {EMPTY_HEADLINE}
             </span>
           </div>
-          <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>
+          <p
+            className="text-[13px]"
+            style={{
+              color: 'var(--color-text-3)',
+              maxWidth: 380,
+              lineHeight: 1.55,
+            }}
+          >
             {EMPTY_BODY}
           </p>
         </div>
@@ -274,11 +281,13 @@ export function InboxClient({
 
   return (
     <div
-      className="grid"
+      className="grid rounded-lg overflow-hidden border"
       style={{
         gridTemplateColumns: '280px 1fr',
         minHeight: 'calc(100vh - 52px - 64px)',
-        borderTop: '1px solid var(--color-border)',
+        borderColor: 'var(--color-border)',
+        background: 'var(--color-surface-1)',
+        boxShadow: 'var(--shadow-1)',
       }}
     >
       <aside
@@ -287,15 +296,40 @@ export function InboxClient({
           borderRight: '1px solid var(--color-border)',
           background: 'var(--color-surface-1)',
         }}
+        aria-label="Inbox queue"
       >
         <div
-          className="sticky top-0 z-10 p-3 text-xs flex items-center gap-2"
+          className="sticky top-0 z-10 flex items-center gap-[10px]"
           style={{
-            background: 'var(--color-surface-1)',
-            borderBottom: '1px solid var(--color-border)',
-            color: 'var(--color-text-3)',
+            background: 'color-mix(in srgb, var(--color-surface-1) 90%, transparent)',
+            backdropFilter: 'blur(6px)',
+            borderBottom: '1px solid var(--rail)',
+            padding: '12px 16px',
           }}
         >
+          <span
+            aria-hidden
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              background: 'var(--color-sect-inbox)',
+              boxShadow:
+                '0 0 0 3px color-mix(in srgb, var(--color-sect-inbox) 15%, transparent)',
+            }}
+          />
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--color-sect-inbox)',
+            }}
+          >
+            Queue
+          </span>
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={optimistic.length}
@@ -304,6 +338,11 @@ export function InboxClient({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
               data-testid="inbox-count"
+              className="font-mono ml-auto"
+              style={{
+                fontSize: 11,
+                color: 'var(--color-text-4)',
+              }}
             >
               {optimistic.length} pending
             </motion.span>
@@ -322,6 +361,9 @@ export function InboxClient({
                   duration: 0.18,
                   ease: [0.16, 1, 0.3, 1],
                 }}
+                style={{
+                  borderBottom: '1px solid var(--rail)',
+                }}
               >
                 <ItemRow
                   item={item}
@@ -337,14 +379,18 @@ export function InboxClient({
         </div>
 
         <div
-          className="p-3 mono"
+          className="mono"
           style={{
-            fontSize: 11,
+            fontSize: 10,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
             color: 'var(--color-text-4)',
-            borderTop: '1px solid var(--color-border)',
+            borderTop: '1px solid var(--rail)',
+            padding: '10px 16px',
+            background: 'var(--color-surface-1)',
           }}
         >
-          J / K to nav · Enter approve · E edit · S skip
+          J / K nav · ↵ approve · E edit · S skip
         </div>
       </aside>
 

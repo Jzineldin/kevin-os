@@ -68,14 +68,50 @@ export function ItemDetail({
     <div className="flex flex-col h-full">
       <header
         className="p-6"
-        style={{ borderBottom: '1px solid var(--color-border)' }}
+        style={{ borderBottom: '1px solid var(--rail)' }}
       >
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="h-page">{item.title}</h2>
-            <p className="h-page-meta">{KIND_LABEL[item.kind]}</p>
+            <div
+              className="flex items-center gap-[10px]"
+              style={{ marginBottom: 10 }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 999,
+                  background: 'var(--color-sect-inbox)',
+                  boxShadow:
+                    '0 0 0 3px color-mix(in srgb, var(--color-sect-inbox) 15%, transparent)',
+                }}
+              />
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.16em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-sect-inbox)',
+                }}
+              >
+                {KIND_LABEL[item.kind]}
+              </span>
+            </div>
+            <h2
+              className="h-page"
+              style={{
+                fontSize: 22,
+                lineHeight: 1.25,
+                letterSpacing: '-0.015em',
+              }}
+            >
+              {item.title}
+            </h2>
             {item.classification ? (
-              <div className="mt-2">
+              <div className="mt-3">
                 <Pill
                   classification={item.classification}
                   status={item.email_status ?? 'pending_triage'}
@@ -92,10 +128,14 @@ export function ItemDetail({
           <Editor item={item} onDone={onEditDone} />
         ) : (
           <pre
-            className="text-sm whitespace-pre-wrap break-words"
+            className="whitespace-pre-wrap break-words"
             style={{
               color: 'var(--color-text-2)',
               fontFamily: 'var(--font-sans)',
+              fontSize: 14,
+              lineHeight: 1.65,
+              letterSpacing: '-0.003em',
+              margin: 0,
             }}
           >
             {renderPreview(item)}
@@ -104,23 +144,30 @@ export function ItemDetail({
       </div>
 
       <footer
-        className="sticky bottom-0 p-4 flex items-center gap-3"
+        className="sticky bottom-0 flex items-center gap-3"
         style={{
-          borderTop: '1px solid var(--color-border)',
-          background: 'var(--color-surface-1)',
+          borderTop: '1px solid var(--rail)',
+          background:
+            'color-mix(in srgb, var(--color-surface-1) 92%, transparent)',
+          backdropFilter: 'blur(6px)',
+          padding: '14px 20px',
         }}
       >
         <ActionBar item={item} onEditRequest={onEditRequest} />
         <div
-          className="ml-auto flex items-center gap-3 mono"
-          style={{ fontSize: 11, color: 'var(--color-text-4)' }}
+          className="ml-auto flex items-center gap-[14px] mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-4)',
+          }}
         >
-          <span className="flex items-center gap-1"><Kbd>J</Kbd> next</span>
-          <span className="flex items-center gap-1"><Kbd>K</Kbd> prev</span>
-          <span className="flex items-center gap-1"><Kbd>Enter</Kbd> approve</span>
-          <span className="flex items-center gap-1"><Kbd>E</Kbd> edit</span>
-          <span className="flex items-center gap-1"><Kbd>S</Kbd> skip</span>
-          <span className="flex items-center gap-1"><Kbd>Esc</Kbd> close</span>
+          <span className="flex items-center gap-[6px]"><Kbd>J</Kbd> next</span>
+          <span className="flex items-center gap-[6px]"><Kbd>K</Kbd> prev</span>
+          <span className="flex items-center gap-[6px]"><Kbd>↵</Kbd> approve</span>
+          <span className="flex items-center gap-[6px]"><Kbd>E</Kbd> edit</span>
+          <span className="flex items-center gap-[6px]"><Kbd>S</Kbd> skip</span>
         </div>
       </footer>
     </div>

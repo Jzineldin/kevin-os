@@ -159,7 +159,8 @@ async function processOne(
 
   const pool = await getPool();
 
-  // Idempotent INSERT — returns existing id on conflict.
+  // Idempotent INSERT — returns existing id on conflict. Now persists
+  // the full body too (migration 0024) so the dashboard can render it.
   const draftId = await insertEmailDraftPending(pool, {
     ownerId,
     captureId,
@@ -169,6 +170,8 @@ async function processOne(
     to: detail.email.to,
     subject: detail.email.subject,
     receivedAt: detail.email.received_at,
+    bodyPlain: detail.email.body_text ?? null,
+    bodyHtml: detail.email.body_html ?? null,
   });
 
   // If the row already exists with a non-pending status, the same

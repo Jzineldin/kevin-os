@@ -215,6 +215,42 @@ export async function skipEmailDraftHandler(ctx: Ctx): Promise<RouteResponse> {
   };
 }
 
+/**
+ * GET /email-drafts/:id
+ *
+ * Returns the full draft row including the original email body
+ * (body_plain + body_html + body_preview from migration 0024) so the
+ * /inbox UI can render the message Kevin received, not just its subject.
+ *
+ * Owner-scoped via loadDraftById (queries with owner_id = OWNER_ID).
+ * 404 when the id doesn't exist OR belongs to a different owner.
+ */
+export async function getEmailDraftHandler(ctx: Ctx): Promise<RouteResponse> {
+  const draftId = ctx.params['id'];
+  if (!draftId) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'missing_id' }),
+    };
+  }
+  const db = await getDb();
+  const row = await loadDraftById(db, draftId);
+  if (!row) {
+    return {
+      statusCode: 404,
+      body: JSON.stringify({ error: 'not_found' }),
+    };
+  }
+  return {
+    statusCode: 200,
+    body: JSON.stringify(row),
+    headers: {
+      'cache-control': 'private, max-age=0, stale-while-revalidate=30',
+    },
+  };
+}
+
+register('GET', '/email-drafts/:id', getEmailDraftHandler);
 register('POST', '/email-drafts/:id/approve', approveEmailDraftHandler);
 register('POST', '/email-drafts/:id/edit', editEmailDraftHandler);
 register('POST', '/email-drafts/:id/skip', skipEmailDraftHandler);

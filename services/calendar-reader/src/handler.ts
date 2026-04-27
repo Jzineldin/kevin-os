@@ -59,8 +59,13 @@ const ACCOUNTS: readonly GcalAccount[] = [
   'kevin-taleforge',
 ] as const;
 
+// 2026-04-27 widened from 48h → 30 days. The /calendar/week dashboard
+// view wants the current rolling week, and Kevin routinely has events
+// scheduled 1-3 weeks out he wants visible in KOS. The 1h past-window
+// covers midnight-boundary overlap and lets "starts in N minutes" show
+// for events currently in-progress.
 const FETCH_WINDOW_PAST_HOURS = 1;
-const FETCH_WINDOW_FUTURE_HOURS = 48;
+const FETCH_WINDOW_FUTURE_HOURS = 24 * 30;
 
 let ebClient: EventBridgeClient | null = null;
 function getEventBridge(): EventBridgeClient {

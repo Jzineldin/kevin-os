@@ -86,6 +86,15 @@ export interface InsertEmailDraftPendingArgs {
   to: string[];
   subject: string;
   receivedAt: string;
+  /**
+   * Original email body. Persisted alongside the row so the dashboard
+   * /inbox view can render the full message (migration 0024). Both are
+   * optional — legacy captures and prompt-injection-stripped payloads
+   * still produce a draft row, they just won't have body content to
+   * display (UI shows an "(original body not captured)" placeholder).
+   */
+  bodyPlain?: string | null;
+  bodyHtml?: string | null;
 }
 
 /**
@@ -98,11 +107,20 @@ export async function insertEmailDraftPending(
   poolArg: PgPool,
   args: InsertEmailDraftPendingArgs,
 ): Promise<string> {
+  // body_preview = first ~280 chars of plaintext, collapsed whitespace.
+  // Kept short enough to safely render in list rows without bloating the
+  // /inbox-merged query payload.
+  const preview = (args.bodyPlain ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 280);
   const r = await poolArg.query<{ id: string }>(
     `INSERT INTO email_drafts
         (owner_id, capture_id, account_id, message_id, from_email, to_email,
-         subject, classification, status, received_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_triage', 'pending_triage', $8)
+         subject, classification, status, received_at,
+         body_plain, body_html, body_preview)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_triage', 'pending_triage',
+             $8, $9, $10, $11)
      ON CONFLICT (account_id, message_id) DO NOTHING
      RETURNING id`,
     [
@@ -114,6 +132,9 @@ export async function insertEmailDraftPending(
       args.to,
       args.subject,
       args.receivedAt,
+      args.bodyPlain ?? null,
+      args.bodyHtml ?? null,
+      preview || null,
     ],
   );
   if (r.rows[0]?.id) return r.rows[0].id;

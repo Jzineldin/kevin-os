@@ -39,6 +39,12 @@ export interface EmailDraftRow {
   approved_at: string | null;
   sent_at: string | null;
   sent_message_id: string | null;
+  /** Original email body (plaintext, migration 0024). */
+  body_plain: string | null;
+  /** Original email body (HTML, sanitized at render time, migration 0024). */
+  body_html: string | null;
+  /** Short derived preview for list views (migration 0024). */
+  body_preview: string | null;
 }
 
 /** Load a single draft by id, scoped to OWNER_ID. */
@@ -64,7 +70,10 @@ export async function loadDraftById(
       triaged_at::text          AS triaged_at,
       approved_at::text         AS approved_at,
       sent_at::text             AS sent_at,
-      sent_message_id           AS sent_message_id
+      sent_message_id           AS sent_message_id,
+      body_plain                AS body_plain,
+      body_html                 AS body_html,
+      body_preview              AS body_preview
     FROM email_drafts
     WHERE owner_id = ${OWNER_ID}
       AND id = ${draftId}::uuid

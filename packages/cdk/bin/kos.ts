@@ -32,6 +32,44 @@ const transcribeRegion = (() => {
 const app = new App();
 const env: Environment = RESOLVED_ENV;
 
+// Fail-fast pre-synth validation. A CDK deploy that silently omits these
+// env vars has twice now deleted live Lambdas (gmail-poller,
+// calendar-reader, granola-poller) because their wiring is gated on
+// `if (props.kevinOwnerId) { ... }` and similar conditions. Detect the
+// empty-string fallback here and stop synth with a clear error instead
+// of producing a broken CloudFormation template.
+//
+// Override for local tests: set KOS_ALLOW_MISSING_CONTEXT=1.
+const allowMissing = process.env.KOS_ALLOW_MISSING_CONTEXT === '1';
+const requiredFromEnvOrContext: Array<{ env: string; ctx: string }> = [
+  { env: 'KEVIN_OWNER_ID', ctx: 'kevinOwnerId' },
+  { env: 'NOTION_TODAY_PAGE_ID', ctx: 'notionTodayPageId' },
+  { env: 'NOTION_COMMAND_CENTER_DB_ID', ctx: 'notionCommandCenterDbId' },
+];
+const missing = requiredFromEnvOrContext.filter(
+  (v) =>
+    !process.env[v.env] &&
+    !(app.node.tryGetContext(v.ctx) as string | undefined),
+);
+if (missing.length > 0 && !allowMissing) {
+  const lines = missing.map((v) => `  - ${v.env} (or cdk context: ${v.ctx})`);
+  const msg = [
+    'CDK synth aborted — required configuration is missing:',
+    ...lines,
+    '',
+    'These drive runtime behaviour for the dashboard + pollers. Set the env',
+    'vars before running `cdk deploy`, e.g.',
+    '',
+    '  export KEVIN_OWNER_ID=7a6b5c4d-3e2f-4a09-8b7c-6d5e4f3a2b1c',
+    '  export NOTION_TODAY_PAGE_ID=<from scripts/.notion-db-ids.json>',
+    '  export NOTION_COMMAND_CENTER_DB_ID=<from scripts/.notion-db-ids.json>',
+    '',
+    'Or bypass for local tests with KOS_ALLOW_MISSING_CONTEXT=1.',
+  ].join('\n');
+  console.error(`\n\u001b[31m${msg}\u001b[0m\n`);
+  process.exit(1);
+}
+
 // Stacks added by Plans 01-07:
 //   NetworkStack      — Plan 01
 //   DataStack         — Plan 02

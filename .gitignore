@@ -15,6 +15,10 @@ cdk-deploy*.log
 # .claude/ contains agent definitions we want tracked (SOUL.md, BOOT.md,
 # per-agent markdown). Ignore only session-level scratch.
 .claude/sessions/
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+.claude/tasks/
+.claude/agents_cache/
 .claude/cache/
 .claude/*.local.md
 

@@ -161,6 +161,18 @@ async function loadAgentRunsAggregate(): Promise<Map<string, AggRow>> {
  * channel shows "down" even though data is flowing. To make the health panel
  * reflect reality, we supplement agent_runs with a MAX(timestamp) query on
  * the actual source tables — whichever is more recent wins.
+ *
+ * Per-channel sources (empirical, based on what actually writes to each
+ * table on a healthy prod deploy — verified 2026-04-27):
+ *   gmail-poller     → email_drafts.received_at
+ *   calendar-reader  → calendar_events_cache.cached_at
+ *   telegram-bot     → MAX(telegram_inbox_queue.queued_at,
+ *                          agent_runs[voice-capture | entity-resolver:*].finished_at,
+ *                          mention_events[telegram-voice].occurred_at)
+ *   granola-poller   → agent_runs[granola-poller | transcript-indexed].finished_at
+ *   notion-indexer   → event_log[actor=notion-indexer].occurred_at
+ *   chrome-webhook   → mention_events[chrome-*].occurred_at
+ *   linkedin-webhook → mention_events[linkedin-*].occurred_at
  */
 async function loadDataSourceFreshness(): Promise<
   Record<string, string | null>
@@ -169,24 +181,36 @@ async function loadDataSourceFreshness(): Promise<
   const r = (await db.execute(sql`
     SELECT
       (SELECT MAX(received_at)::text FROM email_drafts
-         WHERE owner_id = ${OWNER_ID})                       AS gmail_last,
+         WHERE owner_id = ${OWNER_ID})                                  AS gmail_last,
       (SELECT MAX(cached_at)::text FROM calendar_events_cache
-         WHERE owner_id = ${OWNER_ID})                       AS calendar_last,
+         WHERE owner_id = ${OWNER_ID})                                  AS calendar_last,
       (SELECT MAX(occurred_at)::text FROM event_log
          WHERE owner_id = ${OWNER_ID}
-           AND actor = 'notion-indexer')                      AS notion_last,
-      (SELECT MAX(occurred_at)::text FROM event_log
+           AND actor = 'notion-indexer')                                AS notion_last,
+      (SELECT MAX(ts)::text FROM (
+         SELECT queued_at AS ts FROM telegram_inbox_queue
+           WHERE owner_id = ${OWNER_ID}
+         UNION ALL
+         SELECT finished_at FROM agent_runs
+           WHERE owner_id = ${OWNER_ID}
+             AND (agent_name = 'voice-capture'
+               OR agent_name LIKE 'entity-resolver:%'
+               OR agent_name = 'telegram-bot')
+         UNION ALL
+         SELECT occurred_at FROM mention_events
+           WHERE owner_id = ${OWNER_ID}
+             AND source LIKE 'telegram%'
+      ) t)                                                              AS telegram_last,
+      (SELECT MAX(finished_at)::text FROM agent_runs
          WHERE owner_id = ${OWNER_ID}
-           AND actor IN ('telegram-bot','voice-capture'))     AS telegram_last,
-      (SELECT MAX(occurred_at)::text FROM event_log
+           AND (agent_name = 'granola-poller' OR agent_name = 'transcript-indexed'))
+                                                                        AS granola_last,
+      (SELECT MAX(occurred_at)::text FROM mention_events
          WHERE owner_id = ${OWNER_ID}
-           AND actor = 'granola-poller')                      AS granola_last,
-      (SELECT MAX(occurred_at)::text FROM event_log
+           AND source LIKE 'chrome%')                                   AS chrome_last,
+      (SELECT MAX(occurred_at)::text FROM mention_events
          WHERE owner_id = ${OWNER_ID}
-           AND actor = 'chrome-webhook')                      AS chrome_last,
-      (SELECT MAX(occurred_at)::text FROM event_log
-         WHERE owner_id = ${OWNER_ID}
-           AND actor = 'linkedin-webhook')                    AS linkedin_last
+           AND source LIKE 'linkedin%')                                 AS linkedin_last
   `)) as unknown as {
     rows: Array<{
       gmail_last: string | null;

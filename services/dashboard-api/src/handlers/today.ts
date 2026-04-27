@@ -441,6 +441,10 @@ async function loadStatTiles(
  * scheduler+channel rollup. This snapshot is inlined for round-trip economy.
  */
 async function loadTodayChannels(db: NodePgDatabase): Promise<ChannelItem[]> {
+  // Same channel spec as /integrations/health but abbreviated to 4 for the
+  // compact Today panel. agent_name is the key for the agent_runs MAX but
+  // data-source fallback is applied per-channel so channels without any
+  // agent_runs signal (gmail-poller, calendar-reader) still show fresh.
   const expectedAgents: Array<{
     name: string;
     agent_name: string;
@@ -451,20 +455,67 @@ async function loadTodayChannels(db: NodePgDatabase): Promise<ChannelItem[]> {
     { name: 'Granola', agent_name: 'granola-poller', max_age_min: 60 },
     { name: 'Calendar', agent_name: 'calendar-reader', max_age_min: 90 },
   ];
+  // Agent-runs snapshot + data-source fallbacks (see handlers/integrations.ts
+  // for the per-channel source reasoning).
   const r = (await db.execute(sql`
-    SELECT agent_name, MAX(finished_at)::text AS last_finished
-      FROM agent_runs
-      WHERE owner_id = ${OWNER_ID}::uuid AND status = 'ok'
-      GROUP BY agent_name
+    WITH ar AS (
+      SELECT agent_name, MAX(finished_at)::text AS last_finished
+        FROM agent_runs
+        WHERE owner_id = ${OWNER_ID}::uuid AND status = 'ok'
+        GROUP BY agent_name
+    )
+    SELECT
+      (SELECT last_finished FROM ar WHERE agent_name = 'triage')            AS triage_ar,
+      (SELECT last_finished FROM ar WHERE agent_name = 'gmail-poller')      AS gmail_ar,
+      (SELECT last_finished FROM ar WHERE agent_name = 'granola-poller')    AS granola_ar,
+      (SELECT last_finished FROM ar WHERE agent_name = 'calendar-reader')   AS calendar_ar,
+      (SELECT MAX(received_at)::text FROM email_drafts
+         WHERE owner_id = ${OWNER_ID}::uuid)                                AS gmail_ds,
+      (SELECT MAX(cached_at)::text FROM calendar_events_cache
+         WHERE owner_id = ${OWNER_ID}::uuid)                                AS calendar_ds,
+      (SELECT MAX(ts)::text FROM (
+         SELECT queued_at AS ts FROM telegram_inbox_queue
+           WHERE owner_id = ${OWNER_ID}::uuid
+         UNION ALL
+         SELECT finished_at FROM agent_runs
+           WHERE owner_id = ${OWNER_ID}::uuid
+             AND (agent_name = 'voice-capture'
+               OR agent_name LIKE 'entity-resolver:%'
+               OR agent_name = 'triage')
+      ) t)                                                                  AS telegram_ds,
+      (SELECT MAX(finished_at)::text FROM agent_runs
+         WHERE owner_id = ${OWNER_ID}::uuid
+           AND (agent_name = 'granola-poller' OR agent_name = 'transcript-indexed'))
+                                                                            AS granola_ds
   `)) as unknown as {
-    rows: Array<{ agent_name: string; last_finished: string | null }>;
+    rows: Array<Record<string, string | null>>;
   };
-  const map = new Map<string, string | null>(
-    r.rows.map((row) => [row.agent_name, row.last_finished]),
-  );
+  const row = r.rows[0] ?? {};
+  const pickMax = (...vs: Array<string | null | undefined>): string | null => {
+    let best: string | null = null;
+    for (const v of vs) {
+      if (!v) continue;
+      if (!best || new Date(v).getTime() > new Date(best).getTime()) best = v;
+    }
+    return best;
+  };
+  const sourceFor = (agent: string): string | null => {
+    switch (agent) {
+      case 'triage':
+        return pickMax(row.triage_ar, row.telegram_ds);
+      case 'gmail-poller':
+        return pickMax(row.gmail_ar, row.gmail_ds);
+      case 'granola-poller':
+        return pickMax(row.granola_ar, row.granola_ds);
+      case 'calendar-reader':
+        return pickMax(row.calendar_ar, row.calendar_ds);
+      default:
+        return null;
+    }
+  };
   const now = Date.now();
   return expectedAgents.map((spec) => {
-    const last = map.get(spec.agent_name) ?? null;
+    const last = sourceFor(spec.agent_name);
     let status: ChannelItem['status'];
     if (!last) {
       status = 'down';

@@ -41,6 +41,7 @@ import {
   updateAgentRunSuccess,
   updateAgentRunError,
   writeTop3Membership,
+  writeBriefProposals,
   loadDraftsReady,
   loadDroppedThreads,
 } from './persist.js';
@@ -167,6 +168,27 @@ export const handler = wrapHandler(
           topThree: agentResult.output.top_three,
         });
 
+        // Phase 11 Plan 11-05: also write review-gated proposals so Kevin
+        // can accept/reject/replace each Top 3 item via the dashboard
+        // inbox. Fully non-fatal: any error here is swallowed so the
+        // brief's primary path (top3_membership + Notion + Telegram)
+        // is never impacted.
+        try {
+          const proposalBatchId = await writeBriefProposals(pool, {
+            ownerId,
+            captureId,
+            briefKind: 'morning-brief',
+            topThree: agentResult.output.top_three,
+          });
+          if (proposalBatchId) {
+            console.log(
+              `[morning-brief] proposals batch=${proposalBatchId} items=${agentResult.output.top_three.length}`,
+            );
+          }
+        } catch (err) {
+          console.warn('[morning-brief] proposal dual-write errored (non-fatal):', err);
+        }
+
         // Step 6: render artifacts.
         const todayPageId = process.env.NOTION_TODAY_PAGE_ID;
         const dailyLogDbId = process.env.NOTION_DAILY_BRIEF_LOG_DB_ID;
@@ -245,6 +267,10 @@ export const handler = wrapHandler(
         };
       } catch (err) {
         // Inner failure — write agent_runs error + emit kos.system event.
+        // Also log the full stack so CloudWatch has something to bisect
+        // on — the previous truncated `error: "Cannot read..."` messages
+        // hid the actual line of code.
+        console.error('[morning-brief] inner failure:', err instanceof Error ? err.stack : err);
         await updateAgentRunError(pool, captureId, err as Error).catch(() => {
           /* swallow — error path must not throw */
         });

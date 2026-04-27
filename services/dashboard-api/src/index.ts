@@ -42,6 +42,10 @@ import './routes/chat.js';
 // Phase 11 Plan 11-04 C: POST /entities/:id/synthesize (on-demand Sonnet 4.6
 // dossier synthesis written into entity_dossiers_cached).
 import './routes/entity-synthesize.js';
+// Phase 11 Plan 11-05: /proposals review queue (accept / reject / replace
+// gate on AI-generated artifacts). Morning-brief already dual-writes; other
+// agents follow in subsequent turns.
+import './routes/proposals.js';
 
 /**
  * Constant-time string compare — prevents timing oracles on the shared

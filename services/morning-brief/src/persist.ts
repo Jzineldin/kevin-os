@@ -145,6 +145,72 @@ export async function writeTop3Membership(
   }
 }
 
+/**
+ * Phase 11 Plan 11-05: dual-write each Top 3 item as a `proposal` row so
+ * Kevin can accept/reject/replace individual items. The canonical
+ * top3_membership write above remains unchanged — these rows are what
+ * the dashboard renders today. Proposals are the review lane: UI reads
+ * them, UI exposes per-item accept/reject/replace, and `resolved_payload`
+ * captures whatever edits Kevin made.
+ *
+ * Non-invasive by design: if /proposals is never queried, the brief
+ * keeps working exactly like today. The UI opt-in is when Kevin's
+ * dashboard starts honoring proposal.status.
+ *
+ * One batch_id per brief so "accept all" works in the UI.
+ */
+export async function writeBriefProposals(
+  pool: PgPool,
+  args: {
+    ownerId: string;
+    captureId: string;
+    briefKind: 'morning-brief' | 'day-close' | 'weekly-review';
+    topThree: MorningBrief['top_three'];
+  },
+): Promise<string | null> {
+  if (!args.topThree || args.topThree.length === 0) return null;
+
+  // Use Node's crypto to mint the batch id — avoids a round-trip for
+  // pgcrypto gen_random_uuid() and keeps the function testable without
+  // a pg dependency on the extension.
+  const { randomUUID } = await import('node:crypto');
+  const batchId = randomUUID();
+
+  // Table may not exist on environments running on pre-0028 schema —
+  // degrade gracefully. The brief itself is already persisted to Notion
+  // by the time we get here; losing the proposal row is non-fatal.
+  try {
+    for (const item of args.topThree) {
+      const payload = {
+        title: item.title,
+        urgency: item.urgency,
+        entity_ids: item.entity_ids,
+      };
+      await pool.query(
+        `INSERT INTO proposals
+           (owner_id, source_agent, capture_id, kind, proposed_payload, status, batch_id)
+         VALUES ($1, $2, $3, 'brief-item', $4::jsonb, 'pending', $5::uuid)`,
+        [
+          args.ownerId,
+          args.briefKind,
+          args.captureId,
+          JSON.stringify(payload),
+          batchId,
+        ],
+      );
+    }
+    return batchId;
+  } catch (err) {
+    if ((err as { code?: string }).code === '42P01') {
+      console.warn('[morning-brief] proposals table not yet deployed; skip dual-write');
+      return null;
+    }
+    // Any other error — log but don't fail the brief.
+    console.warn('[morning-brief] proposal dual-write failed (non-fatal):', err);
+    return null;
+  }
+}
+
 export interface DraftReadyRow {
   draft_id: string;
   from: string;

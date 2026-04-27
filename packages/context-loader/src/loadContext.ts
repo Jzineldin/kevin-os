@@ -150,7 +150,25 @@ export async function loadContext(
   // 5. Compose cached + freshly-fetched dossiers in input order.
   const allDossiers: EntityDossier[] = entityIds.map((id) => {
     const hit = cached.get(id);
-    if (hit) return (hit as unknown as { bundle: ContextBundle }).bundle.entity_dossiers[0] ?? placeholderDossier(id);
+    if (hit) {
+      // Defensive: the cache row's `bundle` shape is owned by THIS file's
+      // own writes (see section 7 below), but other code paths —
+      // dashboard-api's /entities/:id/synthesize in Phase 11 Plan 11-04 C —
+      // also write to the same table with a different bundle shape
+      // ({synthesis, source, counts}). Without this guard, reading a
+      // synthesis-shaped row crashes every downstream loadContext caller
+      // on `entity_dossiers[0]` of undefined.
+      const bundle = (hit as unknown as { bundle?: unknown }).bundle;
+      if (
+        bundle &&
+        typeof bundle === 'object' &&
+        Array.isArray((bundle as { entity_dossiers?: unknown }).entity_dossiers)
+      ) {
+        const d = (bundle as { entity_dossiers: EntityDossier[] }).entity_dossiers[0];
+        if (d) return d;
+      }
+      return placeholderDossier(id);
+    }
     return dossiers.find((d) => d.entity_id === id) ?? placeholderDossier(id);
   });
 

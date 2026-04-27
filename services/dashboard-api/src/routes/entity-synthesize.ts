@@ -145,6 +145,19 @@ async function writeCachedSynthesis(
   sourceCount: { mentions: number; emails: number },
 ): Promise<string> {
   const db = await getDb();
+  // IMPORTANT: entity_dossiers_cached.bundle is shared with @kos/context-
+  // loader which expects `{entity_dossiers: [...]}` shape. Writing a
+  // synthesis-only shape here poisoned the cache for morning-brief.
+  // Store the synthesis INSIDE a compatible envelope so loadContext
+  // reads an empty entity_dossiers array (falls through to its
+  // placeholderDossier path) while dashboard-api still reads the
+  // synthesis field it needs.
+  const envelope = {
+    entity_dossiers: [] as unknown[],
+    synthesis,
+    source: 'chat-synthesis-v1',
+    counts: sourceCount,
+  };
   const r = (await db.execute(sql`
     INSERT INTO entity_dossiers_cached
       (entity_id, owner_id, last_touch_hash, bundle, created_at, expires_at)
@@ -152,11 +165,7 @@ async function writeCachedSynthesis(
       ${entityId}::uuid,
       ${OWNER_ID},
       ${'chat-sonnet-4-6:' + new Date().toISOString()},
-      ${JSON.stringify({
-        source: 'chat-synthesis-v1',
-        synthesis,
-        counts: sourceCount,
-      })}::jsonb,
+      ${JSON.stringify(envelope)}::jsonb,
       now(),
       now() + interval '24 hours'
     )

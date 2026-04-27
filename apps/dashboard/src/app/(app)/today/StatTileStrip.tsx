@@ -25,8 +25,19 @@ const ZERO: StatTileData = {
   events_upcoming: 0,
 };
 
-export function StatTileStrip({ data }: { data: StatTileData | undefined }) {
+export function StatTileStrip({
+  data,
+  prioritiesCount,
+}: {
+  data: StatTileData | undefined;
+  prioritiesCount?: number;
+}) {
   const safe = data ?? ZERO;
+  // Priorities tile shows the length of the top-3 list (real, surfaceable
+  // tasks Kevin acts on today). stat_tiles.entities_active is a count of
+  // people/projects in entity_index and usually 0 until the entities DB
+  // starts getting populated — wrong thing to show here.
+  const pCount = prioritiesCount ?? 0;
   return (
     <div
       data-testid="stat-tile-strip"
@@ -36,9 +47,9 @@ export function StatTileStrip({ data }: { data: StatTileData | undefined }) {
       <StatTile
         icon={CheckCheck}
         label="Priorities"
-        value={safe.entities_active}
+        value={pCount}
         tone="priority"
-        delta={safe.entities_active > 0 ? '1 due today' : 'none'}
+        delta={pCount > 0 ? 'today' : 'none'}
       />
       <StatTile
         icon={FileEdit}

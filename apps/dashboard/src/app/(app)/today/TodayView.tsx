@@ -73,7 +73,10 @@ export function TodayView({ data }: { data: TodayResponse }) {
       </header>
 
       {/* Row 2 — KPI strip */}
-      <StatTileStrip data={data.stat_tiles} />
+      <StatTileStrip
+        data={data.stat_tiles}
+        prioritiesCount={data.priorities.length}
+      />
 
       {/* Row 3 — main 60/40 grid */}
       <div

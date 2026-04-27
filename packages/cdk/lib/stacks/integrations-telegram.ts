@@ -38,6 +38,10 @@ export interface WireTelegramProps {
   sentryDsnSecret: ISecret;
   captureBus: EventBus;
   kevinTelegramUserId: string;
+  /** Vercel-hosted /api/chat proxy URL (Phase 11 Plan 11-03). */
+  kosChatEndpoint: string;
+  /** Bearer secret injected at deploy time — matches dashboard-api env. */
+  kosDashboardBearerSecret: ISecret;
 }
 
 export interface TelegramWiring {
@@ -69,6 +73,11 @@ export function wireTelegramIngress(scope: Construct, props: WireTelegramProps):
       SENTRY_DSN_SECRET_ARN: props.sentryDsnSecret.secretArn,
       BLOBS_BUCKET: props.blobsBucket.bucketName,
       KEVIN_TELEGRAM_USER_ID: props.kevinTelegramUserId,
+      // Phase 11 Plan 11-03: /ask and /chat commands HTTP-POST the
+      // query to Vercel's /api/chat proxy (which calls dashboard-api).
+      // Endpoint + bearer unwrapped at deploy time like NOTION_TOKEN.
+      KOS_CHAT_ENDPOINT: props.kosChatEndpoint,
+      KOS_DASHBOARD_BEARER_TOKEN: props.kosDashboardBearerSecret.secretValue.unsafeUnwrap(),
     },
   });
 

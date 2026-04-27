@@ -17,7 +17,7 @@
  *  - T-02-S3-01 (path traversal): S3 key is built from the ULID + UTC date,
  *    never from user input.
  */
-import { Bot } from 'grammy';
+import { Bot, type CommandContext, type Context } from 'grammy';
 import { ulid } from 'ulid';
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { initSentry, wrapHandler } from '../../_shared/sentry.js';
@@ -26,6 +26,7 @@ import { CaptureReceivedSchema } from '@kos/contracts';
 import { getTelegramSecrets } from './secrets.js';
 import { putVoiceAudio, putVoiceMeta } from './s3.js';
 import { publishCaptureReceived } from './events.js';
+import { invokeChat, splitForTelegram } from './chat.js';
 
 /** Access-control: only Kevin's Telegram user ID may produce events (ASVS V4). */
 function kevinTelegramUserId(): number {
@@ -49,6 +50,90 @@ async function getBot(): Promise<Bot> {
     const botInfo = botInfoRaw ? JSON.parse(botInfoRaw) : undefined;
     const bot = botInfo ? new Bot(botToken, { botInfo }) : new Bot(botToken);
     const kevinId = kevinTelegramUserId();
+
+    // Phase 11 Plan 11-03: /ask + /chat → conversational mode.
+    // Registered BEFORE message:text so grammY's command router matches
+    // first and we don't double-handle as a capture.
+    const handleChatCommand = async (
+      ctx: CommandContext<Context>,
+      commandName: string,
+    ): Promise<void> => {
+      if (ctx.from?.id !== kevinId) return;
+      const full = ctx.message?.text ?? '';
+      // Strip the leading '/ask' or '/chat' + whitespace.
+      const query = full.replace(new RegExp(`^/${commandName}(@\\S+)?\\s*`), '').trim();
+      if (!query) {
+        try {
+          await ctx.reply(
+            `Skriv din fråga efter /${commandName}. Exempel: /${commandName} Vem är Robin?`,
+            { reply_parameters: { message_id: ctx.message!.message_id } },
+          );
+        } catch {
+          /* best-effort */
+        }
+        return;
+      }
+      // Stage-1 ack — keeps Telegram alive while Bedrock thinks.
+      let thinking:
+        | { chat_id: number; message_id: number }
+        | undefined;
+      try {
+        const sent = await ctx.reply('⏳ Tänker…', {
+          reply_parameters: { message_id: ctx.message!.message_id },
+        });
+        thinking = {
+          chat_id: sent.chat.id,
+          message_id: sent.message_id,
+        };
+      } catch {
+        /* non-fatal */
+      }
+      try {
+        const { answer, citations } = await invokeChat({ message: query });
+        const footer =
+          citations.length > 0
+            ? `\n\n_Linked: ${citations.map((c) => c.name).join(', ')}_`
+            : '';
+        const parts = splitForTelegram(`${answer}${footer}`);
+        // First part replaces the thinking placeholder so the thread
+        // reads cleanly; subsequent parts chain below as fresh replies.
+        if (thinking && parts[0]) {
+          try {
+            await bot.api.editMessageText(thinking.chat_id, thinking.message_id, parts[0], {
+              parse_mode: 'Markdown',
+            });
+          } catch {
+            // Some markdown strings fail Telegram's parser — resend plain.
+            await ctx.reply(parts[0], {
+              reply_parameters: { message_id: ctx.message!.message_id },
+            });
+          }
+        }
+        for (const chunk of parts.slice(1)) {
+          await ctx.reply(chunk);
+        }
+      } catch (err) {
+        console.warn('[telegram-bot] /chat invocation failed:', err);
+        const msg = '⚠️ Kunde inte nå KOS brain just nu. Försök igen om en minut.';
+        if (thinking) {
+          try {
+            await bot.api.editMessageText(thinking.chat_id, thinking.message_id, msg);
+            return;
+          } catch {
+            /* fall through */
+          }
+        }
+        try {
+          await ctx.reply(msg, {
+            reply_parameters: { message_id: ctx.message!.message_id },
+          });
+        } catch {
+          /* best-effort */
+        }
+      }
+    };
+    bot.command('ask', (ctx) => handleChatCommand(ctx, 'ask'));
+    bot.command('chat', (ctx) => handleChatCommand(ctx, 'chat'));
 
     bot.on('message:text', async (ctx) => {
       if (ctx.from?.id !== kevinId) return; // silent drop — access control

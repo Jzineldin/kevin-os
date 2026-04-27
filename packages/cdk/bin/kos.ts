@@ -169,6 +169,9 @@ void safety;
 
 // CaptureStack — Plan 02-01 (CAP-01 Telegram ingress).
 // KEVIN_TELEGRAM_USER_ID is supplied at synth time via env var or CDK context.
+// Phase 11 Plan 11-03: also needs KOS_CHAT_ENDPOINT (Vercel /api/chat URL)
+// + the dashboard bearer secret (re-used from DashboardStack) so the
+// /ask and /chat commands can reach the grounded chat backend.
 const capture = new CaptureStack(app, 'KosCapture', {
   env,
   blobsBucket: data.blobsBucket,
@@ -181,6 +184,11 @@ const capture = new CaptureStack(app, 'KosCapture', {
     process.env.KEVIN_TELEGRAM_USER_ID ??
     (app.node.tryGetContext('kevinTelegramUserId') as string | undefined) ??
     '',
+  kosChatEndpoint:
+    process.env.KOS_CHAT_ENDPOINT ??
+    (app.node.tryGetContext('kosChatEndpoint') as string | undefined) ??
+    'https://kos-dashboard-navy.vercel.app/api/chat',
+  kosDashboardBearerSecret: data.dashboardBearerSecret,
 });
 capture.addDependency(data);
 capture.addDependency(events);

@@ -32,6 +32,10 @@ export interface CaptureStackProps extends StackProps {
   captureBus: EventBus;
   systemBus: EventBus;
   kevinTelegramUserId: string;
+  /** Phase 11 Plan 11-03: Vercel /api/chat URL for /ask + /chat commands. */
+  kosChatEndpoint: string;
+  /** Dashboard bearer secret — injected at deploy into telegram-bot env. */
+  kosDashboardBearerSecret: ISecret;
 }
 
 export class CaptureStack extends Stack {

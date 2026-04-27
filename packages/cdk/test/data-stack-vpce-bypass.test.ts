@@ -39,6 +39,8 @@ describe('DataStack VPCe bypass patterns', () => {
     captureBus: events.buses.capture,
     systemBus: events.buses.system,
     kevinTelegramUserId: '111222333',
+    kosChatEndpoint: 'https://kos-dashboard-navy.vercel.app/api/chat',
+    kosDashboardBearerSecret: data.dashboardBearerSecret,
   });
   // IntegrationsStack is the host for the Phase 4 Plan 04-01 ios-webhook
   // Lambda — its CFN role name carries the `KosIntegrations-IosWebhook*`

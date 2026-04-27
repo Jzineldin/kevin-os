@@ -37,6 +37,8 @@ import './handlers/integrations.js';
 // Phase 4 Plan 04-05: Approve / Edit / Skip Route Handlers + merged inbox.
 import './routes/email-drafts.js';
 import './routes/inbox.js';
+// Phase 11 Plan 11-01: POST /chat (grounded AI conversational surface).
+import './routes/chat.js';
 
 /**
  * Constant-time string compare — prevents timing oracles on the shared

@@ -207,6 +207,20 @@ export class DashboardStack extends Stack {
       }),
     );
 
+    // Phase 11 Plan 11-01: POST /chat calls Bedrock Sonnet 4.6 for the
+    // grounded AI conversational surface. Same inference-profile ARNs as
+    // morning-brief / day-close / weekly-review.
+    dashboardApi.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          'arn:aws:bedrock:*:*:inference-profile/eu.anthropic.claude-sonnet-4-6*',
+          'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*',
+        ],
+      }),
+    );
+
     // Function URL — AUTH_IAM, BUFFERED (non-streaming JSON responses).
     const apiUrl = dashboardApi.addFunctionUrl({
       authType: FunctionUrlAuthType.AWS_IAM,

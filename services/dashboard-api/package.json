@@ -9,8 +9,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.28.1",
     "@aws-sdk/client-eventbridge": "3.691.0",
     "@aws-sdk/rds-signer": "3.691.0",
+    "@kos/context-loader": "workspace:*",
     "@kos/contracts": "workspace:*",
     "@kos/db": "workspace:*",
     "@notionhq/client": "2.3.0",

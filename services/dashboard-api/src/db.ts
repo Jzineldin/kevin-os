@@ -58,6 +58,18 @@ export async function getDb(): Promise<NodePgDatabase> {
 }
 
 /**
+ * Raw pg.Pool accessor — used by callers that need to pass a PgPool into
+ * @kos/context-loader or other helpers written against `pg.Pool`. Reuses
+ * the same warm pool as getDb(); triggers pool creation if needed.
+ */
+export async function getPool(): Promise<pg.Pool> {
+  if (pool) return pool;
+  await getDb(); // side-effect: creates pool
+  if (!pool) throw new Error('[dashboard-api] pool unexpectedly null after init');
+  return pool;
+}
+
+/**
  * Test seam — let Vitest inject a prebuilt Drizzle instance (or null to
  * force a cold re-init). Production code never calls this.
  */

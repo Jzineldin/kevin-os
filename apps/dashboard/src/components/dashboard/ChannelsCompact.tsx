@@ -15,10 +15,21 @@ import { Panel } from '@/components/dashboard/Panel';
 import { formatDistanceToNow } from 'date-fns';
 
 const DEFAULTS: ChannelHealthItem[] = [
+  { name: 'Telegram', type: 'capture', status: 'down', last_event_at: null },
   { name: 'Gmail', type: 'capture', status: 'down', last_event_at: null },
-  { name: 'Slack', type: 'capture', status: 'down', last_event_at: null },
-  { name: 'Calendar', type: 'capture', status: 'down', last_event_at: null },
-  { name: 'Notion', type: 'capture', status: 'down', last_event_at: null },
+  { name: 'Granola', type: 'capture', status: 'down', last_event_at: null },
+  {
+    name: 'Google Calendar',
+    type: 'capture',
+    status: 'down',
+    last_event_at: null,
+  },
+  {
+    name: 'Chrome extension',
+    type: 'capture',
+    status: 'down',
+    last_event_at: null,
+  },
   { name: 'LinkedIn', type: 'capture', status: 'down', last_event_at: null },
 ];
 
@@ -37,6 +48,21 @@ function freshness(iso: string | null): string {
   } catch {
     return '—';
   }
+}
+
+/**
+ * Row label. Phase 11 D-07 correction: don't call it "reauth" unless we
+ * actually know the token is invalid — we don't have that signal. A channel
+ * is "down" when it has no recent events, which could also mean "idle" or
+ * "not wired yet". Show the real freshness when we have one; only fall back
+ * to a status word when we have no event timestamp at all.
+ */
+function rowLabel(ch: ChannelHealthItem): string {
+  if (ch.last_event_at) {
+    const age = freshness(ch.last_event_at);
+    return ch.status === 'healthy' ? age : `${age} old`;
+  }
+  return ch.status === 'down' ? 'offline' : '—';
 }
 
 export function ChannelsCompact({
@@ -75,9 +101,7 @@ export function ChannelsCompact({
               >
                 <span className="d" aria-hidden />
                 <span className="nm">{ch.name}</span>
-                <span className="n">
-                  {tone === 'err' ? 'reauth' : freshness(ch.last_event_at)}
-                </span>
+                <span className="n">{rowLabel(ch)}</span>
               </div>
             );
           })}

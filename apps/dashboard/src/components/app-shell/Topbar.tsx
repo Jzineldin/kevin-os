@@ -134,24 +134,6 @@ export function Topbar() {
         <span>New capture</span>
       </button>
 
-      {/* New capture — primary. Sect-priority fill + drop shadow. */}
-      <button
-        type="button"
-        onClick={emitNewCapture}
-        data-slot="new-capture"
-        data-testid="topbar-new-capture"
-        className="inline-flex h-[34px] items-center gap-[7px] rounded-md px-[14px] text-[13px] font-semibold text-white transition-all duration-[var(--transition-fast)] ease-[var(--ease)]"
-        style={{
-          background: 'var(--color-sect-priority)',
-          borderColor: 'color-mix(in srgb, var(--color-sect-priority) 60%, #000)',
-          boxShadow:
-            '0 4px 14px -6px color-mix(in srgb, var(--color-sect-priority) 70%, transparent), inset 0 1px 0 rgba(255,255,255,0.14)',
-        }}
-      >
-        <Plus size={14} strokeWidth={2.4} />
-        <span>New capture</span>
-      </button>
-
       <UserMenu />
     </header>
   );

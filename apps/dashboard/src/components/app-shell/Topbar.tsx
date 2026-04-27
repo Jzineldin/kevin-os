@@ -107,11 +107,31 @@ export function Topbar() {
         data-slot="palette-trigger-topbar"
         data-testid="topbar-cmdk"
         aria-label="Search entities and views"
-        className="flex h-[34px] min-w-[320px] items-center gap-[10px] rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 text-[13px] text-[color:var(--color-text-3)] hover:border-[color:var(--color-border-hover)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
+        className="group flex h-[32px] min-w-[320px] items-center gap-[10px] rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 text-[13px] text-[color:var(--color-text-3)] hover:border-[color:var(--color-border-hover)] hover:text-[color:var(--color-text-2)] transition-[border-color,color] duration-[var(--transition-fast)] ease-[var(--ease)]"
       >
-        <Search size={14} strokeWidth={1.7} />
+        <Search
+          size={14}
+          strokeWidth={1.7}
+          className="text-[color:var(--color-text-4)] group-hover:text-[color:var(--color-text-3)] transition-colors duration-[var(--transition-fast)] ease-[var(--ease)]"
+        />
         <span className="flex-1 text-left">Search entities, views…</span>
         <Kbd>⌘K</Kbd>
+      </button>
+
+      {/* New capture — primary. v4 primary shadow token handles the lift. */}
+      <button
+        type="button"
+        onClick={emitNewCapture}
+        data-slot="new-capture"
+        data-testid="topbar-new-capture"
+        className="inline-flex h-[32px] items-center gap-[7px] rounded-md px-[13px] text-[13px] font-semibold text-white transition-[background,box-shadow] duration-[var(--transition-fast)] ease-[var(--ease)] hover:brightness-[1.04] active:brightness-[0.96]"
+        style={{
+          background: 'var(--color-sect-priority)',
+          boxShadow: 'var(--shadow-btn-primary)',
+        }}
+      >
+        <Plus size={14} strokeWidth={2.4} />
+        <span>New capture</span>
       </button>
 
       {/* New capture — primary. Sect-priority fill + drop shadow. */}

@@ -126,6 +126,15 @@ const integrations = new IntegrationsStack(app, 'KosIntegrations', {
     process.env.KEVIN_OWNER_ID ??
     (app.node.tryGetContext('kevinOwnerId') as string | undefined) ??
     '',
+  // Phase 7 fix 2026-04-28: Kevin's Telegram chat_id so brief Lambdas can
+  // emit telegram.chat_id on output.push (otherwise push-telegram throws
+  // "invoked without telegram.chat_id"). In private DMs the chat_id equals
+  // KEVIN_TELEGRAM_USER_ID; fall back to that if set.
+  kevinTelegramChatId:
+    process.env.KEVIN_TELEGRAM_CHAT_ID ??
+    process.env.KEVIN_TELEGRAM_USER_ID ??
+    (app.node.tryGetContext('kevinTelegramChatId') as string | undefined) ??
+    (app.node.tryGetContext('kevinTelegramUserId') as string | undefined),
   sentryDsnSecret: data.sentryDsnSecret,
   langfusePublicKeySecret: data.langfusePublicSecret,
   langfuseSecretKeySecret: data.langfuseSecretSecret,
@@ -232,6 +241,10 @@ const agents = new AgentsStack(app, 'KosAgents', {
     (app.node.tryGetContext('kosChatEndpoint') as string | undefined) ??
     'https://kos-dashboard-navy.vercel.app/api/chat',
   kosDashboardBearerSecret: data.dashboardBearerSecret,
+  // Phase 11 Plan 11-01: kos-chat Lambda uses the same bearer secret as
+  // dashboard-api (D-09 single-user bearer). Reuses dashboardBearerSecret
+  // so Kevin only manages one token.
+  chatBearerSecret: data.dashboardBearerSecret,
 });
 agents.addDependency(data);
 agents.addDependency(events);

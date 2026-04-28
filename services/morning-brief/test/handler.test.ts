@@ -158,6 +158,55 @@ describe('morning-brief handler', () => {
     expect(updateAgentRunSuccessMock).toHaveBeenCalledTimes(1);
   });
 
+  it('forwards telegram.chat_id on output.push when KEVIN_TELEGRAM_CHAT_ID env is set (fix 2026-04-28)', async () => {
+    const prev = process.env.KEVIN_TELEGRAM_CHAT_ID;
+    process.env.KEVIN_TELEGRAM_CHAT_ID = '165422223669067780';
+    try {
+      const { handler } = await import('../src/handler.js');
+      await (handler as unknown as (e: unknown) => Promise<unknown>)({});
+      const outputPushCall = ebSend.mock.calls.find((c) => {
+        const entries = (c[0] as any).input?.Entries ?? [];
+        return entries.some(
+          (e: any) => e.DetailType === 'output.push',
+        );
+      });
+      expect(outputPushCall).toBeDefined();
+      const entry = (outputPushCall![0] as any).input.Entries.find(
+        (e: any) => e.DetailType === 'output.push',
+      );
+      const detail = JSON.parse(entry.Detail);
+      expect(detail.telegram).toEqual({
+        chat_id: 165422223669067780,
+      });
+    } finally {
+      if (prev === undefined) delete process.env.KEVIN_TELEGRAM_CHAT_ID;
+      else process.env.KEVIN_TELEGRAM_CHAT_ID = prev;
+    }
+  });
+
+  it('omits telegram field on output.push when KEVIN_TELEGRAM_CHAT_ID is unset (legacy path)', async () => {
+    const prev = process.env.KEVIN_TELEGRAM_CHAT_ID;
+    delete process.env.KEVIN_TELEGRAM_CHAT_ID;
+    try {
+      const { handler } = await import('../src/handler.js');
+      await (handler as unknown as (e: unknown) => Promise<unknown>)({});
+      const outputPushCall = ebSend.mock.calls.find((c) => {
+        const entries = (c[0] as any).input?.Entries ?? [];
+        return entries.some(
+          (e: any) => e.DetailType === 'output.push',
+        );
+      });
+      expect(outputPushCall).toBeDefined();
+      const entry = (outputPushCall![0] as any).input.Entries.find(
+        (e: any) => e.DetailType === 'output.push',
+      );
+      const detail = JSON.parse(entry.Detail);
+      expect(detail.telegram).toBeUndefined();
+    } finally {
+      if (prev !== undefined) process.env.KEVIN_TELEGRAM_CHAT_ID = prev;
+    }
+  });
+
   it('idempotent: insertAgentRunStarted returns false → no Bedrock call, returns { skipped: duplicate }', async () => {
     insertAgentRunStartedMock.mockResolvedValueOnce(false);
     const { handler } = await import('../src/handler.js');

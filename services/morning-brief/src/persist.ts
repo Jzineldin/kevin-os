@@ -124,9 +124,40 @@ export async function writeTop3Membership(
     briefKind: 'morning-brief' | 'day-close' | 'weekly-review';
     topThree: MorningBrief['top_three'];
   },
-): Promise<void> {
+): Promise<{ inserted: number; skipped: number }> {
+  // Pre-validate entity_ids against entity_index so we don't trip the
+  // top3_membership_entity_id_fkey FK when the LLM hallucinates a UUID
+  // or references an entity that was never backfilled. Silently drop
+  // invalid ids; count both for observability. (Fix: 2026-04-28 —
+  // previously a single bad id failed the whole brief.)
+  const allIds = Array.from(
+    new Set(args.topThree.flatMap((t) => t.entity_ids).filter(Boolean)),
+  );
+  let validIds = new Set<string>();
+  if (allIds.length > 0) {
+    try {
+      const res = await pool.query(
+        `SELECT id::text AS id FROM entity_index WHERE id = ANY($1::uuid[])`,
+        [allIds],
+      );
+      validIds = new Set(res.rows.map((r: { id: string }) => r.id));
+    } catch (e) {
+      // If the lookup itself fails (e.g. owner_id column change), fall
+      // back to skipping all FK-risky entity writes rather than nuking
+      // the brief. The brief is already persisted to Notion upstream.
+      console.warn('[morning-brief] entity_index validation failed, skipping all top3_membership rows', e);
+      return { inserted: 0, skipped: allIds.length };
+    }
+  }
+
+  let inserted = 0;
+  let skipped = 0;
   for (const item of args.topThree) {
     for (const entityId of item.entity_ids) {
+      if (!validIds.has(entityId)) {
+        skipped += 1;
+        continue;
+      }
       await pool.query(
         `INSERT INTO top3_membership
            (owner_id, brief_date, brief_kind, brief_capture_id, entity_id, top3_title, urgency)
@@ -141,8 +172,15 @@ export async function writeTop3Membership(
           item.urgency,
         ],
       );
+      inserted += 1;
     }
   }
+  if (skipped > 0) {
+    console.warn(
+      `[morning-brief] top3_membership: ${inserted} inserted, ${skipped} skipped (entity not in index)`,
+    );
+  }
+  return { inserted, skipped };
 }
 
 /**

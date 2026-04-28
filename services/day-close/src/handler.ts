@@ -233,6 +233,16 @@ export const handler = wrapHandler(
                   capture_id: captureId,
                   body: html,
                   is_reply: false,
+                  // Fix 2026-04-28: forward Kevin's chat_id so push-telegram
+                  // has a target. Without this the Lambda throws "invoked
+                  // without telegram.chat_id" (observed 3x in 24h).
+                  ...(process.env.KEVIN_TELEGRAM_CHAT_ID
+                    ? {
+                        telegram: {
+                          chat_id: Number(process.env.KEVIN_TELEGRAM_CHAT_ID),
+                        },
+                      }
+                    : {}),
                 }),
               },
             ],

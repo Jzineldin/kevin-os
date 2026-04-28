@@ -121,9 +121,36 @@ export async function writeTop3Membership(
     briefKind: 'morning-brief' | 'day-close' | 'weekly-review';
     topThree: DayCloseBrief['top_three'];
   },
-): Promise<void> {
+): Promise<{ inserted: number; skipped: number }> {
+  // Fix 2026-04-28: validate entity_ids against entity_index before
+  // INSERT to avoid tripping top3_membership_entity_id_fkey when the
+  // LLM emits a UUID that was never backfilled. Silently drop invalid
+  // ids and surface counts for observability.
+  const allIds = Array.from(
+    new Set(args.topThree.flatMap((t) => t.entity_ids).filter(Boolean)),
+  );
+  let validIds = new Set<string>();
+  if (allIds.length > 0) {
+    try {
+      const res = await pool.query(
+        `SELECT id::text AS id FROM entity_index WHERE id = ANY($1::uuid[])`,
+        [allIds],
+      );
+      validIds = new Set(res.rows.map((r: { id: string }) => r.id));
+    } catch (e) {
+      console.warn('[day-close] entity_index validation failed, skipping all top3_membership rows', e);
+      return { inserted: 0, skipped: allIds.length };
+    }
+  }
+
+  let inserted = 0;
+  let skipped = 0;
   for (const item of args.topThree) {
     for (const entityId of item.entity_ids) {
+      if (!validIds.has(entityId)) {
+        skipped += 1;
+        continue;
+      }
       await pool.query(
         `INSERT INTO top3_membership
            (owner_id, brief_date, brief_kind, brief_capture_id, entity_id, top3_title, urgency)
@@ -138,8 +165,15 @@ export async function writeTop3Membership(
           item.urgency,
         ],
       );
+      inserted += 1;
     }
   }
+  if (skipped > 0) {
+    console.warn(
+      `[day-close] top3_membership: ${inserted} inserted, ${skipped} skipped (entity not in index)`,
+    );
+  }
+  return { inserted, skipped };
 }
 
 export interface HotEntityRow {

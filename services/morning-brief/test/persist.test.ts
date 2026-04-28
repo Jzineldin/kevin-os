@@ -54,12 +54,14 @@ describe('insertAgentRunStarted', () => {
 
 describe('writeTop3Membership', () => {
   it('writes N rows where N = sum of top_three[i].entity_ids.length pairs', async () => {
+    // 1 validation SELECT + 3 INSERTs
     const pool = makePool([
+      { rows: [{ id: 'e-1' }, { id: 'e-2' }, { id: 'e-3' }], rowCount: 3 },
       { rows: [], rowCount: 1 },
       { rows: [], rowCount: 1 },
       { rows: [], rowCount: 1 },
     ]);
-    await writeTop3Membership(pool, {
+    const result = await writeTop3Membership(pool, {
       ownerId: 'o-1',
       captureId: 'cap-1',
       briefDateStockholm: '2026-04-25',
@@ -69,12 +71,39 @@ describe('writeTop3Membership', () => {
         { title: 'B', entity_ids: ['e-3'], urgency: 'med' },
       ],
     });
-    // 2 + 1 = 3 rows total.
+    // 1 SELECT + 2 + 1 = 4 pool.query calls total.
+    expect(pool.query).toHaveBeenCalledTimes(4);
+    expect(result).toEqual({ inserted: 3, skipped: 0 });
+  });
+
+  it('skips entity_ids that are not present in entity_index (FK safety)', async () => {
+    // SELECT returns only e-1 and e-3 (e-2 is missing / hallucinated)
+    const pool = makePool([
+      { rows: [{ id: 'e-1' }, { id: 'e-3' }], rowCount: 2 },
+      { rows: [], rowCount: 1 },
+      { rows: [], rowCount: 1 },
+    ]);
+    const result = await writeTop3Membership(pool, {
+      ownerId: 'o-1',
+      captureId: 'cap-1',
+      briefDateStockholm: '2026-04-25',
+      briefKind: 'morning-brief',
+      topThree: [
+        { title: 'A', entity_ids: ['e-1', 'e-2'], urgency: 'high' },
+        { title: 'B', entity_ids: ['e-3'], urgency: 'med' },
+      ],
+    });
+    // 1 SELECT + 2 INSERTs (e-2 skipped)
     expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(result).toEqual({ inserted: 2, skipped: 1 });
   });
 
   it('inserts brief_date as Stockholm-local date (passes through unchanged)', async () => {
-    const pool = makePool([{ rows: [], rowCount: 1 }]);
+    // 1 validation SELECT + 1 INSERT
+    const pool = makePool([
+      { rows: [{ id: 'e-1' }], rowCount: 1 },
+      { rows: [], rowCount: 1 },
+    ]);
     await writeTop3Membership(pool, {
       ownerId: 'o-1',
       captureId: 'cap-1',
@@ -82,8 +111,9 @@ describe('writeTop3Membership', () => {
       briefKind: 'morning-brief',
       topThree: [{ title: 'A', entity_ids: ['e-1'], urgency: 'high' }],
     });
-    const args = pool.query.mock.calls[0];
-    expect(args[1]).toContain('2026-04-25');
+    // First call is the validation SELECT, second call is the INSERT.
+    const insertArgs = pool.query.mock.calls[1];
+    expect(insertArgs[1]).toContain('2026-04-25');
   });
 });
 

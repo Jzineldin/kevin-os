@@ -63,6 +63,15 @@ export interface WireLifecycleAutomationProps {
    * — fixed 2026-04-27.
    */
   kevinOwnerId: string;
+  /**
+   * Kevin's Telegram chat_id (numeric string). In private DMs this equals
+   * his user_id. Injected into the 3 brief Lambdas so they can forward
+   * `telegram.chat_id` on the `output.push` event — without this the
+   * push-telegram Lambda throws "invoked without telegram.chat_id"
+   * (observed 2026-04-28 in CloudWatch). Optional at synth; empty string
+   * skips env injection and falls back to the pre-fix behaviour.
+   */
+  kevinTelegramChatId?: string;
   /** SafetyStack DynamoDB cap table — verify-notification-cap reads it. */
   telegramCapTable: ITable;
   /** SafetyStack SNS topic — verify-notification-cap publishes violations. */
@@ -117,6 +126,11 @@ export function wireLifecycleAutomation(
     AZURE_SEARCH_ADMIN_SECRET_ARN: props.azureSearchAdminSecret.secretArn,
     OUTPUT_BUS_NAME: props.outputBus.eventBusName,
     SYSTEM_BUS_NAME: props.systemBus.eventBusName,
+    // When set, brief handlers forward telegram.chat_id on output.push.
+    // (Fix 2026-04-28 for push-telegram "invoked without telegram.chat_id".)
+    ...(props.kevinTelegramChatId
+      ? { KEVIN_TELEGRAM_CHAT_ID: props.kevinTelegramChatId }
+      : {}),
   };
 
   // Notion IDs (Plan 07-01: Today page + Daily Brief Log DB).

@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   loadSlippedItemsForToday,
   loadDecisionsHint,
+  writeTop3Membership,
 } from '../src/persist.js';
 
 function makePool(scripted: Array<{ rows: any[]; rowCount?: number }>) {
@@ -77,5 +78,58 @@ describe('loadDecisionsHint', () => {
     const pool = makePool([{ rows: [], rowCount: 0 }]);
     const out = await loadDecisionsHint(pool, 'o-1');
     expect(out).toEqual([]);
+  });
+});
+
+describe('writeTop3Membership (day-close FK guard)', () => {
+  it('validates entity_ids before INSERT and inserts only valid ones', async () => {
+    // SELECT returns e-1 + e-3 (e-2 missing from entity_index)
+    const pool = makePool([
+      { rows: [{ id: 'e-1' }, { id: 'e-3' }] },
+      { rows: [] },
+      { rows: [] },
+    ]);
+    const result = await writeTop3Membership(pool, {
+      ownerId: 'o-1',
+      captureId: 'cap-1',
+      briefDateStockholm: '2026-04-25',
+      briefKind: 'day-close',
+      topThree: [
+        { title: 'A', entity_ids: ['e-1', 'e-2'], urgency: 'high' },
+        { title: 'B', entity_ids: ['e-3'], urgency: 'med' },
+      ],
+    } as any);
+    expect(pool.query).toHaveBeenCalledTimes(3); // 1 SELECT + 2 INSERTs
+    expect(result).toEqual({ inserted: 2, skipped: 1 });
+  });
+
+  it('skips all inserts and returns counts when validation query throws', async () => {
+    const query = vi.fn()
+      .mockRejectedValueOnce(new Error('entity_index missing'))
+      // No further calls expected
+      ;
+    const pool = { query } as any;
+    const result = await writeTop3Membership(pool, {
+      ownerId: 'o-1',
+      captureId: 'cap-1',
+      briefDateStockholm: '2026-04-25',
+      briefKind: 'day-close',
+      topThree: [{ title: 'A', entity_ids: ['e-1'], urgency: 'high' }],
+    } as any);
+    expect(result).toEqual({ inserted: 0, skipped: 1 });
+    expect(pool.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles empty topThree without querying entity_index', async () => {
+    const pool = makePool([]);
+    const result = await writeTop3Membership(pool, {
+      ownerId: 'o-1',
+      captureId: 'cap-1',
+      briefDateStockholm: '2026-04-25',
+      briefKind: 'day-close',
+      topThree: [],
+    } as any);
+    expect(result).toEqual({ inserted: 0, skipped: 0 });
+    expect(pool.query).toHaveBeenCalledTimes(0);
   });
 });

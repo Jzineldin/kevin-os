@@ -108,6 +108,12 @@ export interface IntegrationsStackProps extends StackProps {
   // synth without supplying these). Production deploy must pass
   // kevinOwnerId at minimum; sentry/langfuse secrets enable D-28 tracing.
   kevinOwnerId?: string;
+  /**
+   * Kevin's Telegram chat_id — passed through to wireLifecycleAutomation so
+   * morning-brief / day-close / weekly-review can emit telegram.chat_id on
+   * output.push (fix for 2026-04-28 "invoked without telegram.chat_id").
+   */
+  kevinTelegramChatId?: string;
   sentryDsnSecret?: ISecret;
   langfusePublicKeySecret?: ISecret;
   langfuseSecretKeySecret?: ISecret;
@@ -658,6 +664,7 @@ export class IntegrationsStack extends Stack {
         notionTokenSecret: props.notionTokenSecret,
         azureSearchAdminSecret: props.azureSearchAdminSecret,
         kevinOwnerId: props.kevinOwnerId ?? '',
+        kevinTelegramChatId: props.kevinTelegramChatId,
         telegramCapTable: props.telegramCapTable,
         alarmTopic: props.alarmTopic,
         captureBus: props.captureBus,

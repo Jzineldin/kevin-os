@@ -1,37 +1,48 @@
 /**
  * @kos/service-telegram-bot /chat integration (Phase 11 Plan 11-03).
  *
- * When Kevin types `/ask <question>` or `/chat <question>` to the bot,
- * the message is routed here instead of the standard capture flow. We
- * HTTP-POST the query to the Vercel `/api/chat` proxy (which in turn
- * calls dashboard-api's POST /chat — Sonnet 4.6 + Kevin Context +
- * hot entities) and reply to the same Telegram thread with the answer.
- *
- * Non-commands (plain text, voice) still flow through the capture
- * pipeline unchanged — this is strictly additive.
+ * Routes both /ask commands and conversational plain text to kos-chat Lambda.
+ * Manages per-chat-id session persistence in localStorage-like pattern
+ * (for Telegram context, we store in a module-level Map keyed by chat_id).
  *
  * Why HTTP-via-Vercel vs direct Lambda invoke:
- *   - Direct invoke requires a cross-stack ref (capture-stack ←
- *     dashboard-stack.functionArn) which complicates the CDK
- *     dependency graph.
- *   - Vercel proxy is already deployed, already bearer-auth'd, and
- *     telegram-bot runs outside the VPC (D-05) with unrestricted
- *     egress — HTTP just works.
- *
- * Timeout: the chat handler can take 8-15s for a cold Bedrock call.
- * Telegram's webhook timeout is 25s so we stay well within.
+ *   - Direct invoke requires cross-stack ref which complicates CDK.
+ *   - Vercel proxy is already deployed, already bearer-auth'd.
+ *   - Telegram bot runs outside VPC with unrestricted egress — HTTPS just works.
  */
+
+// Session storage — in-memory map of chat_id → sessionId.
+// In production, this could be backed by DynamoDB for persistence across Lambda invocations.
+// For now, per-warm-Lambda is sufficient since Telegram-to-Lambda calls are frequent.
+const sessionCache = new Map<string, string>();
+
+export async function getOrCreateChatSession(chatId: string): Promise<string | undefined> {
+  return sessionCache.get(chatId);
+}
+
+export async function storeChatSession(chatId: string, sessionId: string): Promise<void> {
+  sessionCache.set(chatId, sessionId);
+}
 
 export interface ChatAnswer {
   answer: string;
   citations: Array<{ entity_id: string; name: string }>;
+  sessionId: string;
 }
 
 export interface InvokeChatArgs {
   message: string;
+  sessionId?: string;
+  source?: 'dashboard' | 'telegram';
+  externalId?: string;
 }
 
-export async function invokeChat({ message }: InvokeChatArgs): Promise<ChatAnswer> {
+export async function invokeChat({
+  message,
+  sessionId,
+  source = 'telegram',
+  externalId,
+}: InvokeChatArgs): Promise<ChatAnswer> {
   const endpoint = process.env.KOS_CHAT_ENDPOINT;
   if (!endpoint) {
     throw new Error('KOS_CHAT_ENDPOINT not set on telegram-bot Lambda');
@@ -40,24 +51,31 @@ export async function invokeChat({ message }: InvokeChatArgs): Promise<ChatAnswe
   if (!bearer) {
     throw new Error('KOS_DASHBOARD_BEARER_TOKEN not set on telegram-bot Lambda');
   }
+
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      // Vercel middleware accepts EITHER `Cookie: kos_session=<token>`
-      // OR `Authorization: Bearer <token>`. Cookie is simpler here.
-      cookie: `kos_session=${bearer}`,
+      authorization: `Bearer ${bearer}`,
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({
+      message,
+      sessionId: sessionId ?? undefined,
+      source,
+      externalId: externalId ?? 'default',
+    }),
   });
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`chat endpoint returned ${res.status}: ${text.slice(0, 200)}`);
   }
+
   const parsed = (await res.json()) as ChatAnswer;
   return {
     answer: parsed.answer ?? '',
     citations: parsed.citations ?? [],
+    sessionId: parsed.sessionId,
   };
 }
 

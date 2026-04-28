@@ -5,11 +5,9 @@
  *
  * Visual reference: 11-CONTEXT D-01 + 11-RESEARCH "persistent chat bubble".
  * Wave 3 (Plan 11-07) mounts <ChatBubble /> in (app)/layout.tsx so it stays
- * visible across every page. This plan only ships the component.
+ * visible across every page. Wired to real kos-chat backend in Phase 11-02.
  *
  * Styled via the `.mc-chat-bubble` class (globals.css Phase 11 section).
- * `data-testid="chat-bubble"` exists so the Wave 3 button-audit harness can
- * locate it during the smoke pass.
  */
 import { useState } from 'react';
 import { MessageSquare } from 'lucide-react';

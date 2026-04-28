@@ -6,16 +6,17 @@
  * D-04 is enforced structurally: this Lambda only does S3 put + PutEvents;
  * agent routing happens later via EventBridge rules.
  *
+ * Phase 11 Plan 11-03: Conversational mode routes plain text (not /commands)
+ * through kos-chat Lambda via invokeChat, with session persistence per chat_id.
+ *
  * Threat mitigations:
  *  - T-02-WEBHOOK-01 (spoofing): `x-telegram-bot-api-secret-token` is
  *    validated BEFORE any body parsing; mismatch returns 401.
  *  - T-02-WEBHOOK-04 (EoP, non-Kevin user): `ctx.from.id` is checked against
- *    `KEVIN_TELEGRAM_USER_ID`; non-Kevin messages are silently dropped
- *    (returns 200 to Telegram so it stops retrying) and NO event is published.
+ *    `KEVIN_TELEGRAM_USER_ID`; non-Kevin messages are silently dropped.
  *  - T-02-WEBHOOK-03 (info disclosure): bot token only flows through the
  *    cached `getTelegramSecrets()` helper; never logged.
- *  - T-02-S3-01 (path traversal): S3 key is built from the ULID + UTC date,
- *    never from user input.
+ *  - T-02-S3-01 (path traversal): S3 key is built from the ULID + UTC date.
  */
 import { Bot, type CommandContext, type Context } from 'grammy';
 import { ulid } from 'ulid';
@@ -26,7 +27,7 @@ import { CaptureReceivedSchema } from '@kos/contracts';
 import { getTelegramSecrets } from './secrets.js';
 import { putVoiceAudio, putVoiceMeta } from './s3.js';
 import { publishCaptureReceived } from './events.js';
-import { invokeChat, splitForTelegram } from './chat.js';
+import { invokeChat, splitForTelegram, getOrCreateChatSession, storeChatSession } from './chat.js';
 
 /** Access-control: only Kevin's Telegram user ID may produce events (ASVS V4). */
 function kevinTelegramUserId(): number {
@@ -51,9 +52,8 @@ async function getBot(): Promise<Bot> {
     const bot = botInfo ? new Bot(botToken, { botInfo }) : new Bot(botToken);
     const kevinId = kevinTelegramUserId();
 
-    // Phase 11 Plan 11-03: /ask + /chat → conversational mode.
-    // Registered BEFORE message:text so grammY's command router matches
-    // first and we don't double-handle as a capture.
+    // Phase 11 Plan 11-03: /ask + /chat → explicit conversational commands.
+    // Registered BEFORE message:text so grammY's command router matches first.
     const handleChatCommand = async (
       ctx: CommandContext<Context>,
       commandName: string,
@@ -89,7 +89,15 @@ async function getBot(): Promise<Bot> {
         /* non-fatal */
       }
       try {
-        const { answer, citations } = await invokeChat({ message: query });
+        const sessionId = await getOrCreateChatSession(ctx.chat.id.toString());
+        const { answer, citations, sessionId: newSessionId } = await invokeChat({
+          message: query,
+          sessionId,
+          source: 'telegram',
+          externalId: ctx.chat.id.toString(),
+        });
+        await storeChatSession(ctx.chat.id.toString(), newSessionId);
+
         const footer =
           citations.length > 0
             ? `\n\n_Linked: ${citations.map((c) => c.name).join(', ')}_`
@@ -135,36 +143,79 @@ async function getBot(): Promise<Bot> {
     bot.command('ask', (ctx) => handleChatCommand(ctx, 'ask'));
     bot.command('chat', (ctx) => handleChatCommand(ctx, 'chat'));
 
+    // Phase 11 Plan 11-03: Conversational mode — plain text also routes to kos-chat.
+    // This allows Kevin to just send messages without /ask prefix.
+    // Non-Kevin messages are silently dropped (access control).
     bot.on('message:text', async (ctx) => {
-      if (ctx.from?.id !== kevinId) return; // silent drop — access control
-      const capture_id = ulid();
-      // Plan 02-10: tag this OTel span so the capture_id is queryable as
-      // Langfuse session.id across triage → voice-capture → resolver.
-      tagTraceWithCaptureId(capture_id);
-      const detail = {
-        capture_id,
-        channel: 'telegram' as const,
-        kind: 'text' as const,
-        text: ctx.message.text,
-        sender: { id: ctx.from.id, display: ctx.from.first_name },
-        received_at: new Date().toISOString(),
-        telegram: {
-          chat_id: ctx.chat.id,
-          message_id: ctx.message.message_id,
-        },
-      };
-      CaptureReceivedSchema.parse(detail);
-      await publishCaptureReceived(detail);
+      if (ctx.from?.id !== kevinId) return;
+
+      // Skip if this is a command (already handled above).
+      if (ctx.message.text.startsWith('/')) {
+        return;
+      }
+
+      const query = ctx.message.text.trim();
+      if (!query) return;
+
+      // Stage-1 ack.
+      let thinking: { chat_id: number; message_id: number } | undefined;
       try {
-        await ctx.reply('⏳ Klassificerar…', {
+        const sent = await ctx.reply('⏳ Tänker…', {
           reply_parameters: { message_id: ctx.message.message_id },
         });
+        thinking = { chat_id: sent.chat.id, message_id: sent.message_id };
+      } catch {
+        /* non-fatal */
+      }
+
+      try {
+        const sessionId = await getOrCreateChatSession(ctx.chat.id.toString());
+        const { answer, citations, sessionId: newSessionId } = await invokeChat({
+          message: query,
+          sessionId,
+          source: 'telegram',
+          externalId: ctx.chat.id.toString(),
+        });
+        await storeChatSession(ctx.chat.id.toString(), newSessionId);
+
+        const footer =
+          citations.length > 0
+            ? `\n\n_Linked: ${citations.map((c) => c.name).join(', ')}_`
+            : '';
+        const parts = splitForTelegram(`${answer}${footer}`);
+
+        if (thinking && parts[0]) {
+          try {
+            await bot.api.editMessageText(thinking.chat_id, thinking.message_id, parts[0], {
+              parse_mode: 'Markdown',
+            });
+          } catch {
+            await ctx.reply(parts[0]);
+          }
+        }
+        for (const chunk of parts.slice(1)) {
+          await ctx.reply(chunk);
+        }
       } catch (err) {
-        // Ack is best-effort; event is already published.
-        console.warn('stage-1 ack (text) failed:', err);
+        console.warn('[telegram-bot] conversational mode failed:', err);
+        const msg = '⚠️ Något gick fel. Försök igen.';
+        if (thinking) {
+          try {
+            await bot.api.editMessageText(thinking.chat_id, thinking.message_id, msg);
+            return;
+          } catch {
+            /* fall through */
+          }
+        }
+        try {
+          await ctx.reply(msg);
+        } catch {
+          /* best-effort */
+        }
       }
     });
 
+    // Non-chat captures: voice and other text messages still go to the capture pipeline.
     bot.on('message:voice', async (ctx) => {
       if (ctx.from?.id !== kevinId) return;
       const capture_id = ulid();
@@ -200,9 +251,6 @@ async function getBot(): Promise<Bot> {
         },
       };
       CaptureReceivedSchema.parse(detail);
-      // Plan 02-02 bridge: transcribe-complete reads this sidecar to
-      // reconstruct the capture.voice.transcribed event payload (chat_id,
-      // message_id, sender) — Transcribe itself doesn't carry these.
       await putVoiceMeta(capture_id, {
         raw_ref: detail.raw_ref,
         sender: detail.sender,

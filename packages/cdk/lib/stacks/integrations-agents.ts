@@ -698,3 +698,116 @@ function grantBedrock(fn: KosLambda) {
     }),
   );
 }
+
+
+// ── Phase 11 Plan 11-01: kos-chat Lambda wiring ────────────────────────────
+
+import {
+  FunctionUrlAuthType,
+  HttpMethod,
+} from 'aws-cdk-lib/aws-lambda';
+
+export interface KosChatWiringProps {
+  rdsProxyEndpoint: string;
+  rdsProxyDbiResourceId: string;
+  notionTokenSecret: ISecret;
+  sentryDsnSecret: ISecret;
+  /** Static bearer secret for kos-chat endpoint auth (same as dashboard-bearer-token). */
+  chatBearerSecret: ISecret;
+  kevinOwnerId: string;
+  vpc: IVpc;
+  rdsSecurityGroup: ISecurityGroup;
+  /** Notion Command Center DB id for list_open_tasks / add_task tools. */
+  commandCenterDbId?: string;
+}
+
+export interface KosChatWiring {
+  chatFn: KosLambda;
+  /** HTTPS Function URL (NONE IAM auth — handler enforces Bearer token). */
+  chatFunctionUrl: string;
+}
+
+/**
+ * Wires the kos-chat Lambda into the KosAgents stack.
+ *
+ * Function URL uses NONE auth — the handler itself validates
+ * `Authorization: Bearer <KOS_CHAT_BEARER_TOKEN>` (same as dashboard-api).
+ * This lets Vercel and the Telegram bot call it via plain HTTPS.
+ *
+ * IAM grants:
+ *  - bedrock:InvokeModel / InvokeModelWithResponseStream on Sonnet 4.6
+ *  - rds-db:connect on kos_chat DB user
+ *  - Notion token secret read
+ *  - Chat bearer secret read (to inject URL into env; actual value loaded at runtime)
+ */
+export function wireKosChat(scope: Construct, p: KosChatWiringProps): KosChatWiring {
+  const stack = Stack.of(scope);
+
+  const rdsConnectResource = `arn:aws:rds-db:${stack.region}:${stack.account}:dbuser:${p.rdsProxyDbiResourceId}/kos_chat`;
+
+  const commandCenterDbId = p.commandCenterDbId ?? loadCommandCenterId();
+
+  const chatFn = new KosLambda(scope, 'KosChatFn', {
+    entry: svcEntry('kos-chat'),
+    timeout: Duration.seconds(60),
+    memory: 512,
+    vpc: p.vpc,
+    vpcSubnets: { subnetType: SubnetType.PRIVATE_WITH_EGRESS },
+    securityGroups: [p.rdsSecurityGroup],
+    environment: {
+      KEVIN_OWNER_ID: p.kevinOwnerId,
+      RDS_PROXY_ENDPOINT: p.rdsProxyEndpoint,
+      PG_USER: 'kos_chat',
+      NOTION_COMMAND_CENTER_DB_ID: commandCenterDbId,
+      // Notion token is injected at deploy time via addEnvironment below
+      // (after grantRead) so the Lambda doesn't need a Secrets Manager call.
+      // KOS_CHAT_BEARER_TOKEN is loaded at cold start from this ARN.
+      KOS_CHAT_BEARER_SECRET_ARN: p.chatBearerSecret.secretArn,
+    },
+  });
+
+  // Bedrock Sonnet 4.6 (EU CRIS inference profile).
+  chatFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
+      resources: [
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*',
+        'arn:aws:bedrock:*:*:inference-profile/eu.anthropic.claude-sonnet-4-6*',
+      ],
+    }),
+  );
+
+  // RDS IAM auth for the kos_chat DB role.
+  chatFn.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['rds-db:connect'],
+      resources: [rdsConnectResource],
+    }),
+  );
+
+  // Secret reads.
+  p.notionTokenSecret.grantRead(chatFn);
+  p.sentryDsnSecret.grantRead(chatFn);
+  p.chatBearerSecret.grantRead(chatFn);
+
+  // Inject Notion token directly into env (avoids runtime Secrets Manager call
+  // for a VPC Lambda — no Secrets Manager VPC endpoint in the stack).
+  chatFn.addEnvironment('NOTION_TOKEN_SECRET_ARN', p.notionTokenSecret.secretArn);
+
+  // Function URL (NONE auth — handler enforces bearer token).
+  const urlConfig = chatFn.addFunctionUrl({
+    authType: FunctionUrlAuthType.NONE,
+    cors: {
+      allowedOrigins: ['*'],
+      allowedMethods: [HttpMethod.POST],
+      allowedHeaders: ['content-type', 'authorization', 'cookie'],
+    },
+  });
+
+  return {
+    chatFn,
+    chatFunctionUrl: urlConfig.url,
+  };
+}

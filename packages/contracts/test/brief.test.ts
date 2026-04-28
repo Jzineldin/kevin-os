@@ -146,3 +146,75 @@ describe('BriefCommonFieldsSchema', () => {
     expect(ok.success).toBe(true);
   });
 });
+
+describe('FlexibleDatetimeSchema coercion (fix 2026-04-28)', () => {
+  // Regression: Morning-brief Lambda observed the LLM emitting
+  // date-only strings for dropped_threads.last_mentioned_at which
+  // failed strict datetime() validation and triggered the safe-
+  // fallback empty brief.
+
+  it('accepts ISO-8601 datetime as-is', () => {
+    const parsed = MorningBriefSchema.safeParse({
+      prose_summary: 'x',
+      top_three: [],
+      dropped_threads: [
+        { title: 'Test', entity_ids: [], last_mentioned_at: '2026-04-28T10:00:00.000Z' },
+      ],
+      calendar_today: [],
+      calendar_tomorrow: [],
+      drafts_ready: [],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.dropped_threads[0]!.last_mentioned_at).toBe('2026-04-28T10:00:00.000Z');
+    }
+  });
+
+  it('accepts date-only string and normalizes to midnight UTC', () => {
+    const parsed = MorningBriefSchema.safeParse({
+      prose_summary: 'x',
+      top_three: [],
+      dropped_threads: [
+        { title: 'Test', entity_ids: [], last_mentioned_at: '2026-04-28' },
+      ],
+      calendar_today: [],
+      calendar_tomorrow: [],
+      drafts_ready: [],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.dropped_threads[0]!.last_mentioned_at).toBe('2026-04-28T00:00:00.000Z');
+    }
+  });
+
+  it('accepts space-separated datetime and normalizes to ISO-8601', () => {
+    const parsed = MorningBriefSchema.safeParse({
+      prose_summary: 'x',
+      top_three: [],
+      dropped_threads: [],
+      calendar_today: [
+        { start: '2026-04-28 10:00:00Z', title: 'Meeting' },
+      ],
+      calendar_tomorrow: [],
+      drafts_ready: [],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.calendar_today[0]!.start).toMatch(/^2026-04-28T10:00:00/);
+    }
+  });
+
+  it('rejects genuinely unparseable strings', () => {
+    const parsed = MorningBriefSchema.safeParse({
+      prose_summary: 'x',
+      top_three: [],
+      dropped_threads: [
+        { title: 'Test', entity_ids: [], last_mentioned_at: 'not-a-date' },
+      ],
+      calendar_today: [],
+      calendar_tomorrow: [],
+      drafts_ready: [],
+    });
+    expect(parsed.success).toBe(false);
+  });
+});

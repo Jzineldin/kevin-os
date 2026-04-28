@@ -42,6 +42,32 @@ const UuidArraySchema = z.preprocess((v) => {
   return v.filter((x) => typeof x === 'string' && uuidRegex.test(x));
 }, z.array(z.string().uuid()).max(5));
 
+/**
+ * Flexible datetime schema — accepts:
+ *   - Full ISO-8601 ("2026-04-28T10:00:00Z")
+ *   - Date-only ("2026-04-28") — normalized to "YYYY-MM-DDT00:00:00.000Z"
+ *   - Space-separated ("2026-04-28 10:00:00Z") — space replaced with 'T'
+ *
+ * The LLM regularly emits one of the loose forms for fields like
+ * `last_mentioned_at` (DroppedThread) and BriefCalendarEvent.start/end;
+ * prior strict `z.string().datetime()` caused the entire brief to fall
+ * back to the empty shell (observed 2026-04-28: Zod validation failed;
+ * returning safe fallback). Coercion is lossless in the common cases
+ * and fails the same way on genuinely unparseable input.
+ */
+const FlexibleDatetimeSchema = z.preprocess((v) => {
+  if (typeof v !== 'string') return v;
+  const s = v.trim();
+  // Date-only → midnight UTC
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T00:00:00.000Z`;
+  // Space separator → T separator
+  const withT = s.replace(' ', 'T');
+  // If it already parses as a Date, round-trip to ISO
+  const d = new Date(withT);
+  if (!Number.isNaN(d.getTime())) return d.toISOString();
+  return v;
+}, z.string().datetime());
+
 export const TopThreeItemSchema = z.object({
   title: z.string().min(1).max(200),
   entity_ids: UuidArraySchema,
@@ -52,7 +78,7 @@ export type TopThreeItem = z.infer<typeof TopThreeItemSchema>;
 export const DroppedThreadSchema = z.object({
   title: z.string().min(1).max(200),
   entity_ids: UuidArraySchema,
-  last_mentioned_at: z.string().datetime().optional(),
+  last_mentioned_at: FlexibleDatetimeSchema.optional(),
 });
 export type DroppedThread = z.infer<typeof DroppedThreadSchema>;
 
@@ -60,8 +86,8 @@ export type DroppedThread = z.infer<typeof DroppedThreadSchema>;
 // dashboard.ts (Phase 3) which already exports `CalendarEventSchema` /
 // `CalendarEvent` for the dashboard upcoming-events panel.
 export const BriefCalendarEventSchema = z.object({
-  start: z.string().datetime(),
-  end: z.string().datetime().optional(),
+  start: FlexibleDatetimeSchema,
+  end: FlexibleDatetimeSchema.optional(),
   title: z.string().min(1).max(200),
   attendees: z.array(z.string()).max(10).optional(),
 });
@@ -158,7 +184,7 @@ export type BriefKind = z.infer<typeof BriefKindSchema>;
 export const BriefAgentRunOutputSchema = z.object({
   brief_kind: BriefKindSchema,
   brief_capture_id: z.string().regex(UlidRegex),
-  rendered_at: z.string().datetime(),
+  rendered_at: FlexibleDatetimeSchema,
   data: z.union([MorningBriefSchema, DayCloseBriefSchema, WeeklyReviewSchema]),
 });
 export type BriefAgentRunOutput = z.infer<typeof BriefAgentRunOutputSchema>;

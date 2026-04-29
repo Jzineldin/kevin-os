@@ -1,0 +1,19 @@
+{
+  "name": "@kos/service-push-discord",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "bundle": "esbuild src/handler.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --external:@aws-sdk/*"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.0.0"
+  },
+  "devDependencies": {
+    "aws-lambda": "^1.0.7",
+    "typescript": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.21.0"
+  }
+}

@@ -180,6 +180,11 @@ export async function mergedInboxHandler(_ctx: Ctx): Promise<RouteResponse> {
       bolag: null,
       entity_id: null,
       merge_id: null,
+      from_email:      d.from_email ?? null,
+      from_name:       null,  // column not in schema yet
+      subject:         d.subject ?? null,
+      original_body:   d.body_plain ?? null,
+      draft_body_full: d.draft_body ?? null,
       payload: {
         capture_id: d.capture_id,
         from: d.from_email,

@@ -152,6 +152,7 @@ export interface InboxDraftItem {
   subject: string | null;
   draft_subject: string | null;
   draft_body: string | null;
+  body_plain: string | null;  // Phase 11 D-06 — full original email text
   classification: string;
   status: string;
   received_at: string;
@@ -181,6 +182,7 @@ export async function listInboxDrafts(
       subject           AS subject,
       draft_subject     AS draft_subject,
       draft_body        AS draft_body,
+      body_plain        AS body_plain,
       classification    AS classification,
       status            AS status,
       received_at::text AS received_at

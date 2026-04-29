@@ -432,6 +432,13 @@ export const InboxItemSchema = z.object({
   // clients (and non-email kinds like entity_routing) round-trip cleanly.
   classification: EmailClassificationSchema.nullable().optional(),
   email_status: EmailDraftStatusSchema.nullable().optional(),
+  // Phase 11 D-06 — full email content for inbox detail view.
+  // Lets the dashboard show original email + editable draft without a second fetch.
+  from_email: z.string().nullable().optional(),
+  from_name: z.string().nullable().optional(),
+  subject: z.string().nullable().optional(),
+  original_body: z.string().nullable().optional(),   // full original email text
+  draft_body_full: z.string().nullable().optional(), // full AI-generated draft reply
 });
 export type InboxItem = z.infer<typeof InboxItemSchema>;
 

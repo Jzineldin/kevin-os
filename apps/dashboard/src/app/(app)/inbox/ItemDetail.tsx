@@ -1,25 +1,14 @@
 'use client';
 
 /**
- * ItemDetail — right-pane focused-item render (Plan 03-09 Task 1).
+ * ItemDetail — right-pane focused-item render.
  *
- * Dispatches by `item.kind` per 03-UI-SPEC §"View 3 — Inbox" Item kinds
- * list:
- *   - `draft_reply`       → email draft preview + Approve/Edit/Skip
- *   - `entity_routing`    → two candidate entities with a "Merge & continue"
- *                           deep-link (Plan 11 implements the merge route)
- *   - `new_entity`        → proposed profile + Confirm/Reject
- *   - `merge_resume`      → delegates to <ResumeMergeCard /> (Plan 11)
- *   - `dead_letter`       → Phase 4 D-24 surface (Phase 11 D-05 routed
- *                           into the merged inbox): read-only display.
+ * Phase 11 D-06: draft_reply now shows:
+ *   1. Original email (from, subject, full body)
+ *   2. AI-generated draft reply (full, editable)
+ *   3. Approve / Edit / Skip actions
  *
- * Phase 11 D-05: Approve / Skip buttons hide for terminal statuses
- * (sent/failed/approved/skipped) AND for dead_letter rows. Edit is also
- * hidden when email_status is anything other than 'draft' or 'edited'.
- *
- * The sticky bottom bar shows the <Kbd> shortcut legend verbatim per
- * UI-SPEC line 363. An on-screen Action Bar (Approve / Edit / Skip)
- * duplicates the keyboard contract for click-driven use.
+ * All other kinds unchanged from D-05.
  */
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -36,18 +25,43 @@ import { isTerminalInboxItem } from './InboxClient';
 import { ResumeMergeCard } from './ResumeMergeCard';
 
 const KIND_LABEL: Record<InboxItem['kind'], string> = {
-  draft_reply: 'Draft reply',
+  draft_reply: 'Email draft',
   entity_routing: 'Ambiguous entity routing',
   new_entity: 'New entity confirmation',
   merge_resume: 'Resume merge',
-  // Phase 11 D-05 — `dead_letter` items now flow through /inbox-merged.
   dead_letter: 'Failed agent task',
 };
 
 const CONFLICT_COPY = 'Already handled elsewhere.';
-
 const EDITABLE_STATUSES: ReadonlySet<string> = new Set(['draft', 'edited']);
 
+// ── Shared text styles ──────────────────────────────────────────────────────
+const bodyStyle: React.CSSProperties = {
+  color: 'var(--color-text-2)',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 14,
+  lineHeight: 1.65,
+  letterSpacing: '-0.003em',
+  margin: 0,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+};
+
+const sectionLabelStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-4)',
+  marginBottom: 8,
+};
+
+const dividerStyle: React.CSSProperties = {
+  borderTop: '1px solid var(--rail)',
+  margin: '20px 0',
+};
+
+// ── Main component ──────────────────────────────────────────────────────────
 export function ItemDetail({
   item,
   editMode,
@@ -59,23 +73,17 @@ export function ItemDetail({
   onEditRequest: () => void;
   onEditDone: () => void;
 }) {
-  // Merge-resume card owns its own layout.
   if (item.kind === 'merge_resume') {
     return <ResumeMergeCard item={item} />;
   }
 
   return (
     <div className="flex flex-col h-full">
-      <header
-        className="p-6"
-        style={{ borderBottom: '1px solid var(--rail)' }}
-      >
+      {/* ── Header ── */}
+      <header className="p-6" style={{ borderBottom: '1px solid var(--rail)' }}>
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <div
-              className="flex items-center gap-[10px]"
-              style={{ marginBottom: 10 }}
-            >
+            <div className="flex items-center gap-[10px]" style={{ marginBottom: 10 }}>
               <span
                 aria-hidden
                 style={{
@@ -83,8 +91,7 @@ export function ItemDetail({
                   height: 6,
                   borderRadius: 999,
                   background: 'var(--color-sect-inbox)',
-                  boxShadow:
-                    '0 0 0 3px color-mix(in srgb, var(--color-sect-inbox) 15%, transparent)',
+                  boxShadow: '0 0 0 3px color-mix(in srgb, var(--color-sect-inbox) 15%, transparent)',
                 }}
               />
               <span
@@ -102,11 +109,7 @@ export function ItemDetail({
             </div>
             <h2
               className="h-page"
-              style={{
-                fontSize: 22,
-                lineHeight: 1.25,
-                letterSpacing: '-0.015em',
-              }}
+              style={{ fontSize: 22, lineHeight: 1.25, letterSpacing: '-0.015em' }}
             >
               {item.title}
             </h2>
@@ -121,34 +124,51 @@ export function ItemDetail({
           </div>
           <BolagBadge org={item.bolag} />
         </div>
-      </header>
 
-      <div className="flex-1 overflow-auto p-6">
-        {editMode ? (
-          <Editor item={item} onDone={onEditDone} />
-        ) : (
-          <pre
-            className="whitespace-pre-wrap break-words"
+        {/* Email metadata (from, subject) — only for draft_reply */}
+        {item.kind === 'draft_reply' && (item.from_name ?? item.from_email) ? (
+          <div
+            className="mt-4 rounded-md px-4 py-3"
             style={{
-              color: 'var(--color-text-2)',
-              fontFamily: 'var(--font-sans)',
-              fontSize: 14,
-              lineHeight: 1.65,
-              letterSpacing: '-0.003em',
-              margin: 0,
+              background: 'var(--color-surface-2)',
+              fontSize: 13,
+              color: 'var(--color-text-3)',
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr',
+              gap: '4px 12px',
             }}
           >
-            {renderPreview(item)}
-          </pre>
+            <span style={{ color: 'var(--color-text-4)', fontWeight: 600 }}>From</span>
+            <span>{item.from_name ? `${item.from_name} <${item.from_email}>` : item.from_email}</span>
+            {item.subject ? (
+              <>
+                <span style={{ color: 'var(--color-text-4)', fontWeight: 600 }}>Subject</span>
+                <span>{item.subject}</span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </header>
+
+      {/* ── Body ── */}
+      <div className="flex-1 overflow-auto p-6">
+        {item.kind === 'draft_reply' ? (
+          editMode ? (
+            <Editor item={item} onDone={onEditDone} />
+          ) : (
+            <EmailDraftDetail item={item} />
+          )
+        ) : (
+          <pre style={bodyStyle}>{item.preview}</pre>
         )}
       </div>
 
+      {/* ── Footer ── */}
       <footer
         className="sticky bottom-0 flex items-center gap-3"
         style={{
           borderTop: '1px solid var(--rail)',
-          background:
-            'color-mix(in srgb, var(--color-surface-1) 92%, transparent)',
+          background: 'color-mix(in srgb, var(--color-surface-1) 92%, transparent)',
           backdropFilter: 'blur(6px)',
           padding: '14px 20px',
         }}
@@ -174,14 +194,114 @@ export function ItemDetail({
   );
 }
 
-function renderPreview(item: InboxItem): string {
-  if (item.kind === 'draft_reply') {
-    const body = (item.payload as { body?: unknown })?.body;
-    return typeof body === 'string' && body.length > 0 ? body : item.preview;
-  }
-  return item.preview;
+// ── EmailDraftDetail — original email + AI draft (read view) ────────────────
+function EmailDraftDetail({ item }: { item: InboxItem }) {
+  const [showOriginal, setShowOriginal] = useState(false);
+
+  const draftBody = item.draft_body_full ?? item.preview;
+  const originalBody = item.original_body;
+
+  return (
+    <div>
+      {/* AI Draft Reply */}
+      <div>
+        <p style={sectionLabelStyle}>✨ AI draft reply</p>
+        <pre style={bodyStyle}>{draftBody || '(no draft generated)'}</pre>
+      </div>
+
+      {/* Original email (collapsible) */}
+      {originalBody ? (
+        <>
+          <div style={dividerStyle} />
+          <button
+            onClick={() => setShowOriginal((v) => !v)}
+            style={{
+              ...sectionLabelStyle,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span>{showOriginal ? '▾' : '▸'}</span>
+            Original email
+          </button>
+          {showOriginal ? (
+            <div
+              className="mt-3 rounded-md px-4 py-4"
+              style={{ background: 'var(--color-surface-2)' }}
+            >
+              <pre style={{ ...bodyStyle, fontSize: 13, color: 'var(--color-text-3)' }}>
+                {originalBody}
+              </pre>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
 }
 
+// ── Editor — full draft editable ────────────────────────────────────────────
+function Editor({ item, onDone }: { item: InboxItem; onDone: () => void }) {
+  const initial = item.draft_body_full ?? item.preview;
+  const [text, setText] = useState(initial);
+  const [pending, startTransition] = useTransition();
+
+  function onSave() {
+    startTransition(async () => {
+      try {
+        await editInbox(item.id, { body: text });
+        onDone();
+      } catch {
+        toast.error('Already handled elsewhere.', { duration: 4_000 });
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Original context above the edit box */}
+      {item.original_body ? (
+        <div
+          className="rounded-md px-4 py-3"
+          style={{ background: 'var(--color-surface-2)' }}
+        >
+          <p style={sectionLabelStyle}>Original email</p>
+          <pre style={{ ...bodyStyle, fontSize: 13, color: 'var(--color-text-3)' }}>
+            {item.original_body.slice(0, 800)}{item.original_body.length > 800 ? '\n…' : ''}
+          </pre>
+        </div>
+      ) : null}
+
+      <div>
+        <p style={sectionLabelStyle}>Your reply</p>
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={16}
+          aria-label="Edit draft reply"
+          autoFocus
+          style={{ fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.65 }}
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <Button onClick={onSave} disabled={pending} size="sm" data-testid="inbox-edit-save">
+          Save &amp; approve
+        </Button>
+        <Button variant="ghost" onClick={onDone} size="sm" data-testid="inbox-edit-cancel">
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── ActionBar ───────────────────────────────────────────────────────────────
 function ActionBar({
   item,
   onEditRequest,
@@ -193,39 +313,26 @@ function ActionBar({
 
   function onApprove() {
     startTransition(async () => {
-      try {
-        await approveInbox(item.id);
-      } catch {
-        toast.error(CONFLICT_COPY, { duration: 4_000 });
-      }
+      try { await approveInbox(item.id); }
+      catch { toast.error(CONFLICT_COPY, { duration: 4_000 }); }
     });
   }
 
   function onSkip() {
     startTransition(async () => {
-      try {
-        await skipInbox(item.id);
-      } catch {
-        toast.error(CONFLICT_COPY, { duration: 4_000 });
-      }
+      try { await skipInbox(item.id); }
+      catch { toast.error(CONFLICT_COPY, { duration: 4_000 }); }
     });
   }
 
   const isTerminal = isTerminalInboxItem(item);
-  // Edit is only relevant when there's a draft body to edit — restrict
-  // to draft/edited or to the legacy Phase-3 inbox_index kinds that
-  // never carry email_status (pre-D-05 behavior preserved).
   const canEdit =
     !isTerminal &&
     (!item.email_status || EDITABLE_STATUSES.has(item.email_status));
 
   if (isTerminal) {
     return (
-      <span
-        className="text-xs"
-        style={{ color: 'var(--color-text-3)' }}
-        data-testid="inbox-readonly-label"
-      >
+      <span className="text-xs" style={{ color: 'var(--color-text-3)' }} data-testid="inbox-readonly-label">
         Read-only
       </span>
     );
@@ -233,90 +340,17 @@ function ActionBar({
 
   return (
     <>
-      <Button
-        onClick={onApprove}
-        disabled={pending}
-        size="sm"
-        data-testid="inbox-approve-btn"
-      >
-        Approve
+      <Button onClick={onApprove} disabled={pending} size="sm" data-testid="inbox-approve-btn">
+        Approve &amp; send
       </Button>
       {canEdit ? (
-        <Button
-          variant="outline"
-          onClick={onEditRequest}
-          disabled={pending}
-          size="sm"
-          data-testid="inbox-edit-btn"
-        >
-          Edit
+        <Button variant="outline" onClick={onEditRequest} disabled={pending} size="sm" data-testid="inbox-edit-btn">
+          Edit reply
         </Button>
       ) : null}
-      <Button
-        variant="ghost"
-        onClick={onSkip}
-        disabled={pending}
-        size="sm"
-        data-testid="inbox-skip-btn"
-      >
+      <Button variant="ghost" onClick={onSkip} disabled={pending} size="sm" data-testid="inbox-skip-btn">
         Skip
       </Button>
     </>
-  );
-}
-
-function Editor({
-  item,
-  onDone,
-}: {
-  item: InboxItem;
-  onDone: () => void;
-}) {
-  const initial = (() => {
-    const body = (item.payload as { body?: unknown })?.body;
-    return typeof body === 'string' ? body : item.preview;
-  })();
-  const [text, setText] = useState(initial);
-  const [pending, startTransition] = useTransition();
-
-  function onSave() {
-    startTransition(async () => {
-      try {
-        await editInbox(item.id, { body: text });
-        onDone();
-      } catch {
-        toast.error(CONFLICT_COPY, { duration: 4_000 });
-      }
-    });
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <Textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={14}
-        aria-label="Edit draft body"
-        autoFocus
-      />
-      <div className="flex gap-2">
-        <Button
-          onClick={onSave}
-          disabled={pending}
-          size="sm"
-          data-testid="inbox-edit-save"
-        >
-          Save edit
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={onDone}
-          size="sm"
-          data-testid="inbox-edit-cancel"
-        >
-          Cancel
-        </Button>
-      </div>
-    </div>
   );
 }

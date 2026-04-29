@@ -1,42 +1,9 @@
 'use client';
 
-/**
- * ItemRow — a single row in the Inbox queue (left pane).
- *
- * v4 polish (2026-04-27):
- *   - Selected state uses --color-sect-inbox (pink) instead of the legacy
- *     --color-accent (priority blue), aligning the Inbox with the v4
- *     section palette. Left-rail grown from 2px → 3px for better
- *     readability at a glance down the queue.
- *   - Hover uses color-mix(surface-2) for calmer highlight than the raw
- *     surface-hover token.
- *   - Row padding tightened 12/14 → 12/16 for wider hit targets.
- *   - Title type-size remains 14 (matches .pri-title at the panel row).
- *   - Preview gains +1 line-height for better reading rhythm at 2-line
- *     clamp sizes.
- *   - Motion rule 8 preserved: selection toggle is INSTANT (no
- *     transition on the selected class).
- *   - Pill moved 4px below the preview (was 1mt); breathes better.
- *
- * Phase 11 D-05: when item.classification is present (email rows), render
- * a Pill below the preview showing classification × email_status. Adds
- * data-testid="inbox-row-pill" so the e2e suite can locate it.
- *
- * Reserved letters D / A / R do not bind anywhere in this module. See
- * 03-UI-SPEC line 373.
- */
 import type { InboxItem, InboxItemKind } from '@kos/contracts/dashboard';
 import type { ElementType } from 'react';
-import {
-  AlertTriangle,
-  GitMerge,
-  Mail,
-  UserPlus,
-  XOctagon,
-} from 'lucide-react';
-
-import { BolagBadge } from '@/components/badge/BolagBadge';
-import { Pill } from '@/components/dashboard/Pill';
+import { AlertTriangle, GitMerge, Mail, UserPlus, XOctagon } from 'lucide-react';
+import { isTerminalInboxItem } from './InboxClient';
 
 const KIND_ICON: Record<InboxItemKind, ElementType> = {
   draft_reply: Mail,
@@ -44,6 +11,23 @@ const KIND_ICON: Record<InboxItemKind, ElementType> = {
   new_entity: UserPlus,
   merge_resume: AlertTriangle,
   dead_letter: XOctagon,
+};
+
+const CLF_COLOR: Record<string, string> = {
+  urgent: 'var(--color-error)',
+  important: 'var(--color-warning)',
+  informational: 'var(--color-text-4)',
+  junk: 'var(--color-text-4)',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  edited: 'Edited',
+  approved: 'Approved',
+  sent: 'Sent',
+  skipped: 'Skipped',
+  failed: 'Failed',
+  pending_triage: 'Pending',
 };
 
 export function ItemRow({
@@ -56,6 +40,16 @@ export function ItemRow({
   onClick: () => void;
 }) {
   const Icon = KIND_ICON[item.kind];
+  const isTerminal = isTerminalInboxItem(item);
+  const clfColor = item.classification ? CLF_COLOR[item.classification] ?? 'var(--color-text-4)' : undefined;
+  const statusLabel = item.email_status ? STATUS_LABEL[item.email_status] ?? item.email_status : null;
+
+  // Parse sender name from "Name <email>" format
+  const rawFrom = (item as any).payload?.from ?? item.title ?? '';
+  const senderMatch = rawFrom.match(/^(.+?)\s*<[^>]+>/);
+  const senderName = senderMatch ? senderMatch[1].trim() : rawFrom.split('@')[0] ?? rawFrom;
+  const subject = item.title;
+
   return (
     <button
       type="button"
@@ -63,10 +57,9 @@ export function ItemRow({
       aria-pressed={selected}
       data-selected={selected || undefined}
       data-testid="inbox-row-click"
-      className="w-full text-left grid items-start"
+      className="w-full text-left"
       style={{
-        gridTemplateColumns: '20px 1fr auto',
-        gap: 10,
+        display: 'block',
         padding: '12px 16px 12px 14px',
         borderLeft: selected
           ? '3px solid var(--color-sect-inbox)'
@@ -74,55 +67,101 @@ export function ItemRow({
         background: selected
           ? 'color-mix(in srgb, var(--color-sect-inbox) 10%, transparent)'
           : undefined,
-        // §Motion rule 8 — active selection is INSTANT (no transition).
-        // Hover still animates via the --transition-fast background below.
-        transition: selected
-          ? 'none'
-          : 'background var(--transition-fast) var(--ease)',
+        transition: selected ? 'none' : 'background var(--transition-fast) var(--ease)',
+        opacity: isTerminal && !selected ? 0.55 : 1,
       }}
     >
-      <Icon
-        size={14}
-        strokeWidth={1.7}
-        className="mt-[3px]"
-        style={{
-          color: selected
-            ? 'var(--color-sect-inbox)'
-            : 'var(--color-text-3)',
-        }}
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex flex-col gap-1">
-        <div
-          className="text-[13px] font-medium truncate"
+      {/* Row 1: icon + sender + status pill */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Icon
+          size={13}
+          strokeWidth={1.7}
+          style={{ color: selected ? 'var(--color-sect-inbox)' : 'var(--color-text-3)', flexShrink: 0 }}
+          aria-hidden="true"
+        />
+        <span
           style={{
-            color: selected
-              ? 'var(--color-text)'
-              : 'var(--color-text)',
+            fontSize: 12,
+            fontWeight: 600,
+            color: selected ? 'var(--color-text)' : 'var(--color-text-2)',
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
             letterSpacing: '-0.003em',
           }}
         >
-          {item.title}
-        </div>
+          {senderName}
+        </span>
+        {statusLabel && (
+          <span
+            style={{
+              fontSize: 10,
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 600,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: item.email_status === 'draft' || item.email_status === 'edited'
+                ? 'var(--color-sect-inbox)'
+                : 'var(--color-text-4)',
+              flexShrink: 0,
+            }}
+          >
+            {statusLabel}
+          </span>
+        )}
+      </div>
+
+      {/* Row 2: subject */}
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: 'var(--color-text)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          marginBottom: item.preview ? 3 : 0,
+          letterSpacing: '-0.003em',
+        }}
+      >
+        {subject}
+      </div>
+
+      {/* Row 3: preview snippet */}
+      {item.preview ? (
         <div
-          className="text-[12px] line-clamp-2"
           style={{
+            fontSize: 12,
             color: 'var(--color-text-3)',
-            lineHeight: 1.5,
+            lineHeight: 1.45,
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
           }}
         >
           {item.preview}
         </div>
-        {item.classification ? (
-          <div data-testid="inbox-row-pill" className="mt-1">
-            <Pill
-              classification={item.classification}
-              status={item.email_status ?? 'pending_triage'}
-            />
-          </div>
-        ) : null}
-      </div>
-      <BolagBadge org={item.bolag} />
+      ) : null}
+
+      {/* Row 4: classification badge */}
+      {item.classification && item.classification !== 'informational' && (
+        <div style={{ marginTop: 4 }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: clfColor,
+            }}
+          >
+            {item.classification}
+          </span>
+        </div>
+      )}
     </button>
   );
 }

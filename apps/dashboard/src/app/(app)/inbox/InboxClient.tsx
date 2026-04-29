@@ -1,35 +1,5 @@
 'use client';
 
-/**
- * InboxClient — the most keyboard-driven surface of Phase 3 (UI-04).
- * Two-pane Superhuman-style layout with:
- *
- *   - J / K     navigate queue (bounded)
- *   - Enter     approve focused item → approveInbox Server Action
- *   - E         toggle inline edit mode (textarea in the right pane)
- *   - S         skip focused item → skipInbox Server Action
- *   - Esc       leave edit mode (one level at a time)
- *   - D / A / R reserved (no binding, per 03-UI-SPEC line 373 — prevents
- *               destructive misfire if Kevin conflates them with
- *               destroy / archive / reject mental models)
- *
- * Optimistic updates use React 19 `useOptimistic` — approved/skipped rows
- * disappear instantly; on Server Action failure the toast surfaces
- * "Already handled elsewhere." (UI-SPEC line 559 verbatim) and the optimistic
- * state naturally re-syncs on next refresh. (useOptimistic only applies its
- * reducer for the duration of a transition; the post-catch commit reads
- * from the source-of-truth `items` state, so failed rows re-appear.)
- *
- * SSE integration:
- *   - `inbox_item`   — new row arrived; router.refresh() → RSC reloads
- *   - `draft_ready`  — ditto (drafts are a subset of inbox items per D-25)
- *   - `entity_merge` — re-render picks up new merge_resume items
- *
- * List insertion animation follows Motion rule 6: 4px slide-down + fade-in
- * via framer-motion `AnimatePresence`. Existing rows never reflow.
- * Selection change is INSTANT (Motion rule 8 extended to this surface —
- * `transition: none` on the selected row background).
- */
 import {
   useCallback,
   useEffect,
@@ -59,20 +29,14 @@ import { ItemRow } from './ItemRow';
 const CONFLICT_COPY = 'Already handled elsewhere.';
 const EMPTY_HEADLINE = 'Inbox clear. ✅';
 const EMPTY_BODY = 'Nothing to review. KOS surfaces drafts as they arrive.';
+const PAGE_SIZE = 13;
 
-// Phase 11 D-05: terminal email statuses — rows in these states are
-// read-only. Approve/Skip handlers no-op for them (defense-in-depth
-// alongside the email-sender Lambda's idempotency on
-// email_send_authorizations per Phase 4 D-24).
-const TERMINAL_EMAIL_STATUSES: ReadonlySet<EmailDraftStatus> = new Set<
-  EmailDraftStatus
->(['approved', 'sent', 'skipped', 'failed']);
+const TERMINAL_EMAIL_STATUSES: ReadonlySet<EmailDraftStatus> = new Set<EmailDraftStatus>([
+  'approved', 'sent', 'skipped', 'failed',
+]);
 
-export function isTerminalInboxItem(
-  item: InboxItem | null | undefined,
-): boolean {
+export function isTerminalInboxItem(item: InboxItem | null | undefined): boolean {
   if (!item) return false;
-  // dead_letter rows are also read-only (no Approve/Skip applicable).
   if (item.kind === 'dead_letter') return true;
   if (!item.email_status) return false;
   return TERMINAL_EMAIL_STATUSES.has(item.email_status);
@@ -88,25 +52,35 @@ export function InboxClient({
   const router = useRouter();
   const { announce } = useLiveRegion();
 
-  // Source-of-truth list (RSC-refresh-driven + local removal on success).
   const [items, setItems] = useState<InboxItem[]>(initialItems);
-  useEffect(() => {
-    setItems(initialItems);
-  }, [initialItems]);
+  useEffect(() => { setItems(initialItems); }, [initialItems]);
 
-  // Optimistic view — removes the row by id for the duration of the
-  // transition so J/K/Enter feels instant.
+  const [showAll, setShowAll] = useState(false);
+  const [page, setPage] = useState(0);
+
+  // Filter: by default hide already-handled items
+  const filteredItems = useMemo(() => {
+    if (showAll) return items;
+    return items.filter(i => !isTerminalInboxItem(i));
+  }, [items, showAll]);
+
   const [optimistic, removeOptimistic] = useOptimistic<InboxItem[], string>(
-    items,
+    filteredItems,
     (cur, removeId) => cur.filter((i) => i.id !== removeId),
   );
 
+  // Page slicing
+  const totalPages = Math.max(1, Math.ceil(optimistic.length / PAGE_SIZE));
+  const clampedPage = Math.min(page, totalPages - 1);
+  const pageItems = optimistic.slice(clampedPage * PAGE_SIZE, (clampedPage + 1) * PAGE_SIZE);
+
+  const skippedCount = useMemo(() =>
+    items.filter(i => isTerminalInboxItem(i)).length, [items]);
+  const pendingCount = items.length - skippedCount;
+
   const initialIndex = useMemo(() => {
     if (!focusId) return 0;
-    // focusId from Merge flow may be "resume-<mergeId>"; strip the prefix.
-    const stripped = focusId.startsWith('resume-')
-      ? focusId.slice('resume-'.length)
-      : focusId;
+    const stripped = focusId.startsWith('resume-') ? focusId.slice('resume-'.length) : focusId;
     const byId = initialItems.findIndex((i) => i.id === focusId);
     if (byId >= 0) return byId;
     const byMerge = initialItems.findIndex((i) => i.merge_id === stripped);
@@ -117,44 +91,27 @@ export function InboxClient({
   const [editMode, setEditMode] = useState(false);
   const [, startTransition] = useTransition();
 
-  // Clamp selectedIdx when the list shrinks (e.g., after successful approve).
   useEffect(() => {
-    if (optimistic.length === 0) return;
-    if (selectedIdx >= optimistic.length) {
-      setSelectedIdx(optimistic.length - 1);
-    }
-  }, [optimistic.length, selectedIdx]);
+    if (pageItems.length === 0) return;
+    if (selectedIdx >= pageItems.length) setSelectedIdx(pageItems.length - 1);
+  }, [pageItems.length, selectedIdx]);
 
-  const selected = optimistic[selectedIdx] ?? null;
+  const selected = pageItems[selectedIdx] ?? null;
   const selectedRef = useRef(selected);
-  useEffect(() => {
-    selectedRef.current = selected;
-  }, [selected]);
-
-  // --- SSE: new items / draft / merge → refresh RSC ---------------------
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   const onSseRefresh = useCallback(
-    (label: string) => () => {
-      announce(label);
-      router.refresh();
-    },
+    (label: string) => () => { announce(label); router.refresh(); },
     [announce, router],
   );
-
   useSseKind('inbox_item', onSseRefresh('New inbox item'));
   useSseKind('draft_ready', onSseRefresh('New draft ready'));
   useSseKind('entity_merge', onSseRefresh('Merge status updated'));
 
-  // --- Keyboard contract ------------------------------------------------
-
   const doApprove = useCallback(() => {
     const cur = selectedRef.current;
     if (!cur) return;
-    // Phase 11 D-05 — terminal-status guard: read-only items don't fire.
-    if (isTerminalInboxItem(cur)) {
-      announce('Read-only item — no action available');
-      return;
-    }
+    if (isTerminalInboxItem(cur)) { announce('Read-only item'); return; }
     const id = cur.id;
     const title = cur.title;
     announce(`Approving ${title}`);
@@ -173,11 +130,7 @@ export function InboxClient({
   const doSkip = useCallback(() => {
     const cur = selectedRef.current;
     if (!cur) return;
-    // Phase 11 D-05 — terminal-status guard.
-    if (isTerminalInboxItem(cur)) {
-      announce('Read-only item — no action available');
-      return;
-    }
+    if (isTerminalInboxItem(cur)) { announce('Read-only item'); return; }
     const id = cur.id;
     const title = cur.title;
     announce(`Skipping ${title}`);
@@ -198,13 +151,24 @@ export function InboxClient({
       j: (e: KeyboardEvent) => {
         if (isTypingInField(e.target)) return;
         e.preventDefault();
-        setSelectedIdx((i) => Math.min(i + 1, optimistic.length - 1));
+        const nextIdx = selectedIdx + 1;
+        if (nextIdx < pageItems.length) {
+          setSelectedIdx(nextIdx);
+        } else if (clampedPage < totalPages - 1) {
+          setPage(clampedPage + 1);
+          setSelectedIdx(0);
+        }
         setEditMode(false);
       },
       k: (e: KeyboardEvent) => {
         if (isTypingInField(e.target)) return;
         e.preventDefault();
-        setSelectedIdx((i) => Math.max(i - 1, 0));
+        if (selectedIdx > 0) {
+          setSelectedIdx(selectedIdx - 1);
+        } else if (clampedPage > 0) {
+          setPage(clampedPage - 1);
+          setSelectedIdx(PAGE_SIZE - 1);
+        }
         setEditMode(false);
       },
       Enter: (e: KeyboardEvent) => {
@@ -223,81 +187,68 @@ export function InboxClient({
         doSkip();
       },
       Escape: (e: KeyboardEvent) => {
-        if (editMode) {
-          e.preventDefault();
-          setEditMode(false);
-        }
+        if (editMode) { e.preventDefault(); setEditMode(false); }
       },
-      // NOTE: D / A / R are RESERVED — NO binding, per UI-SPEC line 373.
     }),
-    [doApprove, doSkip, editMode, optimistic.length],
+    [doApprove, doSkip, editMode, selectedIdx, pageItems.length, clampedPage, totalPages],
   );
-
   useKeys(bindings);
 
   const editInboxBound = useCallback(
-    async (id: string, fields: Record<string, unknown>) => {
-      await editInbox(id, fields);
-    },
+    async (id: string, fields: Record<string, unknown>) => { await editInbox(id, fields); },
     [],
   );
-  // Referenced so the import is not tree-shaken when ItemDetail edits via
-  // its own transition. (ItemDetail also imports editInbox directly; this
-  // local handle is kept for symmetry with approve/skip + future keyboard
-  // binding for direct save-on-Enter in edit mode.)
   void editInboxBound;
 
-  // --- Empty state ------------------------------------------------------
-
-  if (optimistic.length === 0) {
+  // Empty state (no pending)
+  if (optimistic.length === 0 && !showAll) {
     return (
-      <div className="h-full grid place-items-center py-24">
-        <div className="text-center flex flex-col gap-3 items-center">
-          <div className="flex items-center gap-[10px]">
-            <PulseDot tone="success" />
-            <span
-              className="text-[15px] font-medium"
-              style={{ color: 'var(--color-text)' }}
-            >
-              {EMPTY_HEADLINE}
-            </span>
+      <div>
+        <div className="h-full grid place-items-center py-24">
+          <div className="text-center flex flex-col gap-3 items-center">
+            <div className="flex items-center gap-[10px]">
+              <PulseDot tone="success" />
+              <span className="text-[15px] font-medium" style={{ color: 'var(--color-text)' }}>
+                {EMPTY_HEADLINE}
+              </span>
+            </div>
+            <p className="text-[13px]" style={{ color: 'var(--color-text-3)', maxWidth: 380, lineHeight: 1.55 }}>
+              {EMPTY_BODY}
+            </p>
+            {skippedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAll(true)}
+                className="mt-2 text-[12px] font-mono uppercase tracking-wider"
+                style={{ color: 'var(--color-text-4)' }}
+              >
+                Show {skippedCount} handled items
+              </button>
+            )}
           </div>
-          <p
-            className="text-[13px]"
-            style={{
-              color: 'var(--color-text-3)',
-              maxWidth: 380,
-              lineHeight: 1.55,
-            }}
-          >
-            {EMPTY_BODY}
-          </p>
         </div>
       </div>
     );
   }
 
-  // --- Two-pane layout --------------------------------------------------
-
   return (
     <div
       className="grid rounded-lg overflow-hidden border"
       style={{
-        gridTemplateColumns: '280px 1fr',
+        gridTemplateColumns: '360px 1fr',
         minHeight: 'calc(100vh - 52px - 64px)',
         borderColor: 'var(--color-border)',
         background: 'var(--color-surface-1)',
         boxShadow: 'var(--shadow-1)',
       }}
     >
+      {/* LEFT: queue list */}
       <aside
-        className="flex flex-col overflow-auto"
-        style={{
-          borderRight: '1px solid var(--color-border)',
-          background: 'var(--color-surface-1)',
-        }}
+        className="flex flex-col overflow-hidden"
+        style={{ borderRight: '1px solid var(--color-border)', background: 'var(--color-surface-1)' }}
         aria-label="Inbox queue"
       >
+        {/* Header */}
         <div
           className="sticky top-0 z-10 flex items-center gap-[10px]"
           style={{
@@ -307,93 +258,107 @@ export function InboxClient({
             padding: '12px 16px',
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 999,
-              background: 'var(--color-sect-inbox)',
-              boxShadow:
-                '0 0 0 3px color-mix(in srgb, var(--color-sect-inbox) 15%, transparent)',
-            }}
-          />
-          <span
-            className="font-mono"
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: 'var(--color-sect-inbox)',
-            }}
-          >
-            Queue
+          <span aria-hidden style={{
+            width: 6, height: 6, borderRadius: 999,
+            background: 'var(--color-sect-inbox)',
+            boxShadow: '0 0 0 3px color-mix(in srgb, var(--color-sect-inbox) 15%, transparent)',
+          }} />
+          <span className="font-mono" style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-sect-inbox)' }}>
+            {showAll ? 'All' : 'Queue'}
           </span>
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.span
-              key={optimistic.length}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              data-testid="inbox-count"
-              className="font-mono ml-auto"
-              style={{
-                fontSize: 11,
-                color: 'var(--color-text-4)',
-              }}
-            >
-              {optimistic.length} pending
-            </motion.span>
-          </AnimatePresence>
+          <span className="font-mono ml-1" style={{ fontSize: 11, color: 'var(--color-text-4)' }}>
+            {showAll ? `${items.length} total` : `${pendingCount} pending`}
+          </span>
+          <span style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={() => { setShowAll(v => !v); setPage(0); setSelectedIdx(0); }}
+            className="font-mono"
+            style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-4)', padding: '3px 8px', borderRadius: 4, border: '1px solid var(--color-border)' }}
+          >
+            {showAll ? 'Pending only' : `+${skippedCount} handled`}
+          </button>
         </div>
 
-        <div className="flex-1">
+        {/* List */}
+        <div className="flex-1 overflow-y-auto">
           <AnimatePresence initial={false}>
-            {optimistic.map((item, idx) => (
+            {pageItems.map((item, idx) => (
               <motion.div
                 key={item.id}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                transition={{
-                  duration: 0.18,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                style={{
-                  borderBottom: '1px solid var(--rail)',
-                }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                style={{ borderBottom: '1px solid var(--rail)' }}
               >
                 <ItemRow
                   item={item}
                   selected={idx === selectedIdx}
-                  onClick={() => {
-                    setSelectedIdx(idx);
-                    setEditMode(false);
-                  }}
+                  onClick={() => { setSelectedIdx(idx); setEditMode(false); }}
                 />
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
 
-        <div
-          className="mono"
-          style={{
-            fontSize: 10,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'var(--color-text-4)',
-            borderTop: '1px solid var(--rail)',
-            padding: '10px 16px',
-            background: 'var(--color-surface-1)',
-          }}
-        >
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div
+            style={{
+              borderTop: '1px solid var(--rail)',
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'var(--color-surface-1)',
+            }}
+          >
+            <button
+              type="button"
+              disabled={clampedPage === 0}
+              onClick={() => { setPage(p => Math.max(0, p - 1)); setSelectedIdx(0); }}
+              className="font-mono"
+              style={{
+                fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: clampedPage === 0 ? 'var(--color-text-4)' : 'var(--color-text-2)',
+                padding: '4px 10px', borderRadius: 4, border: '1px solid var(--color-border)',
+                cursor: clampedPage === 0 ? 'default' : 'pointer',
+              }}
+            >
+              ← Prev
+            </button>
+            <span className="font-mono flex-1 text-center" style={{ fontSize: 10, color: 'var(--color-text-4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              {clampedPage + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={clampedPage >= totalPages - 1}
+              onClick={() => { setPage(p => Math.min(totalPages - 1, p + 1)); setSelectedIdx(0); }}
+              className="font-mono"
+              style={{
+                fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: clampedPage >= totalPages - 1 ? 'var(--color-text-4)' : 'var(--color-text-2)',
+                padding: '4px 10px', borderRadius: 4, border: '1px solid var(--color-border)',
+                cursor: clampedPage >= totalPages - 1 ? 'default' : 'pointer',
+              }}
+            >
+              Next →
+            </button>
+          </div>
+        )}
+
+        {/* Keyboard hint */}
+        <div className="mono" style={{
+          fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: 'var(--color-text-4)', borderTop: '1px solid var(--rail)',
+          padding: '10px 16px', background: 'var(--color-surface-1)',
+        }}>
           J / K nav · ↵ approve · E edit · S skip
         </div>
       </aside>
 
+      {/* RIGHT: detail pane */}
       <section className="overflow-auto">
         {selected ? (
           <ItemDetail
@@ -403,10 +368,7 @@ export function InboxClient({
             onEditDone={() => setEditMode(false)}
           />
         ) : (
-          <div
-            className="p-8"
-            style={{ color: 'var(--color-text-3)' }}
-          >
+          <div className="p-8" style={{ color: 'var(--color-text-3)' }}>
             Select an item
           </div>
         )}

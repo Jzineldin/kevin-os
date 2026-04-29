@@ -176,7 +176,7 @@ export async function mergedInboxHandler(_ctx: Ctx): Promise<RouteResponse> {
       id: d.draft_id,
       kind: 'draft_reply' as const,
       title: d.draft_subject ?? d.subject ?? '(no subject)',
-      preview: (d.draft_body ?? '').slice(0, 400),
+      preview: (d.body_plain ?? d.draft_body ?? '').slice(0, 200),
       bolag: null,
       entity_id: null,
       merge_id: null,

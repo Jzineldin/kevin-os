@@ -17,9 +17,14 @@
  *   - Smaller attack surface — read-only, 3 endpoints, no Notion, no LLM.
  *   - Independent rotation — bearer token separate from dashboard-bearer.
  *
- * Bootstrapped manually 2026-04-29 via `kos-bridge-bootstrap` Lambda (see
- * `scripts/phase-b-bootstrap-sql.ts` for the SQL run). Moved under CDK so
- * subsequent changes are reproducible.
+ * Bootstrapped manually 2026-04-29 via `kos-bridge-bootstrap` Lambda + CLI
+ * zip upload (see `scripts/phase-b/README.md`) — dev EC2 initially OOM'd on
+ * full `cdk synth`; subsequent upsize (48GB→200GB EBS on 2026-04-26 + 15GB
+ * RAM confirmed 2026-04-29) resolves that. This stack is wired into
+ * `bin/kos.ts` as `KosOpenclawBridge` for future reproducibility. Live
+ * resources are NOT yet owned by CloudFormation — next adoption step is
+ * `cdk import KosOpenclawBridge` rather than `cdk deploy` (which would
+ * create duplicates).
  */
 
 import {

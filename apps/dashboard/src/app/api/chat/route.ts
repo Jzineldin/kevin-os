@@ -1,23 +1,36 @@
 /**
- * /api/chat — Next.js proxy for Phase 11 Plan 11-02 kos-chat Lambda.
+ * /api/chat — Next.js proxy for KOS Chat via dashboard-api Lambda (Phase 11).
  *
- * Calls the kos-chat Lambda Function URL directly (not dashboard-api).
- * The Lambda has its own session management via chat_sessions/chat_messages tables.
+ * Calls dashboard-api POST /chat (Bearer-auth, AWS_IAM Lambda Function URL)
+ * via the shared `callApi` helper which manages auth + validation.
  *
- * Runtime: nodejs (needs KOS_CHAT_FUNCTION_URL and KOS_DASHBOARD_BEARER_TOKEN).
+ * Why proxy through Next.js instead of calling dashboard-api directly from
+ * the browser:
+ *   - Bearer token must never be sent to the browser.
+ *   - CORS: dashboard-api only allows Vercel origin.
+ *   - Consistent with existing API route pattern (entities, calendar, etc.)
  *
- * Body schema:
- *   { message: string, sessionId?: string, source?: 'dashboard'|'telegram', externalId?: string }
+ * Previous implementation called a standalone kos-chat Lambda via
+ * KOS_CHAT_FUNCTION_URL (Phase 11-01 Plan 11-02). Reverted 2026-04-29 because
+ * Lambda Function URL AWS_IAM auth is not callable from Vercel without
+ * SigV4 credentials, and NONE auth with public principal has undocumented ACL
+ * quirks. dashboard-api already has a full /chat route (tool-use + context
+ * loading + entity citations) with reliable Bearer auth — use that.
  *
- * Response: { answer: string, citations: [{entity_id, name}], sessionId: string, mutations?: [] }
+ * Runtime: nodejs (uses process.env vars available server-side only).
  *
- * Error mapping:
- *   - Upstream 400 (invalid request) → 400 passthrough
- *   - Upstream 502 (Bedrock unavailable) → 502 passthrough
- *   - Network / auth failure → 502 { error: 'upstream' }
+ * Backend URL: KOS_DASHBOARD_API_URL → https://v1k7d48lbk.execute-api.eu-north-1.amazonaws.com/
+ * (API Gateway HTTP API → dashboard-api Lambda via VPC, bypasses SCP on Lambda Function URLs)
+ *
+ * Body schema (passed through):
+ *   { message: string, sessionId?: string, source?: 'dashboard'|'telegram', externalId?: string, history?: [...] }
+ *
+ * Response:
+ *   { answer: string, citations: [{entity_id, name}], sessionId: string, mutations?: [] }
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { callApi } from '@/lib/dashboard-api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,7 +46,7 @@ const ChatResponseSchema = z.object({
     )
     .default([]),
   sessionId: z.string(),
-  mutations: z.array(z.record(z.unknown())).optional(),
+  mutations: z.array(z.record(z.unknown())).optional().default([]),
 });
 
 const ChatRequestSchema = z.object({
@@ -41,21 +54,18 @@ const ChatRequestSchema = z.object({
   sessionId: z.string().optional(),
   source: z.enum(['dashboard', 'telegram']).default('dashboard'),
   externalId: z.string().max(64).default('default'),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().max(4000),
+      }),
+    )
+    .max(20)
+    .optional(),
 });
 
 export async function POST(req: Request) {
-  const functionUrl = process.env.KOS_CHAT_FUNCTION_URL;
-  if (!functionUrl) {
-    console.error('[api/chat] KOS_CHAT_FUNCTION_URL not set');
-    return NextResponse.json({ error: 'config_missing' }, { status: 500 });
-  }
-
-  const bearer = process.env.KOS_DASHBOARD_BEARER_TOKEN;
-  if (!bearer) {
-    console.error('[api/chat] KOS_DASHBOARD_BEARER_TOKEN not set');
-    return NextResponse.json({ error: 'config_missing' }, { status: 500 });
-  }
-
   let body: unknown;
   try {
     body = await req.json();
@@ -72,34 +82,22 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await fetch(functionUrl, {
+    const data = await callApi('/chat', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'authorization': `Bearer ${bearer}`,
-      },
       body: JSON.stringify(parsed.data),
-    });
+    }, ChatResponseSchema);
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/chat] Lambda responded ${res.status}: ${text.slice(0, 200)}`);
-      return NextResponse.json(
-        { error: 'upstream', detail: text.slice(0, 200) },
-        { status: res.status >= 400 && res.status < 500 ? res.status : 502 },
-      );
-    }
-
-    const data = await res.json();
-    const validated = ChatResponseSchema.parse(data);
-    return NextResponse.json(validated, {
+    return NextResponse.json(data, {
       headers: { 'cache-control': 'no-store' },
     });
   } catch (err) {
-    console.error('[api/chat] upstream failure', err);
+    const msg = String(err instanceof Error ? err.message : err);
+    // Surface upstream status codes (400 / 502) faithfully.
+    const status = msg.includes('→ 4') ? 400 : 502;
+    console.error('[api/chat] upstream failure', msg.slice(0, 400));
     return NextResponse.json(
-      { error: 'upstream', detail: String(err).slice(0, 200) },
-      { status: 502 },
+      { error: 'upstream', detail: msg.slice(0, 400) },
+      { status },
     );
   }
 }

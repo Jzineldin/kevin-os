@@ -81,14 +81,14 @@ export function TodayView({ data }: { data: TodayResponse }) {
 
       {/* Row 3 — main 60/40 grid */}
       <div
-        className="grid items-start gap-7"
+        className="grid items-start gap-8"
         style={{
           gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)',
         }}
         data-slot="today-grid"
       >
         {/* LEFT column (60%) */}
-        <section className="flex min-w-0 flex-col gap-6">
+        <section className="flex min-w-0 flex-col gap-8">
           <Brief brief={data.brief} />
           <PendingProposalsCard />
           <PriorityList priorities={data.priorities} />
@@ -96,7 +96,7 @@ export function TodayView({ data }: { data: TodayResponse }) {
         </section>
 
         {/* RIGHT column (40%) */}
-        <aside className="flex min-w-0 flex-col gap-6">
+        <aside className="flex min-w-0 flex-col gap-8">
           <MeetingsSideCard meetings={data.meetings} />
           <Composer />
           <ChannelsCompact channels={data.channels} />

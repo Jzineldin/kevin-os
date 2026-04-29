@@ -203,33 +203,33 @@ async function loadDrafts(): Promise<
     received_at: string;
   }>
 > {
+  // Load directly from email_drafts — AI reply drafts awaiting approval.
   const db = await getDb();
-  const rows = await db
-    .select({
-      id: inboxIndex.id,
-      title: inboxIndex.title,
-      preview: inboxIndex.preview,
-      payload: inboxIndex.payload,
-      createdAt: inboxIndex.createdAt,
-    })
-    .from(inboxIndex)
-    .where(ownerScoped(inboxIndex, and(eq(inboxIndex.status, 'pending'), eq(inboxIndex.kind, 'draft_reply'))!))
-    .orderBy(desc(inboxIndex.createdAt))
-    .limit(5);
+  const r = (await db.execute(sql`
+    SELECT
+      id::text          AS id,
+      from_email        AS from_email,
+      COALESCE(draft_subject, subject) AS display_subject,
+      LEFT(COALESCE(draft_body, body_preview, ''), 200) AS preview,
+      classification    AS classification,
+      received_at::text AS received_at
+    FROM email_drafts
+    WHERE owner_id = ${OWNER_ID}::uuid
+      AND status IN ('draft', 'edited')
+    ORDER BY
+      CASE classification WHEN 'urgent' THEN 0 WHEN 'important' THEN 1 ELSE 2 END,
+      received_at DESC
+    LIMIT 5
+  `)) as unknown as { rows: Array<Record<string, string | null>> };
 
-  return rows.map((r) => {
-    const payload = (r.payload ?? {}) as Record<string, unknown>;
-    const from = typeof payload['from'] === 'string' ? (payload['from'] as string) : null;
-    const subject = typeof payload['subject'] === 'string' ? (payload['subject'] as string) : null;
-    return {
-      id: r.id,
-      entity: r.title,
-      preview: r.preview,
-      from,
-      subject,
-      received_at: r.createdAt.toISOString(),
-    };
-  });
+  return r.rows.map((row) => ({
+    id: row.id ?? '',
+    entity: row.from_email ?? '',
+    preview: row.preview ?? '',
+    from: row.from_email ?? null,
+    subject: row.display_subject ?? null,
+    received_at: row.received_at ?? new Date().toISOString(),
+  }));
 }
 
 async function loadDropped(): Promise<
@@ -455,9 +455,9 @@ async function loadTodayChannels(db: NodePgDatabase): Promise<ChannelItem[]> {
     max_age_min: number;
   }> = [
     { name: 'Telegram', agent_name: 'triage', max_age_min: 1440 },
-    { name: 'Gmail', agent_name: 'gmail-poller', max_age_min: 30 },
-    { name: 'Granola', agent_name: 'granola-poller', max_age_min: 60 },
-    { name: 'Calendar', agent_name: 'calendar-reader', max_age_min: 90 },
+    { name: 'Gmail', agent_name: 'gmail-poller', max_age_min: 480 },   // healthy if received anything in 8h
+    { name: 'Granola', agent_name: 'granola-poller', max_age_min: 1440 }, // daily transcripts OK
+    { name: 'Calendar', agent_name: 'calendar-reader', max_age_min: 240 }, // 4h window
   ];
   // Agent-runs snapshot + data-source fallbacks (see handlers/integrations.ts
   // for the per-channel source reasoning).

@@ -1,29 +1,20 @@
 /**
- * POST /chat — AI conversational interface (Phase 11 Plan 11-01 minimum).
+ * POST /chat — AI conversational interface (Phase 11 Plan 11-01).
  *
- * Scope (deliberate minimum for first iteration):
- *   - Accepts { message: string, history?: Array<{role,content}> }.
- *   - Loads Kevin Context markdown block via @kos/context-loader so the
- *     model knows who he is, what bolag he runs, current priorities, etc.
- *   - Loads entity_index top-20 most-recently-touched so names in the
- *     message can be grounded in real dossiers.
- *   - Single-turn Sonnet 4.6 call via AnthropicBedrock (same region
- *     inference profile used by morning-brief + day-close).
- *   - Returns { answer, citations: [{ entity_id, name }] }.
+ * Accepts { message, sessionId?, history?, source?, externalId? }.
+ * - Loads Kevin Context markdown block via @kos/context-loader.
+ * - Loads entity_index top-20 most-recently-touched.
+ * - Agentic Sonnet 4.6 loop with tool-use (Plan 11-04).
+ * - Returns { answer, citations, sessionId, mutations }.
  *
- * Non-goals (Plan 11-04):
- *   - Tool-use (update_task_priority, add_entity, search_emails). Today's
- *     build is read-only — the model can REFERENCE entities but not mutate
- *     state. Tool-use lands after the basic query→answer loop is proven.
- *   - Streaming SSE (Plan 11-02). Response is buffered + returned whole.
- *   - Telegram two-way thread (Plan 11-03). Today's surface is dashboard-
- *     only; the Telegram bot still only pushes briefs.
+ * sessionId: generated deterministically from source+externalId so
+ * Telegram bots get a stable session handle across Lambda invocations
+ * without a sessions table. If the caller supplies a sessionId it is
+ * echoed back unchanged (compatibility with kos-chat contract).
  *
- * IAM:
- *   - Needs bedrock:InvokeModel on eu.anthropic.claude-sonnet-4-6*. Added
- *     to dashboard-api's Lambda role in the CDK diff that accompanies this
- *     commit.
+ * Auth: Bearer token checked upstream in index.ts.
  */
+import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
@@ -37,6 +28,8 @@ const SONNET_4_6_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
 
 const RequestSchema = z.object({
   message: z.string().min(1).max(4000),
+  /** Caller-supplied session handle — echoed back in response for Telegram compat. */
+  sessionId: z.string().max(128).optional(),
   history: z
     .array(
       z.object({
@@ -46,6 +39,14 @@ const RequestSchema = z.object({
     )
     .max(20)
     .optional(),
+  /** 'dashboard' | 'telegram' — used for stable sessionId generation. */
+  source: z.enum(['dashboard', 'telegram']).default('dashboard'),
+  /**
+   * Stable external thread identifier.
+   * For Telegram: string(chat_id). For dashboard: browser-stable key or 'default'.
+   * Used to derive a deterministic sessionId when none is provided.
+   */
+  externalId: z.string().max(64).default('default'),
 });
 
 let bedrock: AnthropicBedrock | null = null;
@@ -56,6 +57,22 @@ function getBedrock(): AnthropicBedrock {
     });
   }
   return bedrock;
+}
+
+/**
+ * Derive a stable sessionId from source + externalId.
+ * If the caller already supplies a sessionId, use that verbatim.
+ * This lets Telegram track continuity across warm Lambda invocations
+ * without needing a sessions table in dashboard-api.
+ */
+function resolveSessionId(supplied: string | undefined, source: string, externalId: string): string {
+  if (supplied) return supplied;
+  // sha256(source:externalId) first 26 chars — short but collision-resistant for single-user.
+  return createHash('sha256')
+    .update(`${source}:${externalId}`)
+    .digest('hex')
+    .slice(0, 26)
+    .toUpperCase();
 }
 
 const SYSTEM_PROMPT = `You are KOS Chat — Kevin's personal-ops conversational AI, fully connected to his brain (Notion + RDS + Azure Search).
@@ -128,8 +145,7 @@ function renderEntityBlock(ents: EntityPick[]): string {
 
 /**
  * Scan the model's answer for entity names that appear in our index and
- * emit them as citations. This is a proxy for the Plan 11-04 tool-use path
- * where the model would emit citations explicitly.
+ * emit them as citations. Word-boundary match avoids false positives.
  */
 function extractCitations(
   answer: string,
@@ -138,7 +154,6 @@ function extractCitations(
   const cites: Array<{ entity_id: string; name: string }> = [];
   const seen = new Set<string>();
   for (const e of ents) {
-    // Word-boundary match — avoid 'Ann' matching 'Anna' etc.
     const re = new RegExp(`\\b${e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
     if (re.test(answer) && !seen.has(e.id)) {
       cites.push({ entity_id: e.id, name: e.name });
@@ -169,6 +184,8 @@ export async function chatHandler(ctx: Ctx): Promise<RouteResponse> {
     };
   }
 
+  const sessionId = resolveSessionId(body.sessionId, body.source, body.externalId);
+
   const pool = await getPool();
   const [kevinContext, entities] = await Promise.all([
     loadKevinContextMarkdown(OWNER_ID, pool).catch(() => '(Kevin Context unavailable)'),
@@ -192,14 +209,9 @@ ${renderEntityBlock(entities)}
 ${body.message}
 </user_message>`;
 
-  // --- Agentic loop with tool-use (Plan 11-04) ------------------------
-  // Up to MAX_TURNS iterations: Sonnet replies → if tool_use blocks,
-  // dispatch each tool and feed tool_result back → continue. Exit when
-  // stop_reason !== 'tool_use' OR we hit the turn cap.
-  //
+  // --- Agentic loop with tool-use (Plan 11-04) ---
   // Cap rationale: 4 turns = one list_open_tasks + one mutation +
-  // optional one follow-up search + a final answer. Real conversations
-  // rarely need more; a runaway loop eats tokens + Bedrock time.
+  // optional one follow-up search + a final answer.
   const MAX_TURNS = 5;
   const bedrockMessages: Array<{ role: 'user' | 'assistant'; content: unknown }> = [
     ...priorHistory.map((h) => ({ role: h.role, content: h.content })),
@@ -230,8 +242,6 @@ ${body.message}
           toolUses.push({ id: block.id, name: block.name, input: block.input });
         }
       }
-      // Append the assistant turn (with tool_use blocks) to messages
-      // verbatim so follow-up turn can reference tool_use_ids.
       bedrockMessages.push({ role: 'assistant', content: res.content });
 
       if (res.stop_reason !== 'tool_use' || toolUses.length === 0) {
@@ -239,9 +249,6 @@ ${body.message}
         break;
       }
 
-      // Execute each tool and collect results. Tool dispatch errors
-      // become { ok: false, error } so Sonnet can explain them to Kevin
-      // rather than crashing.
       const toolResults: Array<{
         type: 'tool_result';
         tool_use_id: string;
@@ -280,6 +287,7 @@ ${body.message}
     body: JSON.stringify({
       answer: answerTrimmed,
       citations,
+      sessionId,
       mutations: mutationsSummary,
     }),
     headers: {

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { App, Stack, Tags, type Environment } from 'aws-cdk-lib';
 import { Cluster } from 'aws-cdk-lib/aws-ecs';
+import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
 import { RESOLVED_ENV } from '../lib/config/env.js';
 import { NetworkStack } from '../lib/stacks/network-stack.js';
 import { EventsStack } from '../lib/stacks/events-stack.js';
@@ -19,6 +20,7 @@ import { AgentsStack } from '../lib/stacks/agents-stack.js';
 import { ObservabilityStack } from '../lib/stacks/observability-stack.js';
 import { DashboardStack } from '../lib/stacks/dashboard-stack.js';
 import { MigrationStack } from '../lib/stacks/integrations-migration.js';
+import { OpenclawBridgeStack } from '../lib/stacks/openclaw-bridge-stack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const transcribeRegion = (() => {
@@ -196,7 +198,7 @@ const capture = new CaptureStack(app, 'KosCapture', {
   kosChatEndpoint:
     process.env.KOS_CHAT_ENDPOINT ??
     (app.node.tryGetContext('kosChatEndpoint') as string | undefined) ??
-    'https://kos-dashboard-navy.vercel.app/api/chat',
+    'https://v1k7d48lbk.execute-api.eu-north-1.amazonaws.com/chat',
   kosDashboardBearerSecret: data.dashboardBearerSecret,
 });
 capture.addDependency(data);
@@ -239,7 +241,7 @@ const agents = new AgentsStack(app, 'KosAgents', {
   kosChatEndpoint:
     process.env.KOS_CHAT_ENDPOINT ??
     (app.node.tryGetContext('kosChatEndpoint') as string | undefined) ??
-    'https://kos-dashboard-navy.vercel.app/api/chat',
+    'https://v1k7d48lbk.execute-api.eu-north-1.amazonaws.com/chat',
   kosDashboardBearerSecret: data.dashboardBearerSecret,
   // Phase 11 Plan 11-01: kos-chat Lambda uses the same bearer secret as
   // dashboard-api (D-09 single-user bearer). Reuses dashboardBearerSecret
@@ -345,6 +347,44 @@ const migration = new MigrationStack(app, 'KosMigration', {
 });
 migration.addDependency(events);
 void migration;
+
+// OpenclawBridgeStack — Phase B consolidation bridge.
+// The Lambda + Function URL + secrets were bootstrapped out-of-band on
+// 2026-04-29 via `scripts/phase-b/` (dev EC2 OOM'd on full cdk synth).
+// This wiring reproduces the intended shape in CDK so a future `cdk import`
+// can adopt the live resources without recreating them. The bearer + DB
+// secrets are pre-existing — import by-attributes to avoid re-creation.
+const bridgeBearerSecret = Secret.fromSecretAttributes(
+  new Stack(app, 'KosOpenclawBridgeSecretsImport', { env }),
+  'BridgeBearerSecret',
+  {
+    secretCompleteArn:
+      'arn:aws:secretsmanager:eu-north-1:239541130189:secret:kos/openclaw-bridge-bearer-51Z3M6',
+  },
+);
+const bridgeDbSecret = Secret.fromSecretAttributes(
+  Stack.of(bridgeBearerSecret),
+  'BridgeDbSecret',
+  {
+    secretCompleteArn:
+      'arn:aws:secretsmanager:eu-north-1:239541130189:secret:kos/db/kos_openclaw_bridge-g95EMT',
+  },
+);
+const openclawBridge = new OpenclawBridgeStack(app, 'KosOpenclawBridge', {
+  env,
+  vpc: network.vpc,
+  rdsProxyEndpoint: data.rdsProxyEndpoint,
+  rdsProxySecurityGroup: data.rdsSecurityGroup,
+  kevinOwnerId:
+    process.env.KEVIN_OWNER_ID ??
+    (app.node.tryGetContext('kevinOwnerId') as string | undefined) ??
+    '',
+  bridgeBearerSecret,
+  bridgeDbSecret,
+});
+openclawBridge.addDependency(network);
+openclawBridge.addDependency(data);
+void openclawBridge;
 
 Tags.of(app).add('project', 'kos');
 Tags.of(app).add('owner', 'kevin');

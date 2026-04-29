@@ -87,10 +87,16 @@ type BriefBlockT =
 
 /**
  * Parse the plaintext brief body into structured blocks for rendering.
- * Keeps the parser conservative — anything ambiguous falls through as
- * a paragraph so we never hide content.
+ * Only shows content up to the first recognized section heading
+ * (Top 3, Drafts, Dropped, etc.) — those sections live in their own
+ * dedicated cards on the Today layout.
  */
 function parseBriefBody(body: string): BriefBlockT[] {
+  // Strip everything from the first major section heading onwards —
+  // those are rendered as separate cards (PriorityList, DraftsCard, etc.)
+  const SECTION_HEADINGS = /^(Top \d|Drafts awaiting|Dropped threads|Priorities|Schedule|Captures|Channels)/im;
+  const cutIdx = body.search(SECTION_HEADINGS);
+  if (cutIdx > 0) body = body.slice(0, cutIdx).trimEnd();
   const normalized = body.replace(/\r\n/g, '\n').trim();
   if (!normalized) return [];
 

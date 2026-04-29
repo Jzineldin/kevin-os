@@ -1,18 +1,37 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { TodayPriority } from '@kos/contracts/dashboard';
 import { Panel, PanelAction } from '@/components/dashboard/Panel';
 import { markPriorityDone, markPriorityDefer, delegateToZinclaw } from './actions';
 import { toast } from 'sonner';
 
+const STORAGE_KEY = 'kos:dismissed-priorities';
 const MOTION = {
   initial: { opacity: 0, y: 4 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, height: 0, marginTop: 0 },
   transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const },
 };
+
+function getDismissed(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const arr = raw ? (JSON.parse(raw) as string[]) : [];
+    return new Set(arr);
+  } catch { return new Set(); }
+}
+
+function addDismissed(id: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const dismissed = getDismissed();
+    dismissed.add(id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...dismissed]));
+  } catch {}
+}
 
 function PriorityRow({ priority, index, onRemove }: {
   priority: TodayPriority;
@@ -23,22 +42,26 @@ function PriorityRow({ priority, index, onRemove }: {
   const [delegating, setDelegating] = useState(false);
 
   const handleDone = () => {
+    // Optimistic remove + persist dismissal immediately
+    addDismissed(priority.id);
+    onRemove(priority.id);
     startTransition(async () => {
       try {
         await markPriorityDone(priority.id);
-        onRemove(priority.id);
         toast.success('Marked as done ✓');
       } catch {
-        toast.error('Failed to update — try again');
+        toast.error('Failed to update Notion — try again');
+        // Don't un-remove from UI; user can refresh if needed
       }
     });
   };
 
   const handleDefer = () => {
+    addDismissed(priority.id);
+    onRemove(priority.id);
     startTransition(async () => {
       try {
         await markPriorityDefer(priority.id);
-        onRemove(priority.id);
         toast.success('Deferred ⏳');
       } catch {
         toast.error('Failed to defer — try again');
@@ -55,7 +78,7 @@ function PriorityRow({ priority, index, onRemove }: {
         title: priority.title,
         context: `Bolag: ${priority.bolag ?? 'unknown'}`,
       });
-      toast.success('💬 Sent to Zinclaw — check Discord DM');
+      toast.success('💬 Sent to #kos-development — Zinclaw will respond there');
     } catch {
       toast.error('Could not reach Zinclaw');
     } finally {
@@ -78,89 +101,76 @@ function PriorityRow({ priority, index, onRemove }: {
           className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100"
           style={{ transition: 'opacity 0.15s ease' }}
         >
-          <button
-            type="button"
-            onClick={handleDone}
-            style={{
-              fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
-              color: 'var(--color-success)', background: 'color-mix(in srgb, var(--color-success) 12%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--color-success) 25%, transparent)',
-              borderRadius: 4, padding: '3px 8px', cursor: 'pointer',
-            }}
-          >
-            ✓ Done
-          </button>
-          <button
-            type="button"
-            onClick={handleDefer}
-            style={{
-              fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
-              color: 'var(--color-text-3)', background: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)', borderRadius: 4,
-              padding: '3px 8px', cursor: 'pointer',
-            }}
-          >
-            ⏳ Defer
-          </button>
-          <button
-            type="button"
+          <PanelAction onClick={handleDone} title="Mark done">✓ Done</PanelAction>
+          <PanelAction onClick={handleDefer} title="Defer">⏳ Defer</PanelAction>
+          <PanelAction
             onClick={handleDelegate}
+            title="Ask Zinclaw"
             disabled={delegating}
-            style={{
-              fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
-              color: 'var(--color-sect-drafts)',
-              background: 'color-mix(in srgb, var(--color-sect-drafts) 10%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--color-sect-drafts) 25%, transparent)',
-              borderRadius: 4, padding: '3px 8px', cursor: delegating ? 'default' : 'pointer',
-              opacity: delegating ? 0.6 : 1,
-            }}
           >
-            {delegating ? '...' : '💬 Ask Zinclaw'}
-          </button>
+            {delegating ? '…' : '💬 Ask Zinclaw'}
+          </PanelAction>
         </div>
       </div>
-      <div className={`when${index === 0 ? ' soon' : ''}`}>
-        {index === 0 ? 'DUE TODAY' : 'anytime'}
-      </div>
+      {priority.due === 'today' && (
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--color-accent)',
+            background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)',
+            padding: '2px 7px',
+            borderRadius: 4,
+            alignSelf: 'flex-start',
+            marginTop: 2,
+          }}
+        >
+          DUE TODAY
+        </span>
+      )}
     </div>
   );
 }
 
 export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  // Load dismissed set from localStorage on mount (client-only)
+  useEffect(() => {
+    setDismissed(getDismissed());
+  }, []);
+
   const [items, setItems] = useState(priorities);
-  const count = items.length;
+
+  // When server sends new priorities (e.g. after revalidation), merge but keep dismissed hidden
+  useEffect(() => {
+    setItems(priorities);
+  }, [priorities]);
+
+  const visible = items.filter(p => !dismissed.has(p.id));
 
   const handleRemove = (id: string) => {
+    setDismissed(prev => new Set([...prev, id]));
     setItems(prev => prev.filter(p => p.id !== id));
   };
 
   return (
     <Panel
-      tone="priority"
-      name="Priorities"
-      count={count > 0 ? `· Top ${Math.min(count, 3)}` : undefined}
-      bodyPadding="flush"
-      aria-label="Top 3 priorities"
-      testId="priority-list"
+      label="PRIORITIES"
+      badge={`Top ${visible.length}`}
+      accent="var(--color-sect-actions)"
     >
-      {count === 0 ? (
-        <div className="px-5 py-5 text-[13px] text-[color:var(--color-text-3)]">
+      {visible.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--color-text-4)', padding: '12px 0' }}>
           All clear — no open priorities. ✅
-        </div>
+        </p>
       ) : (
         <AnimatePresence initial={false}>
-          {items.slice(0, 3).map((p, idx) => (
-            <motion.div
-              key={p.id}
-              initial={MOTION.initial}
-              animate={MOTION.animate}
-              exit={MOTION.exit}
-              transition={MOTION.transition}
-            >
-              <PriorityRow priority={p} index={idx} onRemove={handleRemove} />
+          {visible.map((p, i) => (
+            <motion.div key={p.id} {...MOTION}>
+              <PriorityRow priority={p} index={i} onRemove={handleRemove} />
             </motion.div>
           ))}
         </AnimatePresence>

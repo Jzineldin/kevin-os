@@ -344,28 +344,19 @@ register('POST', '/delegate', async (ctx: Ctx): Promise<RouteResponse> => {
   };
   const label = kindLabel[body.kind] ?? body.kind;
 
+  const KOS_DEV_CHANNEL = process.env.KOS_DEV_CHANNEL_ID ?? '1498808475583778869';
+
   const message = [
-    `**${label}** delegated from dashboard:`,
+    `<@${DISCORD_USER_ID}> **${label}** from dashboard:`,
     `> **${body.title}**`,
     body.context ? `> ${body.context.slice(0, 400)}` : '',
     ``,
-    `What would you like me to do with this? I have full context and can update status, draft a reply, research it, or take any action.`,
+    `What do you want me to do with this?`,
   ].filter(Boolean).join('\n');
 
   try {
-    // Create DM channel with Kevin
-    const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ recipient_id: DISCORD_USER_ID }),
-    });
-    const dmChannel = await dmRes.json() as { id: string };
-
-    // Send the message
-    await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
+    // Post to #kos-development so Zinclaw can see and respond
+    await fetch(`https://discord.com/api/v10/channels/${KOS_DEV_CHANNEL}/messages`, {
       method: 'POST',
       headers: {
         Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
@@ -374,7 +365,7 @@ register('POST', '/delegate', async (ctx: Ctx): Promise<RouteResponse> => {
       body: JSON.stringify({ content: message }),
     });
 
-    return { statusCode: 200, body: JSON.stringify({ ok: true, channel_id: dmChannel.id }) };
+    return { statusCode: 200, body: JSON.stringify({ ok: true, channel_id: KOS_DEV_CHANNEL }) };
   } catch (err) {
     console.error('[dashboard-api] delegate discord DM failed', err);
     return { statusCode: 500, body: JSON.stringify({ error: 'discord_send_failed' }) };

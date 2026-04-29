@@ -37,3 +37,4 @@ cdk.out.dashboard/
 # `cdk.out*` synth artifacts don't accumulate in /tmp on shared hosts.
 packages/cdk/.cdk-tmp/
 services/openclaw-bridge/.env.test
+.vercel

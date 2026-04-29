@@ -6,6 +6,11 @@ const config: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@kos/db', '@kos/contracts'],
   typedRoutes: true,
+  experimental: {
+    turbo: {
+      root: '../../',
+    },
+  },
 };
 
 // Paper-cut #2 migration (quick 260424-r6s) — @serwist/next 9.5.7 is

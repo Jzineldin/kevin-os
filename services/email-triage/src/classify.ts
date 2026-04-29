@@ -226,7 +226,13 @@ export async function runClassifyAgent(input: ClassifyInput): Promise<ClassifyRe
     return safeFallback('model_garbage', resp, JSON.stringify(resp.content));
   }
 
-  const parsed = ClassifyOutputSchema.safeParse(toolBlock.input);
+  // Truncate reason before validation to avoid spurious zod_invalid fallbacks
+  // (Claude sometimes returns a reason slightly over 300 chars).
+  const rawInput = toolBlock.input as Record<string, unknown>;
+  if (rawInput && typeof rawInput['reason'] === 'string' && rawInput['reason'].length > 300) {
+    rawInput['reason'] = (rawInput['reason'] as string).slice(0, 300);
+  }
+  const parsed = ClassifyOutputSchema.safeParse(rawInput);
   if (!parsed.success) {
     console.warn('[email-triage] Zod validation failed for classify tool_use', {
       issues: parsed.error.issues,

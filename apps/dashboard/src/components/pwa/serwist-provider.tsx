@@ -19,16 +19,7 @@ import type { ReactNode } from 'react';
 const SW_URL = '/serwist/sw.js';
 
 export function KosSerwistProvider({ children }: { children: ReactNode }) {
-  const disableInDev = process.env.NODE_ENV === 'development';
-  return (
-    <SerwistProvider
-      swUrl={SW_URL}
-      disable={disableInDev}
-      register
-      cacheOnNavigation
-      reloadOnOnline
-    >
-      {children}
-    </SerwistProvider>
-  );
+  // 2026-04-29: Disabled — SW cache causes hydration failures on new deploys
+  // (stale JS chunks vs new RSC payload = black screen). Re-enable when stable.
+  return <>{children}</>;
 }

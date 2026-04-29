@@ -101,11 +101,11 @@ function PriorityRow({ priority, index, onRemove }: {
           className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100"
           style={{ transition: 'opacity 0.15s ease' }}
         >
-          <PanelAction onClick={handleDone} title="Mark done">✓ Done</PanelAction>
-          <PanelAction onClick={handleDefer} title="Defer">⏳ Defer</PanelAction>
+          <PanelAction onClick={handleDone}>✓ Done</PanelAction>
+          <PanelAction onClick={handleDefer}>⏳ Defer</PanelAction>
           <PanelAction
             onClick={handleDelegate}
-            title="Ask Zinclaw"
+           
             disabled={delegating}
           >
             {delegating ? '…' : '💬 Ask Zinclaw'}

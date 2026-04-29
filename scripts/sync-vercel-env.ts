@@ -307,8 +307,8 @@ async function main(): Promise<void> {
   const API_GW_URL = 'https://v1k7d48lbk.execute-api.eu-north-1.amazonaws.com';
   const dashboardApiUrl = API_GW_URL;
   const relayProxyUrl = requireOutput(outputs, 'RelayProxyFunctionUrl');
-  stdout.write(\`Using API Gateway URL for KOS_DASHBOARD_API_URL: \${dashboardApiUrl}\n\`);
-  stdout.write(\`(Function URL \${functionUrl} is affected by recurring 403 bug — skipped)\n\`);
+  stdout.write(`Using API Gateway URL for KOS_DASHBOARD_API_URL: ${dashboardApiUrl}\n`);
+  stdout.write(`(Function URL ${functionUrl} is affected by recurring 403 bug — skipped)\n`);
 
   // 2. Read Secrets.
   stdout.write('Reading Secrets Manager secrets...\n');

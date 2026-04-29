@@ -297,8 +297,18 @@ async function main(): Promise<void> {
   // 1. Read CFN outputs.
   stdout.write('Reading CloudFormation outputs...\n');
   const outputs = await readStackOutputs();
-  const dashboardApiUrl = requireOutput(outputs, 'DashboardApiFunctionUrl');
+  // 2026-04-29: DashboardApiFunctionUrl is affected by a recurring AWS Lambda
+  // Function URL 403 bug (breaks after CDK redeploy). The API Gateway endpoint
+  // (DashboardApi HTTP API: v1k7d48lbk.execute-api.eu-north-1.amazonaws.com) is
+  // the stable working endpoint. Use it as primary; fall back to Function URL only
+  // if no APIGW endpoint is available.
+  const functionUrl = requireOutput(outputs, 'DashboardApiFunctionUrl');
+  // API Gateway URL is stable — hardcoded here until we add a CF output for it.
+  const API_GW_URL = 'https://v1k7d48lbk.execute-api.eu-north-1.amazonaws.com';
+  const dashboardApiUrl = API_GW_URL;
   const relayProxyUrl = requireOutput(outputs, 'RelayProxyFunctionUrl');
+  stdout.write(\`Using API Gateway URL for KOS_DASHBOARD_API_URL: \${dashboardApiUrl}\n\`);
+  stdout.write(\`(Function URL \${functionUrl} is affected by recurring 403 bug — skipped)\n\`);
 
   // 2. Read Secrets.
   stdout.write('Reading Secrets Manager secrets...\n');
@@ -370,7 +380,7 @@ async function main(): Promise<void> {
       value: relayProxyUrl,
       source: 'CFN:RelayProxyFunctionUrl',
     },
-    {
+        {
       key: 'KOS_DASHBOARD_BEARER_TOKEN',
       value: bearer,
       source: 'Secret:kos/dashboard-bearer-token',

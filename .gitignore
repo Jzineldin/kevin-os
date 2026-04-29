@@ -36,3 +36,4 @@ cdk.out.dashboard/
 # CDK test temp dir — vitest globalSetup redirects os.tmpdir() here so
 # `cdk.out*` synth artifacts don't accumulate in /tmp on shared hosts.
 packages/cdk/.cdk-tmp/
+services/openclaw-bridge/.env.test

@@ -75,8 +75,17 @@ function json(status: number, body: unknown) {
 
 export const handler: LambdaFunctionURLHandler = async (event) => {
   // Bearer gate
-  const hdr = event.headers?.authorization ?? event.headers?.Authorization ?? '';
-  const m = /^Bearer\s+(.+)$/.exec(hdr);
+  //
+  // We check TWO header names:
+  //   - Authorization: Bearer <token>   (preferred when AuthType=NONE)
+  //   - X-Bridge-Auth: Bearer <token>   (fallback when AuthType=AWS_IAM —
+  //     SigV4 consumes the Authorization header for its own signature,
+  //     so clients that want to present both IAM creds AND a Bearer
+  //     must move Bearer to this custom header)
+  const authHdr = event.headers?.authorization ?? event.headers?.Authorization ?? '';
+  const xHdr = event.headers?.['x-bridge-auth'] ?? event.headers?.['X-Bridge-Auth'] ?? '';
+  const hdr = /^Bearer\s+/i.test(authHdr) ? authHdr : xHdr;
+  const m = /^Bearer\s+(.+)$/i.exec(hdr);
   if (!m) return json(401, { error: 'missing_bearer' });
   const expected = await getBearer();
   if (!timingSafeEq(m[1]!, expected)) return json(401, { error: 'bad_bearer' });

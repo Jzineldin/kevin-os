@@ -24,7 +24,8 @@
  * the same schema; old vs new clients differ only in whether they
  * read the optional `classification` + `email_status` fields.
  */
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { getNotion } from '../notion.js';
 import {
   InboxListSchema,
   type InboxItem,
@@ -269,3 +270,113 @@ export async function mergedInboxHandler(_ctx: Ctx): Promise<RouteResponse> {
 }
 
 register('GET', '/inbox-merged', mergedInboxHandler);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Priority actions — PATCH /priorities/:id/status
+// Updates Notion Command Center task status directly.
+// ─────────────────────────────────────────────────────────────────────────────
+
+register('PATCH', '/priorities/:id/status', async (ctx: Ctx): Promise<RouteResponse> => {
+  const pageId = ctx.params?.id;
+  const body = ctx.body ? (JSON.parse(ctx.body) as { status: string }) : null;
+  if (!pageId || !body?.status) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'missing id or status' }) };
+  }
+
+  const STATUS_MAP: Record<string, string> = {
+    done: '✅ Klart',
+    skip: '❌ Skippat',
+    defer: '⏳ Väntar',
+    today: '🔥 Idag',
+    active: '🔨 Pågår',
+  };
+
+  const notionStatus = STATUS_MAP[body.status.toLowerCase()];
+  if (!notionStatus) {
+    return { statusCode: 400, body: JSON.stringify({ error: `Unknown status '${body.status}'` }) };
+  }
+
+  try {
+    const notion = getNotion();
+    await notion.pages.update({
+      page_id: pageId,
+      properties: {
+        Status: { select: { name: notionStatus } },
+      },
+    });
+    return { statusCode: 200, body: JSON.stringify({ ok: true, id: pageId, status: notionStatus }) };
+  } catch (err) {
+    console.error('[dashboard-api] priority status update failed', err);
+    return { statusCode: 500, body: JSON.stringify({ error: 'notion_update_failed', detail: String(err) }) };
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Ask Zinclaw" — POST /delegate
+// Sends a Discord DM to Kevin with item context, opening a conversation with Zinclaw.
+// ─────────────────────────────────────────────────────────────────────────────
+
+register('POST', '/delegate', async (ctx: Ctx): Promise<RouteResponse> => {
+  const body = ctx.body ? JSON.parse(ctx.body) as {
+    kind: string;       // 'priority' | 'draft' | 'inbox_item' | 'capture'
+    id: string;
+    title: string;
+    context?: string;   // extra text to include
+  } : null;
+
+  if (!body?.kind || !body?.title) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'missing kind or title' }) };
+  }
+
+  const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+  const DISCORD_USER_ID = process.env.DISCORD_OWNER_USER_ID ?? '165422223669067780';
+
+  if (!DISCORD_BOT_TOKEN) {
+    return { statusCode: 503, body: JSON.stringify({ error: 'discord_not_configured' }) };
+  }
+
+  // Build a rich message with context
+  const kindLabel: Record<string, string> = {
+    priority: '🎯 Priority',
+    draft: '📧 Email Draft',
+    inbox_item: '📬 Inbox Item',
+    capture: '📝 Capture',
+  };
+  const label = kindLabel[body.kind] ?? body.kind;
+
+  const message = [
+    `**${label}** delegated from dashboard:`,
+    `> **${body.title}**`,
+    body.context ? `> ${body.context.slice(0, 400)}` : '',
+    ``,
+    `What would you like me to do with this? I have full context and can update status, draft a reply, research it, or take any action.`,
+  ].filter(Boolean).join('\n');
+
+  try {
+    // Create DM channel with Kevin
+    const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ recipient_id: DISCORD_USER_ID }),
+    });
+    const dmChannel = await dmRes.json() as { id: string };
+
+    // Send the message
+    await fetch(`https://discord.com/api/v10/channels/${dmChannel.id}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: message }),
+    });
+
+    return { statusCode: 200, body: JSON.stringify({ ok: true, channel_id: dmChannel.id }) };
+  } catch (err) {
+    console.error('[dashboard-api] delegate discord DM failed', err);
+    return { statusCode: 500, body: JSON.stringify({ error: 'discord_send_failed' }) };
+  }
+});

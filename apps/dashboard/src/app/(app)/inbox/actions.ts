@@ -61,3 +61,18 @@ export async function skipInbox(id: string): Promise<void> {
   );
   revalidatePath('/inbox');
 }
+
+export async function delegateInboxItem(params: {
+  kind: string;
+  id: string;
+  title: string;
+  context?: string;
+}): Promise<void> {
+  const { callApi } = await import('@/lib/dashboard-api');
+  const { z } = await import('zod');
+  const OkSchema = z.object({ ok: z.boolean() });
+  await callApi('/delegate', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  }, OkSchema);
+}

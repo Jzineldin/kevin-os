@@ -20,7 +20,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { Pill } from '@/components/dashboard/Pill';
 import { Textarea } from '@/components/ui/textarea';
 
-import { approveInbox, editInbox, skipInbox } from './actions';
+import { approveInbox, editInbox, skipInbox, delegateInboxItem } from './actions';
 import { isTerminalInboxItem } from './InboxClient';
 import { ResumeMergeCard } from './ResumeMergeCard';
 
@@ -330,11 +330,29 @@ function ActionBar({
     !isTerminal &&
     (!item.email_status || EDITABLE_STATUSES.has(item.email_status));
 
+  const [delegating, setDelegating] = useState(false);
+  function onDelegate() {
+    setDelegating(true);
+    delegateInboxItem({
+      kind: item.kind,
+      id: item.id,
+      title: item.title,
+      context: item.preview ?? undefined,
+    }).then(() => toast.success('💬 Sent to Zinclaw — check Discord DM'))
+      .catch(() => toast.error('Could not reach Zinclaw'))
+      .finally(() => setDelegating(false));
+  }
+
   if (isTerminal) {
     return (
-      <span className="text-xs" style={{ color: 'var(--color-text-3)' }} data-testid="inbox-readonly-label">
-        Read-only
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="text-xs" style={{ color: 'var(--color-text-3)' }} data-testid="inbox-readonly-label">
+          Read-only
+        </span>
+        <Button variant="ghost" size="sm" onClick={onDelegate} disabled={delegating}>
+          {delegating ? '...' : '💬 Ask Zinclaw'}
+        </Button>
+      </div>
     );
   }
 
@@ -350,6 +368,10 @@ function ActionBar({
       ) : null}
       <Button variant="ghost" onClick={onSkip} disabled={pending} size="sm" data-testid="inbox-skip-btn">
         Skip
+      </Button>
+      <Button variant="ghost" onClick={onDelegate} disabled={delegating || pending} size="sm" data-testid="inbox-delegate-btn"
+        style={{ color: 'var(--color-sect-drafts)', marginLeft: 'auto' }}>
+        {delegating ? '...' : '💬 Ask Zinclaw'}
       </Button>
     </>
   );

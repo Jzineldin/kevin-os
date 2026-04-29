@@ -12,7 +12,7 @@
  */
 import type { LambdaFunctionURLEvent } from 'aws-lambda';
 
-export type Method = 'GET' | 'POST';
+export type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 export type Ctx = {
   method: Method;

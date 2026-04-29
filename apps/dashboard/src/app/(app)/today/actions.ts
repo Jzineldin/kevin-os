@@ -1,33 +1,42 @@
 'use server';
 
-/**
- * Today Server Actions — called from <Composer /> (and future Today-embedded
- * actions). Lives here (rather than in a shared /lib module) because the
- * 'use server' directive is route-scoped and Next 15 is stricter about
- * Server Actions crossing boundary files.
- *
- * See 03-RESEARCH §17 P-15 (useOptimistic + Server Action boundary).
- */
 import { callApi } from '@/lib/dashboard-api';
-import {
-  CapturePostSchema,
-  CaptureResponseSchema,
-  type CaptureResponse,
-} from '@kos/contracts/dashboard';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
-/**
- * captureText — POST /capture with a text payload. Returns the ack with
- * the fresh server-minted ULID capture_id and server-minted received_at.
- *
- * Throws on:
- *   - zod validation failure (client bug — fail loud, surface in toast)
- *   - non-2xx response from dashboard-api (upstream outage — caller toasts)
- */
-export async function captureText(text: string): Promise<CaptureResponse> {
-  const input = CapturePostSchema.parse({ text });
-  return callApi(
-    '/capture',
-    { method: 'POST', body: JSON.stringify(input) },
-    CaptureResponseSchema,
-  );
+const OkSchema = z.object({ ok: z.boolean() });
+
+export async function markPriorityDone(id: string): Promise<void> {
+  await callApi(`/priorities/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'done' }),
+  }, OkSchema);
+  revalidatePath('/today');
+}
+
+export async function markPriorityDefer(id: string): Promise<void> {
+  await callApi(`/priorities/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'defer' }),
+  }, OkSchema);
+  revalidatePath('/today');
+}
+
+export async function delegateToZinclaw(params: {
+  kind: string;
+  id: string;
+  title: string;
+  context?: string;
+}): Promise<void> {
+  await callApi('/delegate', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  }, OkSchema);
+}
+
+export async function captureText(text: string): Promise<{ ok: boolean; capture_id: string }> {
+  const { callApi } = await import('@/lib/dashboard-api');
+  const { z } = await import('zod');
+  const Schema = z.object({ ok: z.boolean(), capture_id: z.string() });
+  return callApi('/capture', { method: 'POST', body: JSON.stringify({ text, source: 'dashboard' }) }, Schema);
 }

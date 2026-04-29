@@ -1,83 +1,166 @@
 'use client';
 
-/**
- * PriorityList — v4 Top 3 Priorities section.
- *
- * Visual reference: mockup-v4.html § .pri-row (inside the Priorities
- * panel). Row layout:
- *
- *   [ 32px num ] [ 1fr title + meta ] [ auto when-pill ]
- *
- * `.when.soon` (amber) and `.when.now` (sect-priority blue) variants
- * replace the old fixed "anytime/DUE 16:00" strings — the pill itself
- * carries the urgency. A row with neither flag renders the plain
- * surface-2 variant.
- *
- * Animation primitive unchanged: AnimatePresence wraps row insertions
- * so SSE-driven refreshes animate a 4px fade-up slide per motion rule 6.
- */
+import { useState, useTransition } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-
 import type { TodayPriority } from '@kos/contracts/dashboard';
-import { EntityLink } from '@/components/entity/EntityLink';
-import { BolagBadge } from '@/components/badge/BolagBadge';
 import { Panel, PanelAction } from '@/components/dashboard/Panel';
+import { markPriorityDone, markPriorityDefer, delegateToZinclaw } from './actions';
+import { toast } from 'sonner';
 
 const MOTION = {
   initial: { opacity: 0, y: 4 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: 4 },
-  transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const },
+  exit: { opacity: 0, height: 0, marginTop: 0 },
+  transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const },
 };
 
+function PriorityRow({ priority, index, onRemove }: {
+  priority: TodayPriority;
+  index: number;
+  onRemove: (id: string) => void;
+}) {
+  const [, startTransition] = useTransition();
+  const [delegating, setDelegating] = useState(false);
+
+  const handleDone = () => {
+    startTransition(async () => {
+      try {
+        await markPriorityDone(priority.id);
+        onRemove(priority.id);
+        toast.success('Marked as done ✓');
+      } catch {
+        toast.error('Failed to update — try again');
+      }
+    });
+  };
+
+  const handleDefer = () => {
+    startTransition(async () => {
+      try {
+        await markPriorityDefer(priority.id);
+        onRemove(priority.id);
+        toast.success('Deferred ⏳');
+      } catch {
+        toast.error('Failed to defer — try again');
+      }
+    });
+  };
+
+  const handleDelegate = async () => {
+    setDelegating(true);
+    try {
+      await delegateToZinclaw({
+        kind: 'priority',
+        id: priority.id,
+        title: priority.title,
+        context: `Bolag: ${priority.bolag ?? 'unknown'}`,
+      });
+      toast.success('💬 Sent to Zinclaw — check Discord DM');
+    } catch {
+      toast.error('Could not reach Zinclaw');
+    } finally {
+      setDelegating(false);
+    }
+  };
+
+  return (
+    <div className="pri-row group">
+      <div className="pri-num">{String(index + 1).padStart(2, '0')}</div>
+      <div className="min-w-0 flex-1">
+        <div className="pri-title truncate">{priority.title}</div>
+        {priority.bolag && (
+          <div className="pri-meta">
+            <span style={{ color: 'var(--color-text-4)', fontSize: 11 }}>{priority.bolag}</span>
+          </div>
+        )}
+        {/* Action row — visible on hover */}
+        <div
+          className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100"
+          style={{ transition: 'opacity 0.15s ease' }}
+        >
+          <button
+            type="button"
+            onClick={handleDone}
+            style={{
+              fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--color-success)', background: 'color-mix(in srgb, var(--color-success) 12%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--color-success) 25%, transparent)',
+              borderRadius: 4, padding: '3px 8px', cursor: 'pointer',
+            }}
+          >
+            ✓ Done
+          </button>
+          <button
+            type="button"
+            onClick={handleDefer}
+            style={{
+              fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--color-text-3)', background: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)', borderRadius: 4,
+              padding: '3px 8px', cursor: 'pointer',
+            }}
+          >
+            ⏳ Defer
+          </button>
+          <button
+            type="button"
+            onClick={handleDelegate}
+            disabled={delegating}
+            style={{
+              fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--color-sect-drafts)',
+              background: 'color-mix(in srgb, var(--color-sect-drafts) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--color-sect-drafts) 25%, transparent)',
+              borderRadius: 4, padding: '3px 8px', cursor: delegating ? 'default' : 'pointer',
+              opacity: delegating ? 0.6 : 1,
+            }}
+          >
+            {delegating ? '...' : '💬 Ask Zinclaw'}
+          </button>
+        </div>
+      </div>
+      <div className={`when${index === 0 ? ' soon' : ''}`}>
+        {index === 0 ? 'DUE TODAY' : 'anytime'}
+      </div>
+    </div>
+  );
+}
+
 export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
-  const count = priorities.length;
+  const [items, setItems] = useState(priorities);
+  const count = items.length;
+
+  const handleRemove = (id: string) => {
+    setItems(prev => prev.filter(p => p.id !== id));
+  };
+
   return (
     <Panel
       tone="priority"
       name="Priorities"
       count={count > 0 ? `· Top ${Math.min(count, 3)}` : undefined}
-      action={count > 1 ? <PanelAction>Reprioritize</PanelAction> : undefined}
       bodyPadding="flush"
       aria-label="Top 3 priorities"
       testId="priority-list"
     >
       {count === 0 ? (
         <div className="px-5 py-5 text-[13px] text-[color:var(--color-text-3)]">
-          No priorities yet. KOS surfaces them from Command Center every
-          morning.
+          All clear — no open priorities. ✅
         </div>
       ) : (
         <AnimatePresence initial={false}>
-          {priorities.slice(0, 3).map((p, idx) => (
+          {items.slice(0, 3).map((p, idx) => (
             <motion.div
               key={p.id}
-              className="pri-row"
               initial={MOTION.initial}
               animate={MOTION.animate}
               exit={MOTION.exit}
               transition={MOTION.transition}
             >
-              <div className="pri-num">
-                {String(idx + 1).padStart(2, '0')}
-              </div>
-              <div className="min-w-0">
-                <div className="pri-title truncate">{p.title}</div>
-                <div className="pri-meta">
-                  {p.entity_id && p.entity_name ? (
-                    <EntityLink id={p.entity_id} name={p.entity_name} />
-                  ) : p.entity_name ? (
-                    <span className="ent">{p.entity_name}</span>
-                  ) : null}
-                  <BolagBadge org={p.bolag} />
-                </div>
-              </div>
-              <div
-                className={`when${idx === 0 ? ' soon' : ''}`}
-                aria-label="when"
-              >
-                {idx === 0 ? 'DUE TODAY' : 'anytime'}
-              </div>
+              <PriorityRow priority={p} index={idx} onRemove={handleRemove} />
             </motion.div>
           ))}
         </AnimatePresence>

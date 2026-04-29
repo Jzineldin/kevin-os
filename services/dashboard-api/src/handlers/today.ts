@@ -586,7 +586,8 @@ async function loadMeetings(db: NodePgDatabase): Promise<
 
 async function todayHandler(_ctx: Ctx): Promise<RouteResponse> {
   const db = await getDb();
-  const [brief, priorities, drafts, dropped, meetings, captures, channels] =
+
+  const [briefRaw, priorities, drafts, dropped, meetings, captures, channels] =
     await Promise.all([
       loadBrief(),
       loadPriorities(),
@@ -596,6 +597,16 @@ async function todayHandler(_ctx: Ctx): Promise<RouteResponse> {
       loadCapturesToday(db),
       loadTodayChannels(db),
     ]);
+
+  // Truncate brief to narrative only — strip "Top 3", "Drafts awaiting", etc.
+  // Those sections live in dedicated cards; the brief shows only the prose intro.
+  let brief = briefRaw;
+  if (brief?.body) {
+    const SECTION_CUT = /^(Top \d|Drafts awaiting|Dropped threads|Priorities|Schedule|Captures|Channels)/im;
+    const cutAt = brief.body.search(SECTION_CUT);
+    if (cutAt > 0) brief = { ...brief, body: brief.body.slice(0, cutAt).trimEnd() };
+  }
+
   // stat_tiles needs the captures count, so it runs after the parallel block.
   const stat_tiles = await loadStatTiles(db, captures.length);
 

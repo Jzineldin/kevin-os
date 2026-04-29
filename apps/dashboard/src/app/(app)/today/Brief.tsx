@@ -1,3 +1,4 @@
+// Cache bust: 2026-04-29 09:45 UTC
 /**
  * Brief — v4 Morning Brief hero block on /today.
  *

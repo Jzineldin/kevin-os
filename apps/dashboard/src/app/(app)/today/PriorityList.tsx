@@ -42,7 +42,6 @@ function PriorityRow({ priority, index, onRemove }: {
   const [delegating, setDelegating] = useState(false);
 
   const handleDone = () => {
-    // Optimistic remove + persist dismissal immediately
     addDismissed(priority.id);
     onRemove(priority.id);
     startTransition(async () => {
@@ -51,7 +50,6 @@ function PriorityRow({ priority, index, onRemove }: {
         toast.success('Marked as done ✓');
       } catch {
         toast.error('Failed to update Notion — try again');
-        // Don't un-remove from UI; user can refresh if needed
       }
     });
   };
@@ -96,7 +94,6 @@ function PriorityRow({ priority, index, onRemove }: {
             <span style={{ color: 'var(--color-text-4)', fontSize: 11 }}>{priority.bolag}</span>
           </div>
         )}
-        {/* Action row — visible on hover */}
         <div
           className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100"
           style={{ transition: 'opacity 0.15s ease' }}
@@ -108,19 +105,23 @@ function PriorityRow({ priority, index, onRemove }: {
             disabled={delegating}
             className="panel-action"
             style={{ opacity: delegating ? 0.5 : 1 }}
-          >{delegating ? '…' : '💬 Ask Zinclaw'}</button>
+          >
+            {delegating ? '…' : '💬 Ask Zinclaw'}
+          </button>
         </div>
-      </div> {
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+      </div>
+    </div>
+  );
+}
 
-  // Load dismissed set from localStorage on mount (client-only)
+export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [items, setItems] = useState(priorities);
+
   useEffect(() => {
     setDismissed(getDismissed());
   }, []);
 
-  const [items, setItems] = useState(priorities);
-
-  // When server sends new priorities (e.g. after revalidation), merge but keep dismissed hidden
   useEffect(() => {
     setItems(priorities);
   }, [priorities]);

@@ -135,9 +135,10 @@ export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
 
   return (
     <Panel
-      label="PRIORITIES"
-      badge={`Top ${visible.length}`}
-      accent="var(--color-sect-actions)"
+      tone="priority"
+      name="Priorities"
+      count={visible.length > 0 ? `· Top ${Math.min(visible.length, 3)}` : undefined}
+      bodyPadding="flush"
     >
       {visible.length === 0 ? (
         <p style={{ fontSize: 13, color: 'var(--color-text-4)', padding: '12px 0' }}>

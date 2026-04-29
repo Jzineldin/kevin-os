@@ -103,13 +103,12 @@ function PriorityRow({ priority, index, onRemove }: {
         >
           <PanelAction onClick={handleDone}>✓ Done</PanelAction>
           <PanelAction onClick={handleDefer}>⏳ Defer</PanelAction>
-          <PanelAction
+          <button
             onClick={handleDelegate}
-           
             disabled={delegating}
-          >
-            {delegating ? '…' : '💬 Ask Zinclaw'}
-          </PanelAction>
+            className="panel-action"
+            style={{ opacity: delegating ? 0.5 : 1 }}
+          >{delegating ? '…' : '💬 Ask Zinclaw'}</button>
         </div>
       </div>
       {priority.due === 'today' && (

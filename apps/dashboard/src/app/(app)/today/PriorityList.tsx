@@ -110,30 +110,7 @@ function PriorityRow({ priority, index, onRemove }: {
             style={{ opacity: delegating ? 0.5 : 1 }}
           >{delegating ? '…' : '💬 Ask Zinclaw'}</button>
         </div>
-      </div>
-      {priority.due === 'today' && (
-        <span
-          className="font-mono"
-          style={{
-            fontSize: 10,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'var(--color-accent)',
-            background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)',
-            padding: '2px 7px',
-            borderRadius: 4,
-            alignSelf: 'flex-start',
-            marginTop: 2,
-          }}
-        >
-          DUE TODAY
-        </span>
-      )}
-    </div>
-  );
-}
-
-export function PriorityList({ priorities }: { priorities: TodayPriority[] }) {
+      </div> {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   // Load dismissed set from localStorage on mount (client-only)
